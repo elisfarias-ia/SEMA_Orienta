@@ -4,12 +4,14 @@
 
 # Dependências e build
 node_modules/
+dist/
 
 # Vercel
 .vercel/
 
 # Logs
 *.log
+npm-debug.log*
 
 # Arquivos do sistema
 Thumbs.db

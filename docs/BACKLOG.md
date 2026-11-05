@@ -11,11 +11,11 @@
 
 ## M1 — Interface do chat
 
-- [ ] iniciar repositório e estrutura do projeto;
-- [ ] criar cabeçalho e identificação de protótipo;
-- [ ] criar lista de mensagens, campo de texto, enviar e reiniciar;
-- [ ] adaptar para 390 px e navegação por teclado;
-- [ ] usar respostas simuladas claramente identificadas.
+- [x] iniciar repositório e estrutura do projeto;
+- [x] criar cabeçalho e identificação do sistema;
+- [x] criar lista de mensagens, campo de texto, enviar e reiniciar;
+- [x] adaptar para 390 px e navegação por teclado;
+- [x] usar resposta temporária, sem conteúdo ambiental fictício.
 
 **Saída:** conversa navegável sem integração com IA.
 

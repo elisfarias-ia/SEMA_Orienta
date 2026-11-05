@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="SEMA Orienta — Assistente de Serviços Ambientais." />
+    <meta name="theme-color" content="#14532d" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314532d'/%3E%3Cpath d='M23 8C12 8 8 14 8 20c0 2 .6 3.6 1.600 4.800C10 17 15 13 21 11 16 14 12.500 18 11 24.500 12.200 25 13.500 25.200 15 25.200 22 25.200 24 17 23 8Z' fill='%23bbf7d0'/%3E%3C/svg%3E"
+    />
+    <title>SEMA Orienta — Assistente de Serviços Ambientais</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#campo-mensagem">Ir para o campo de mensagem</a>
+
+    <header class="site-header">
+      <div class="site-header__inner">
+        <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <circle cx="24" cy="24" r="24" fill="#bbf7d0" />
+          <path
+            d="M35 12C19 12 12 21 12 30c0 3 .9 5.400 2.400 7.200C15 26 22.500 20 31.500 17 24 21 19 27 16.800 36.800c1.800.8 3.700 1.200 5.700 1.200C33 38 36.500 25.500 35 12Z"
+            fill="#14532d"
+          />
+        </svg>
+        <div class="site-header__text">
+          <h1>SEMA Orienta</h1>
+          <p>Assistente de Serviços Ambientais</p>
+        </div>
+        <span class="badge">Sistema em desenvolvimento</span>
+      </div>
+    </header>
+
+    <main class="chat" aria-label="Conversa com o assistente">
+      <div
+        id="mensagens"
+        class="messages"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="Mensagens da conversa"
+        tabindex="0"
+      ></div>
+
+      <form id="formulario" class="composer" autocomplete="off">
+        <label for="campo-mensagem" class="composer__label">Escreva sua dúvida</label>
+        <textarea
+          id="campo-mensagem"
+          name="mensagem"
+          rows="2"
+          maxlength="1000"
+          placeholder="Digite sua pergunta com suas próprias palavras"
+          aria-describedby="dica-teclado"
+        ></textarea>
+        <p id="dica-teclado" class="composer__hint">Enter envia · Shift + Enter muda de linha</p>
+        <div class="composer__actions">
+          <button type="button" id="botao-reiniciar" class="btn btn--secondary">Reiniciar conversa</button>
+          <button type="submit" class="btn btn--primary">Enviar</button>
+        </div>
+      </form>
+    </main>
+
+    <footer class="site-footer">
+      <p>Este assistente não substitui a análise da SEMA nem o atendimento oficial. Nenhuma conversa é armazenada.</p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

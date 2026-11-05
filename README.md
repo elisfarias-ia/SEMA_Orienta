@@ -79,6 +79,37 @@ sema-orienta/
         └── fontes.json
 ```
 
+## Tecnologias utilizadas
+
+Vite, HTML, CSS e JavaScript (sem framework, sem banco de dados e sem backend nesta etapa).
+
+## Como executar
+
+Pré-requisito: Node.js e npm instalados.
+
+Instalar as dependências e iniciar a aplicação em modo de desenvolvimento:
+
+```bash
+npm install
+npm run dev
+```
+
+O Vite mostra o endereço local, normalmente `http://localhost:5173/`.
+
+Executar os testes automatizados:
+
+```bash
+npm test
+```
+
+Gerar a versão de produção (pasta `dist/`, ignorada pelo Git):
+
+```bash
+npm run build
+```
+
 ## Estado atual
 
-Marco 0 — pacote de contexto concluído. Próximo marco: criar a estrutura do projeto e a primeira interface de chat, ainda sem inventar conteúdo da LAC.
+- Marco 0 — pacote de contexto concluído.
+- Marco 1 — interface inicial do chat concluída: conversa livre, envio por botão e Enter, reinício, layout responsivo (incluindo 390 px) e navegação por teclado. As respostas são temporárias e não trazem conteúdo da LAC.
+- Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.

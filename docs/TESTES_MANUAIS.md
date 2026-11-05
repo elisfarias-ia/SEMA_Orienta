@@ -23,3 +23,29 @@ Não registrar resultado como aprovado antes da execução.
 ## Registro da execução
 
 Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `reprovado` ou `bloqueado`), observação e evidência. Nunca incluir chave ou dados pessoais nas evidências.
+
+### Execução — Marco 1 (interface inicial do chat)
+
+- **Data:** 05/11/2026
+- **Ambiente:** execução local com Vite (`npm run dev`)
+- **Dimensão móvel:** 390 × 844 px
+- **Executado por:** usuária do projeto
+- **Evidência:** capturas de tela realizadas pela usuária
+
+| Verificação manual | Teste relacionado | Resultado |
+|---|---|---|
+| Interface funciona no computador | — | aprovado |
+| Interface funciona em 390 × 844 px, sem rolagem horizontal | T12 | aprovado |
+| Envio pelo botão "Enviar" | — | aprovado |
+| Envio pela tecla Enter | — | aprovado |
+| Shift + Enter cria nova linha sem enviar | — | aprovado |
+| "Reiniciar conversa" restaura a mensagem inicial | T08 (parcial: não há checklist) | aprovado |
+| Foco retorna ao campo após enviar e reiniciar | T13 | aprovado |
+| Navegação pela tecla Tab e foco visível | T13 | aprovado |
+| Link "Ir para o campo de mensagem" aparece ao receber foco | T13 | aprovado |
+| Mensagens do usuário e do assistente legíveis | T12 | aprovado |
+| Ausência na interface de "MVP", "Marco 1", "curso" e "Protótipo acadêmico" | — | aprovado |
+
+**Resultado geral do Marco 1:** aprovado.
+
+**Não executados (funcionalidades ainda inexistentes):** T01 a T07, T09, T10, T11, T14 e T15, relacionados a IA, API, chave, base oficial, checklist, fontes e serviço de demonstração.
