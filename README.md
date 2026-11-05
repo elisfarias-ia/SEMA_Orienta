@@ -70,6 +70,7 @@ sema-orienta/
 │   ├── TESTES_MANUAIS.md
 │   └── BACKLOG.md
 └── services/
+    ├── registry.json
     └── lac/
         ├── service.json
         ├── roteiro.md
