@@ -67,6 +67,9 @@ Estados previstos: `answered`, `clarification_needed`, `not_available` e `error`
 ```text
 services/
 ├── registry.json
+├── schemas/
+│   ├── registry.schema.json
+│   └── service.schema.json
 └── lac/
     ├── service.json
     ├── roteiro.md
@@ -74,6 +77,17 @@ services/
     ├── perguntas-frequentes.json
     └── fontes.json
 ```
+
+### Como a base é organizada
+
+- **Registro central:** `registry.json` lista os serviços (identificador, caminho do `service.json`, status e publicação).
+- **Arquivos por serviço:** cada serviço tem pasta própria, com dados, roteiro, documentos, perguntas frequentes e fontes em arquivos separados.
+- **Relação por `fonteId`:** documentos e perguntas apontam para uma fonte de `fontes.json` pelo `fonteId`; `links` e `legislacao` do `service.json` listam identificadores de fontes.
+- **Tipos de links oficiais:** `legislacao`, `pagina_oficial`, `manual`, `formulario`, `sistema`, `canal_atendimento` e `outro`.
+- **HTTPS:** toda URL cadastrada deve usar `https://` e não pode se repetir.
+- **Sem acesso automático:** `npm run validate:services` confere apenas o formato; nenhum link é acessado nem baixado.
+- **Bloqueio de conteúdo:** serviço ou fonte em `rascunho` ou `em_validacao` não pode ser publicado nem apresentado como oficial, e em `rascunho` o conteúdo material fica `PENDENTE`.
+- **Novos serviços:** entram pelo mesmo caminho, com uma pasta em `services/` e uma entrada no registro, sem alterar o fluxo principal.
 
 ## Decisões de segurança
 

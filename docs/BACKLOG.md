@@ -21,10 +21,23 @@
 
 ## M2 — Base da LAC
 
-- [ ] criar registro de serviços e esquema dos arquivos;
-- [ ] cadastrar apenas conteúdo oficial recebido;
-- [ ] registrar fonte, revisão e status de validação;
-- [ ] bloquear conteúdo pendente ou não validado.
+Concluído (Marco 2A — estrutura):
+
+- [x] criar o registro central de serviços;
+- [x] criar os esquemas dos arquivos;
+- [x] criar a estrutura dos arquivos da LAC;
+- [x] criar a estrutura para fontes e links oficiais;
+- [x] criar a validação automatizada;
+- [x] bloquear a publicação de conteúdo não validado.
+
+Pendente (Marco 2B — conteúdo oficial):
+
+- [ ] receber as fontes oficiais;
+- [ ] cadastrar procedimentos;
+- [ ] cadastrar documentos;
+- [ ] cadastrar legislação;
+- [ ] cadastrar links oficiais;
+- [ ] revisão e validação pela área competente.
 
 **Saída:** base LAC estruturada e rastreável.
 

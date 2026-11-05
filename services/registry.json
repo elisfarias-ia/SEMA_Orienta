@@ -1,0 +1,11 @@
+{
+  "versaoEstrutura": 1,
+  "servicos": [
+    {
+      "id": "lac",
+      "arquivo": "services/lac/service.json",
+      "statusValidacao": "rascunho",
+      "publicado": false
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cadastro de um serviço do SEMA Orienta",
+  "description": "Documentação da estrutura de services/<id>/service.json e dos arquivos complementares (fontes, documentos, perguntas frequentes). A conferência é feita por scripts/validate-services.js. Enquanto o serviço estiver em rascunho, o conteúdo material deve permanecer PENDENTE, null ou lista vazia.",
+  "type": "object",
+  "required": [
+    "id", "nome", "sigla", "categoria", "termosEquivalentes", "arquivos",
+    "statusValidacao", "publicado", "descricao", "publico", "condicoes", "etapas",
+    "unidadeResponsavel", "responsavelValidacao", "dataRevisao", "canalAtendimento",
+    "sistemaInicio", "links", "legislacao", "pendencias"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "nome": { "type": "string", "minLength": 1 },
+    "sigla": { "type": "string", "minLength": 1 },
+    "categoria": { "type": "string", "minLength": 1 },
+    "termosEquivalentes": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "arquivos": {
+      "type": "object",
+      "required": ["roteiro", "documentos", "perguntasFrequentes", "fontes"],
+      "additionalProperties": false,
+      "properties": {
+        "roteiro": { "type": "string" },
+        "documentos": { "type": "string" },
+        "perguntasFrequentes": { "type": "string" },
+        "fontes": { "type": "string" }
+      }
+    },
+    "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+    "publicado": { "type": "boolean" },
+    "descricao": { "type": "string" },
+    "publico": { "type": "string" },
+    "condicoes": { "type": "array", "items": { "type": "string" } },
+    "etapas": { "type": "array", "items": { "type": "string" } },
+    "unidadeResponsavel": { "type": "string" },
+    "responsavelValidacao": { "type": ["string", "null"] },
+    "dataRevisao": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "canalAtendimento": { "$ref": "#/$defs/pontoDeAcesso" },
+    "sistemaInicio": { "$ref": "#/$defs/pontoDeAcesso" },
+    "links": {
+      "type": "array",
+      "description": "Identificadores de fontes cadastradas em fontes.json.",
+      "items": { "type": "string" }
+    },
+    "legislacao": {
+      "type": "array",
+      "description": "Identificadores de fontes do tipo legislacao cadastradas em fontes.json.",
+      "items": { "type": "string" }
+    },
+    "pendencias": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "statusValidacao": { "enum": ["rascunho", "em_validacao", "validado"] },
+    "tipoFonte": {
+      "enum": ["legislacao", "pagina_oficial", "manual", "formulario", "sistema", "canal_atendimento", "outro"]
+    },
+    "pontoDeAcesso": {
+      "type": "object",
+      "required": ["nome", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "nome": { "type": "string" },
+        "url": { "type": ["string", "null"], "description": "null enquanto pendente; quando preenchida, deve usar https://" }
+      }
+    },
+    "fonte": {
+      "type": "object",
+      "required": ["id", "titulo", "tipo", "orgaoResponsavel", "url", "descricao", "dataConsulta", "statusValidacao"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "titulo": { "type": "string", "minLength": 1 },
+        "tipo": { "$ref": "#/$defs/tipoFonte" },
+        "orgaoResponsavel": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^https://", "description": "Somente https; sem duplicidade no arquivo." },
+        "descricao": { "type": "string" },
+        "dataConsulta": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "oficial": { "type": "boolean", "description": "Opcional. Só pode ser true quando statusValidacao for validado." },
+        "publicado": { "type": "boolean", "description": "Opcional. Só pode ser true quando statusValidacao for validado." }
+      }
+    },
+    "arquivoFontes": {
+      "type": "object",
+      "required": ["serviceId", "statusValidacao", "fontes", "pendencia"],
+      "properties": {
+        "serviceId": { "type": "string" },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "fontes": { "type": "array", "items": { "$ref": "#/$defs/fonte" } },
+        "pendencia": { "type": "string" }
+      }
+    },
+    "arquivoDocumentos": {
+      "type": "object",
+      "required": ["serviceId", "statusValidacao", "documentos", "pendencia"],
+      "properties": {
+        "serviceId": { "type": "string" },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "documentos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "nome", "statusValidacao"],
+            "properties": {
+              "id": { "type": "string" },
+              "nome": { "type": "string" },
+              "descricao": { "type": "string" },
+              "obrigatoriedade": { "type": "string" },
+              "condicao": { "type": "string" },
+              "observacao": { "type": "string" },
+              "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json." },
+              "statusValidacao": { "$ref": "#/$defs/statusValidacao" }
+            }
+          }
+        },
+        "pendencia": { "type": "string" }
+      }
+    },
+    "arquivoPerguntas": {
+      "type": "object",
+      "required": ["serviceId", "statusValidacao", "perguntas", "pendencia"],
+      "properties": {
+        "serviceId": { "type": "string" },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "perguntas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "pergunta", "resposta", "statusValidacao"],
+            "properties": {
+              "id": { "type": "string" },
+              "pergunta": { "type": "string" },
+              "resposta": { "type": "string" },
+              "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json." },
+              "statusValidacao": { "$ref": "#/$defs/statusValidacao" }
+            }
+          }
+        },
+        "pendencia": { "type": "string" }
+      }
+    }
+  }
+}

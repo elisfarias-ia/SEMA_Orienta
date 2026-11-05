@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Registro central de serviços do SEMA Orienta",
+  "description": "Documentação da estrutura de services/registry.json. A conferência é feita por scripts/validate-services.js.",
+  "type": "object",
+  "required": ["versaoEstrutura", "servicos"],
+  "additionalProperties": false,
+  "properties": {
+    "versaoEstrutura": { "type": "integer", "minimum": 1 },
+    "servicos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "arquivo", "statusValidacao", "publicado"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "arquivo": {
+            "type": "string",
+            "description": "Caminho relativo à raiz do projeto: services/<id>/service.json"
+          },
+          "statusValidacao": { "enum": ["rascunho", "em_validacao", "validado"] },
+          "publicado": {
+            "type": "boolean",
+            "description": "Só pode ser true quando statusValidacao for validado."
+          }
+        }
+      }
+    }
+  }
+}

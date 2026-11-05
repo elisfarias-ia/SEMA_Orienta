@@ -1,0 +1,52 @@
+{
+  "id": "lac",
+  "nome": "Licença por Adesão e Compromisso",
+  "sigla": "LAC",
+  "categoria": "licenciamento ambiental",
+  "termosEquivalentes": [
+    "LAC",
+    "Licença por Adesão e Compromisso",
+    "licenca por adesao e compromisso"
+  ],
+  "arquivos": {
+    "roteiro": "services/lac/roteiro.md",
+    "documentos": "services/lac/documentos.json",
+    "perguntasFrequentes": "services/lac/perguntas-frequentes.json",
+    "fontes": "services/lac/fontes.json"
+  },
+  "statusValidacao": "rascunho",
+  "publicado": false,
+  "descricao": "PENDENTE",
+  "publico": "PENDENTE",
+  "condicoes": [],
+  "etapas": [],
+  "unidadeResponsavel": "PENDENTE",
+  "responsavelValidacao": null,
+  "dataRevisao": null,
+  "canalAtendimento": {
+    "nome": "PENDENTE",
+    "url": null
+  },
+  "sistemaInicio": {
+    "nome": "PENDENTE",
+    "url": null
+  },
+  "links": [],
+  "legislacao": [],
+  "pendencias": [
+    "descricao",
+    "publico",
+    "condicoes",
+    "etapas",
+    "unidadeResponsavel",
+    "responsavelValidacao",
+    "dataRevisao",
+    "canalAtendimento",
+    "sistemaInicio",
+    "links",
+    "legislacao",
+    "documentos",
+    "perguntasFrequentes",
+    "fontes"
+  ]
+}

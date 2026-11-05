@@ -71,6 +71,9 @@ sema-orienta/
 │   └── BACKLOG.md
 └── services/
     ├── registry.json
+    ├── schemas/
+    │   ├── registry.schema.json
+    │   └── service.schema.json
     └── lac/
         ├── service.json
         ├── roteiro.md
@@ -108,8 +111,25 @@ Gerar a versão de produção (pasta `dist/`, ignorada pelo Git):
 npm run build
 ```
 
+## Base de serviços
+
+A pasta `services/` reúne o cadastro dos serviços ambientais:
+
+- `services/registry.json`: registro central. Lista cada serviço com identificador, caminho do `service.json`, status de validação e indicação de publicação. Novos serviços entram aqui.
+- `services/schemas/`: esquemas que documentam a estrutura do registro e dos serviços.
+- `services/lac/`: pasta do serviço LAC, com `service.json` (dados do serviço), `roteiro.md`, `documentos.json`, `perguntas-frequentes.json` e `fontes.json` (fontes e links oficiais).
+
+Para conferir a estrutura da base:
+
+```bash
+npm run validate:services
+```
+
+A estrutura da base da LAC está pronta, mas o **conteúdo oficial da LAC ainda está pendente** e permanece em `rascunho`, marcado como `PENDENTE`. Somente conteúdo com status `validado` poderá ser publicado ou utilizado futuramente pelo assistente.
+
 ## Estado atual
 
 - Marco 0 — pacote de contexto concluído.
 - Marco 1 — interface inicial do chat concluída: conversa livre, envio por botão e Enter, reinício, layout responsivo (incluindo 390 px) e navegação por teclado. As respostas são temporárias e não trazem conteúdo da LAC.
+- Marco 2A — estrutura da base de conhecimento da LAC concluída (registro, esquemas, arquivos e validação automatizada). O conteúdo oficial segue pendente.
 - Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.
