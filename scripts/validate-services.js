@@ -15,6 +15,7 @@ export const TIPOS_FONTE = [
   'canal_atendimento',
   'outro',
 ];
+export const SITUACOES_VIGENCIA = ['vigente', 'alterada', 'revogada', 'a_confirmar', 'nao_se_aplica'];
 export const PENDENTE = 'PENDENTE';
 
 const SECOES_ROTEIRO = [
@@ -32,6 +33,14 @@ const PADRAO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const textoPreenchido = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** Data no formato AAAA-MM-DD e existente no calendário (rejeita 2026-02-31). */
+export function dataValida(valor) {
+  if (typeof valor !== 'string' || !PADRAO_DATA.test(valor)) return false;
+  const data = new Date(`${valor}T00:00:00Z`);
+  return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
+}
+const dataNulaOuValida = (v) => v === null || dataValida(v);
 
 /** Valida e normaliza uma URL. Retorna { ok, erro, normalizada }. */
 export function analisarUrl(valor) {
@@ -53,6 +62,41 @@ export function analisarUrl(valor) {
   url.hash = '';
   const normalizada = url.href.replace(/\/+$/, '').toLowerCase();
   return { ok: true, normalizada };
+}
+
+/** Controle de vigência de uma fonte: situação, normas relacionadas e coerência com o tipo e a publicação. */
+function validarVigencia(fonte, ref) {
+  const erros = [];
+  const v = fonte.vigencia;
+  if (!ehObjeto(v)) return [`${ref}: vigencia obrigatória, com situacao, normasRelacionadas e observacao`];
+
+  if (!SITUACOES_VIGENCIA.includes(v.situacao)) {
+    erros.push(`${ref}: vigencia.situacao inválida ${JSON.stringify(v.situacao)}`);
+  }
+  if (!Array.isArray(v.normasRelacionadas) || !v.normasRelacionadas.every(textoPreenchido)) {
+    erros.push(`${ref}: vigencia.normasRelacionadas deve ser uma lista de ids`);
+  }
+  if (v.observacao !== null && typeof v.observacao !== 'string') {
+    erros.push(`${ref}: vigencia.observacao deve ser texto ou null`);
+  }
+  if (!SITUACOES_VIGENCIA.includes(v.situacao)) return erros;
+
+  if (fonte.tipo === 'legislacao' && v.situacao === 'nao_se_aplica') {
+    erros.push(`${ref}: fonte do tipo legislacao não pode usar vigencia nao_se_aplica`);
+  }
+  if (TIPOS_FONTE.includes(fonte.tipo) && fonte.tipo !== 'legislacao' && v.situacao !== 'nao_se_aplica') {
+    erros.push(`${ref}: fonte que não é legislação deve usar vigencia nao_se_aplica`);
+  }
+  if (v.situacao === 'revogada' && Array.isArray(v.normasRelacionadas) && v.normasRelacionadas.length === 0) {
+    erros.push(`${ref}: norma revogada deve citar ao menos uma norma em normasRelacionadas`);
+  }
+  if (fonte.publicado === true && v.situacao === 'revogada') {
+    erros.push(`${ref}: norma revogada não pode estar publicada`);
+  }
+  if (fonte.publicado === true && v.situacao === 'a_confirmar') {
+    erros.push(`${ref}: norma com vigência a_confirmar não pode estar publicada`);
+  }
+  return erros;
 }
 
 /**
@@ -94,19 +138,42 @@ export function validarFontes(doc, rotulo = 'fontes') {
     else if (urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
     else urls.add(url.normalizada);
 
-    if (fonte.dataConsulta !== null && !(typeof fonte.dataConsulta === 'string' && PADRAO_DATA.test(fonte.dataConsulta))) {
-      erros.push(`${ref}: dataConsulta deve ser null ou AAAA-MM-DD`);
+    for (const campo of ['dataConsulta', 'dataPublicacao']) {
+      if (!(campo in fonte) || !dataNulaOuValida(fonte[campo])) {
+        erros.push(`${ref}: ${campo} deve ser null ou uma data válida AAAA-MM-DD`);
+      }
     }
+    if ('dispositivoRelevante' in fonte && fonte.dispositivoRelevante !== null && typeof fonte.dispositivoRelevante !== 'string') {
+      erros.push(`${ref}: dispositivoRelevante deve ser texto ou null`);
+    }
+
+    // Origem oficial, validação e publicação são conceitos independentes.
+    if ('oficial' in fonte) erros.push(`${ref}: campo "oficial" foi substituído por "origemOficial"`);
+    if (typeof fonte.origemOficial !== 'boolean') erros.push(`${ref}: origemOficial deve ser booleano`);
+    if (typeof fonte.publicado !== 'boolean') erros.push(`${ref}: publicado deve ser booleano`);
     if (!STATUS_VALIDOS.includes(fonte.statusValidacao)) {
       erros.push(`${ref}: statusValidacao inválido ${JSON.stringify(fonte.statusValidacao)}`);
     } else if (fonte.statusValidacao !== 'validado') {
-      if (fonte.oficial === true) erros.push(`${ref}: fonte não validada não pode ser apresentada como oficial`);
       if (fonte.publicado === true) erros.push(`${ref}: fonte não validada não pode estar publicada`);
     } else if (fonte.dataConsulta === null) {
       erros.push(`${ref}: fonte validada exige dataConsulta`);
     }
     if (doc.statusValidacao === 'rascunho' && fonte.statusValidacao === 'validado') {
       erros.push(`${ref}: arquivo em rascunho não pode conter fonte validada`);
+    }
+    erros.push(...validarVigencia(fonte, ref));
+  });
+
+  // Referências entre normas: somente ids existentes no mesmo arquivo.
+  doc.fontes.forEach((fonte, i) => {
+    const relacionadas = ehObjeto(fonte) && ehObjeto(fonte.vigencia) ? fonte.vigencia.normasRelacionadas : null;
+    if (!Array.isArray(relacionadas)) return;
+    for (const idRelacionado of relacionadas) {
+      if (!ids.has(idRelacionado)) {
+        erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte inexistente "${idRelacionado}"`);
+      } else if (idRelacionado === fonte.id) {
+        erros.push(`${rotulo}[${i}]: normasRelacionadas não pode citar a própria fonte`);
+      }
     }
   });
 
@@ -164,7 +231,8 @@ function validarConteudoPendente(servico, rotulo) {
   for (const campo of ['descricao', 'publico', 'unidadeResponsavel']) {
     if (servico[campo] !== PENDENTE) erros.push(`${rotulo}: "${campo}" deve ser ${PENDENTE} enquanto o serviço estiver em rascunho`);
   }
-  for (const campo of ['condicoes', 'etapas', 'links', 'legislacao']) {
+  // links e legislacao podem referenciar fontes em validação (por id); a publicação segue bloqueada.
+  for (const campo of ['condicoes', 'etapas']) {
     if (!Array.isArray(servico[campo]) || servico[campo].length > 0) {
       erros.push(`${rotulo}: "${campo}" deve ser lista vazia enquanto o serviço estiver em rascunho`);
     }
@@ -187,7 +255,7 @@ function validarServicoValidado(servico, rotulo) {
     if (!textoPreenchido(servico[campo]) || servico[campo] === PENDENTE) erros.push(`${rotulo}: "${campo}" deve estar preenchido em serviço validado`);
   }
   if (!textoPreenchido(servico.responsavelValidacao)) erros.push(`${rotulo}: responsavelValidacao obrigatório em serviço validado`);
-  if (!(typeof servico.dataRevisao === 'string' && PADRAO_DATA.test(servico.dataRevisao))) {
+  if (!dataValida(servico.dataRevisao)) {
     erros.push(`${rotulo}: dataRevisao (AAAA-MM-DD) obrigatória em serviço validado`);
   }
   return erros;
@@ -351,15 +419,37 @@ export function validarServicos(raiz) {
 
     const fontes = arquivos.fontes ? lerJson(raiz, arquivos.fontes, erros, `${rotulo} fontes`) : null;
     const idsFontes = new Set();
+    const fontesPorId = new Map();
     if (fontes) {
       if (fontes.serviceId !== id) erros.push(`${rotulo} fontes: serviceId "${fontes.serviceId}" difere do serviço`);
       erros.push(...validarFontes(fontes, `${rotulo} fontes`));
-      if (Array.isArray(fontes.fontes)) fontes.fontes.forEach((f) => ehObjeto(f) && idsFontes.add(f.id));
+      if (Array.isArray(fontes.fontes)) {
+        fontes.fontes.forEach((f) => {
+          if (ehObjeto(f)) {
+            idsFontes.add(f.id);
+            fontesPorId.set(f.id, f);
+          }
+        });
+      }
     }
     for (const campo of ['links', 'legislacao']) {
       if (Array.isArray(servico[campo])) {
         for (const refFonte of servico[campo]) {
-          if (!idsFontes.has(refFonte)) erros.push(`${rotulo}: ${campo} cita fonte inexistente "${refFonte}"`);
+          const fonteCitada = fontesPorId.get(refFonte);
+          if (!idsFontes.has(refFonte)) {
+            erros.push(`${rotulo}: ${campo} cita fonte inexistente "${refFonte}"`);
+            continue;
+          }
+          if (campo === 'legislacao' && fonteCitada.tipo !== 'legislacao') {
+            erros.push(`${rotulo}: legislacao cita fonte "${refFonte}" que não é do tipo legislacao`);
+          }
+          // Serviço publicado só pode referenciar fonte validada, publicada e não revogada.
+          if (servico.publicado === true) {
+            const vigencia = ehObjeto(fonteCitada.vigencia) ? fonteCitada.vigencia.situacao : null;
+            if (fonteCitada.statusValidacao !== 'validado' || fonteCitada.publicado !== true || vigencia === 'revogada') {
+              erros.push(`${rotulo}: serviço publicado não pode referenciar a fonte "${refFonte}" (não validada, não publicada ou revogada)`);
+            }
+          }
         }
       } else {
         erros.push(`${rotulo}: "${campo}" deve ser uma lista`);

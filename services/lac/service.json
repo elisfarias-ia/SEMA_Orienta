@@ -31,8 +31,13 @@
     "nome": "PENDENTE",
     "url": null
   },
-  "links": [],
-  "legislacao": [],
+  "links": ["sema-orientacoes-lac"],
+  "legislacao": [
+    "lei-complementar-668-2020",
+    "decreto-695-2020",
+    "decreto-1268-2022",
+    "decreto-1585-2022"
+  ],
   "pendencias": [
     "descricao",
     "publico",

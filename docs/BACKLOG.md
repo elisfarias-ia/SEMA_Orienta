@@ -30,14 +30,27 @@ Concluído (Marco 2A — estrutura):
 - [x] criar a validação automatizada;
 - [x] bloquear a publicação de conteúdo não validado.
 
-Pendente (Marco 2B — conteúdo oficial):
+Marco 2B — conteúdo oficial (em andamento; não concluído):
 
-- [ ] receber as fontes oficiais;
-- [ ] cadastrar procedimentos;
-- [ ] cadastrar documentos;
-- [ ] cadastrar legislação;
-- [ ] cadastrar links oficiais;
-- [ ] revisão e validação pela área competente.
+Concluído:
+
+- [x] estruturar o controle de origem oficial das fontes;
+- [x] estruturar o controle de validação e publicação das fontes;
+- [x] estruturar o controle de vigência das legislações;
+- [x] cadastrar fontes preliminares da LAC como em validação;
+- [x] registrar o Decreto nº 695/2020 como norma revogada;
+- [x] validar automaticamente referências entre fontes e serviço.
+
+Pendente:
+
+- [ ] confirmar a vigência das normas pela área competente;
+- [ ] revisar a página da SEMA que ainda cita o Decreto nº 695/2020;
+- [ ] validar e autorizar a publicação das fontes;
+- [ ] cadastrar o conteúdo oficial da LAC;
+- [ ] cadastrar documentos e termos de referência;
+- [ ] cadastrar perguntas frequentes;
+- [ ] definir unidade responsável e canal de atendimento;
+- [ ] registrar responsável pela validação e data da revisão.
 
 **Saída:** base LAC estruturada e rastreável.
 

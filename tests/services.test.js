@@ -8,8 +8,10 @@ import {
   validarServicos,
   validarFontes,
   analisarUrl,
+  dataValida,
   STATUS_VALIDOS,
   TIPOS_FONTE,
+  SITUACOES_VIGENCIA,
 } from '../scripts/validate-services.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -45,10 +47,27 @@ const fonteValida = (extra = {}) => ({
   orgaoResponsavel: 'Órgão de teste',
   url: 'https://exemplo.test/pagina',
   descricao: 'Dado temporário de teste.',
-  dataConsulta: '2026-01-01',
+  origemOficial: true,
   statusValidacao: 'validado',
+  publicado: false,
+  dataPublicacao: null,
+  dataConsulta: '2026-01-01',
+  dispositivoRelevante: null,
+  vigencia: { situacao: 'nao_se_aplica', normasRelacionadas: [], observacao: null },
   ...extra,
 });
+/** Norma criada somente em memória (dado de teste). */
+const normaValida = (extra = {}) =>
+  fonteValida({
+    id: 'norma-teste-1',
+    titulo: 'Norma de teste',
+    tipo: 'legislacao',
+    url: 'https://exemplo.test/norma',
+    vigencia: { situacao: 'vigente', normasRelacionadas: [], observacao: null },
+    ...extra,
+  });
+const vigencia = (situacao, normasRelacionadas = []) => ({ situacao, normasRelacionadas, observacao: null });
+const fonteReal = (id) => lerJson('services', 'lac', 'fontes.json').fontes.find((f) => f.id === id);
 const arquivoFontes = (fontes, extra = {}) => ({
   serviceId: 'lac',
   statusValidacao: 'validado',
@@ -97,10 +116,10 @@ test('5. a LAC não está publicada', () => {
   assert.equal(lerJson('services', 'lac', 'service.json').publicado, false);
 });
 
-test('6. listas de documentos, perguntas e fontes estão vazias', () => {
+test('6. listas de documentos e perguntas continuam vazias; há 5 fontes preliminares', () => {
   assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
-  assert.deepEqual(lerJson('services', 'lac', 'fontes.json').fontes, []);
+  assert.equal(lerJson('services', 'lac', 'fontes.json').fontes.length, 5);
 });
 
 test('a base real passa na validação', () => {
@@ -125,6 +144,7 @@ test('os esquemas listam os mesmos status e tipos usados no validador', () => {
   const schema = lerJson('services', 'schemas', 'service.schema.json');
   assert.deepEqual(schema.$defs.statusValidacao.enum, STATUS_VALIDOS);
   assert.deepEqual(schema.$defs.tipoFonte.enum, TIPOS_FONTE);
+  assert.deepEqual(schema.$defs.situacaoVigencia.enum, SITUACOES_VIGENCIA);
   const registro = lerJson('services', 'schemas', 'registry.schema.json');
   assert.deepEqual(registro.properties.servicos.items.properties.statusValidacao.enum, STATUS_VALIDOS);
 });
@@ -255,15 +275,13 @@ test('F6. rejeita fonte sem título', () => {
   assert.ok(erros.some((e) => /título obrigatório/.test(e)), erros.join('\n'));
 });
 
-test('F7. rejeita fonte publicada ou oficial sem status validado', () => {
-  const publicada = validarFontes(
-    arquivoFontes([fonteValida({ statusValidacao: 'em_validacao', publicado: true })], { statusValidacao: 'em_validacao' }),
-  );
-  assert.ok(publicada.some((e) => /não pode estar publicada/.test(e)), publicada.join('\n'));
-  const oficial = validarFontes(
-    arquivoFontes([fonteValida({ statusValidacao: 'rascunho', oficial: true })], { statusValidacao: 'em_validacao' }),
-  );
-  assert.ok(oficial.some((e) => /não pode ser apresentada como oficial/.test(e)), oficial.join('\n'));
+test('F7. rejeita fonte publicada sem status validado', () => {
+  for (const status of ['rascunho', 'em_validacao']) {
+    const erros = validarFontes(
+      arquivoFontes([fonteValida({ statusValidacao: status, publicado: true })], { statusValidacao: 'em_validacao' }),
+    );
+    assert.ok(erros.some((e) => /não validada não pode estar publicada/.test(e)), erros.join('\n'));
+  }
 });
 
 test('rejeita id de fonte duplicado, órgão vazio e status inválido', () => {
@@ -296,6 +314,10 @@ test('fonte em arquivo temporário referenciada pelo serviço é aceita; referê
   comCopia(({ dir, editarJson }) => {
     editarJson('services/lac/fontes.json', (f) => {
       f.fontes = [fonteValida({ statusValidacao: 'rascunho', dataConsulta: null })];
+    });
+    editarJson('services/lac/service.json', (s) => {
+      s.links = ['fonte-teste-1'];
+      s.legislacao = [];
     });
     assert.deepEqual(validarServicos(dir).erros, []);
     editarJson('services/lac/documentos.json', (d) => {

@@ -66,7 +66,11 @@
     },
     "fonte": {
       "type": "object",
-      "required": ["id", "titulo", "tipo", "orgaoResponsavel", "url", "descricao", "dataConsulta", "statusValidacao"],
+      "required": [
+        "id", "titulo", "tipo", "orgaoResponsavel", "url", "descricao", "origemOficial",
+        "statusValidacao", "publicado", "dataPublicacao", "dataConsulta", "vigencia"
+      ],
+      "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "titulo": { "type": "string", "minLength": 1 },
@@ -74,10 +78,37 @@
         "orgaoResponsavel": { "type": "string", "minLength": 1 },
         "url": { "type": "string", "pattern": "^https://", "description": "Somente https; sem duplicidade no arquivo." },
         "descricao": { "type": "string" },
-        "dataConsulta": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "origemOficial": {
+          "type": "boolean",
+          "description": "Indica apenas que a fonte pertence a órgão público ou fonte institucional oficial. Não significa conteúdo validado."
+        },
         "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
-        "oficial": { "type": "boolean", "description": "Opcional. Só pode ser true quando statusValidacao for validado." },
-        "publicado": { "type": "boolean", "description": "Opcional. Só pode ser true quando statusValidacao for validado." }
+        "publicado": {
+          "type": "boolean",
+          "description": "Só pode ser true quando statusValidacao for validado. Fonte revogada ou com vigência a_confirmar nunca pode ser publicada."
+        },
+        "dataPublicacao": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "dataConsulta": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "dispositivoRelevante": { "type": ["string", "null"] },
+        "vigencia": { "$ref": "#/$defs/vigencia" }
+      }
+    },
+    "situacaoVigencia": { "enum": ["vigente", "alterada", "revogada", "a_confirmar", "nao_se_aplica"] },
+    "vigencia": {
+      "type": "object",
+      "required": ["situacao", "normasRelacionadas", "observacao"],
+      "additionalProperties": false,
+      "properties": {
+        "situacao": {
+          "$ref": "#/$defs/situacaoVigencia",
+          "description": "Fonte do tipo legislacao não usa nao_se_aplica; as demais usam somente nao_se_aplica."
+        },
+        "normasRelacionadas": {
+          "type": "array",
+          "description": "Ids de fontes do mesmo fontes.json. Obrigatório ao menos um quando a situação for revogada.",
+          "items": { "type": "string" }
+        },
+        "observacao": { "type": ["string", "null"] }
       }
     },
     "arquivoFontes": {

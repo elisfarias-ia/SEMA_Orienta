@@ -1,6 +1,102 @@
 {
   "serviceId": "lac",
   "statusValidacao": "rascunho",
-  "fontes": [],
-  "pendencia": "PENDENTE: cadastrar e validar as fontes oficiais da LAC."
+  "fontes": [
+    {
+      "id": "sema-orientacoes-lac",
+      "titulo": "Saiba mais sobre a Licença por Adesão e Compromisso (LAC)",
+      "tipo": "pagina_oficial",
+      "orgaoResponsavel": "Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT",
+      "url": "https://www.sema.mt.gov.br/site/index.php/sema/%C3%BAltimos-avisos/5299-saiba-mais-sobre-a-licen%C3%A7a-por-ades%C3%A3o-e-compromisso-lac",
+      "descricao": "Página institucional com orientações gerais e etapas para solicitação da LAC no SIGA. O conteúdo precisa ser conferido pela área competente porque ainda referencia o Decreto nº 695/2020.",
+      "origemOficial": true,
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "dataPublicacao": "2020-11-24",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": null,
+      "vigencia": {
+        "situacao": "nao_se_aplica",
+        "normasRelacionadas": [],
+        "observacao": "A página institucional ainda referencia o Decreto nº 695/2020, posteriormente revogado."
+      }
+    },
+    {
+      "id": "lei-complementar-668-2020",
+      "titulo": "Lei Complementar nº 668, de 24 de julho de 2020",
+      "tipo": "legislacao",
+      "orgaoResponsavel": "Governo do Estado de Mato Grosso / IOMAT",
+      "url": "https://www.iomat.mt.gov.br/portal/visualizacoes/html/15979/#e:15979/#m:1178629",
+      "descricao": "Norma que alterou a Lei Complementar nº 592/2017 e inseriu disposições relacionadas à Licença por Adesão e Compromisso.",
+      "origemOficial": true,
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "dataPublicacao": "2020-07-27",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": "Artigos que alteram o art. 31 e incluem o art. 31-A na Lei Complementar nº 592/2017.",
+      "vigencia": {
+        "situacao": "a_confirmar",
+        "normasRelacionadas": [],
+        "observacao": "A situação consolidada dos dispositivos deve ser confirmada pela área competente antes da publicação."
+      }
+    },
+    {
+      "id": "decreto-695-2020",
+      "titulo": "Decreto nº 695, de 29 de outubro de 2020",
+      "tipo": "legislacao",
+      "orgaoResponsavel": "Governo do Estado de Mato Grosso / IOMAT",
+      "url": "https://www.iomat.mt.gov.br/portal/visualizacoes/html/16082/#e:16082/#m:1199813",
+      "descricao": "Norma histórica que continha enquadramentos de atividades e empreendimentos para licenciamento ambiental, incluindo a LAC.",
+      "origemOficial": true,
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "dataPublicacao": "2020-10-29",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": "Anexo II original.",
+      "vigencia": {
+        "situacao": "revogada",
+        "normasRelacionadas": ["decreto-1268-2022"],
+        "observacao": "Revogado expressamente pelo art. 12 do Decreto nº 1.268/2022. Não utilizar para orientar o enquadramento atual."
+      }
+    },
+    {
+      "id": "decreto-1268-2022",
+      "titulo": "Decreto nº 1.268, de 25 de janeiro de 2022",
+      "tipo": "legislacao",
+      "orgaoResponsavel": "Governo do Estado de Mato Grosso / IOMAT",
+      "url": "https://iomat.mt.gov.br/legislacao/diario_oficial/detalhes/93091",
+      "descricao": "Norma que substituiu o Decreto nº 695/2020 e redefiniu os anexos de enquadramento do licenciamento ambiental.",
+      "origemOficial": true,
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "dataPublicacao": "2022-01-25",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": "Artigos 9º, 12 e anexos de enquadramento aplicáveis.",
+      "vigencia": {
+        "situacao": "alterada",
+        "normasRelacionadas": ["decreto-1585-2022"],
+        "observacao": "Os anexos foram posteriormente alterados pelo Decreto nº 1.585/2022. A situação consolidada deve ser validada pela área competente."
+      }
+    },
+    {
+      "id": "decreto-1585-2022",
+      "titulo": "Decreto nº 1.585, de 21 de dezembro de 2022",
+      "tipo": "legislacao",
+      "orgaoResponsavel": "Governo do Estado de Mato Grosso / IOMAT",
+      "url": "https://iomat.mt.gov.br/legislacao/diario_oficial/detalhes/46563",
+      "descricao": "Norma que alterou os anexos do Decreto nº 1.268/2022.",
+      "origemOficial": true,
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "dataPublicacao": "2022-12-22",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": "Artigo 1º e anexos alterados.",
+      "vigencia": {
+        "situacao": "a_confirmar",
+        "normasRelacionadas": ["decreto-1268-2022"],
+        "observacao": "Deve ser analisado em conjunto com o Decreto nº 1.268/2022 e validado pela área competente."
+      }
+    }
+  ],
+  "pendencia": "PENDENTE: validar, pela área competente, as fontes preliminares da LAC e a situação de vigência das normas."
 }

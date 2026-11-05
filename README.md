@@ -127,6 +127,8 @@ npm run validate:services
 
 A estrutura da base da LAC está pronta, mas o **conteúdo oficial da LAC ainda está pendente** e permanece em `rascunho`, marcado como `PENDENTE`. Somente conteúdo com status `validado` poderá ser publicado ou utilizado futuramente pelo assistente.
 
+Há fontes oficiais preliminares da LAC cadastradas em `services/lac/fontes.json`, todas em `em_validacao` e não publicadas. Ter origem oficial não significa conteúdo validado, e a situação de vigência de cada norma ainda depende de confirmação pela área competente.
+
 ## Estado atual
 
 - Marco 0 — pacote de contexto concluído.
