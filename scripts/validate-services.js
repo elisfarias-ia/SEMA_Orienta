@@ -115,6 +115,7 @@ export function validarFontes(doc, rotulo = 'fontes') {
   }
 
   const ids = new Set();
+  const tiposPorId = new Map();
   const urls = new Set();
   doc.fontes.forEach((fonte, i) => {
     const ref = `${rotulo}[${i}]`;
@@ -124,7 +125,10 @@ export function validarFontes(doc, rotulo = 'fontes') {
     }
     if (!textoPreenchido(fonte.id)) erros.push(`${ref}: id obrigatório`);
     else if (ids.has(fonte.id)) erros.push(`${ref}: id duplicado "${fonte.id}"`);
-    else ids.add(fonte.id);
+    else {
+      ids.add(fonte.id);
+      tiposPorId.set(fonte.id, fonte.tipo);
+    }
 
     if (!textoPreenchido(fonte.titulo)) erros.push(`${ref}: título obrigatório`);
     if (!TIPOS_FONTE.includes(fonte.tipo)) {
@@ -173,6 +177,9 @@ export function validarFontes(doc, rotulo = 'fontes') {
         erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte inexistente "${idRelacionado}"`);
       } else if (idRelacionado === fonte.id) {
         erros.push(`${rotulo}[${i}]: normasRelacionadas não pode citar a própria fonte`);
+      } else if (fonte.tipo !== 'legislacao' && tiposPorId.get(idRelacionado) !== 'legislacao') {
+        // Fonte não legislativa (manual, FAQ, TR...) só pode relacionar legislação, nunca outra fonte documental.
+        erros.push(`${rotulo}[${i}]: fonte não legislativa só pode relacionar fontes do tipo legislacao ("${idRelacionado}" não é)`);
       }
     }
   });

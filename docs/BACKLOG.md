@@ -37,20 +37,29 @@ Concluído:
 - [x] estruturar o controle de origem oficial das fontes;
 - [x] estruturar o controle de validação e publicação das fontes;
 - [x] estruturar o controle de vigência das legislações;
-- [x] cadastrar fontes preliminares da LAC como em validação;
+- [x] cadastrar as cinco fontes preliminares da LAC (página da SEMA e quatro normas);
 - [x] registrar o Decreto nº 695/2020 como norma revogada;
-- [x] validar automaticamente referências entre fontes e serviço.
+- [x] validar automaticamente referências entre fontes e serviço;
+- [x] cadastrar o TR nº 176, o Manual da LAC e o FAQ da LAC como fontes oficiais;
+- [x] validar a identidade, a procedência e os metadados das oito fontes para fins de teste;
+- [x] relacionar as fontes documentais ao serviço LAC;
+- [x] validar referências de fontes documentais para legislações;
+- [x] impedir a publicação automática de fontes apenas por estarem validadas.
+
+> Nota: a validação realizada nesta etapa é experimental e abrange identidade, procedência e metadados das fontes. Não representa aprovação jurídica, confirmação de atualização integral ou autorização de publicação.
 
 Pendente:
 
-- [ ] confirmar a vigência das normas pela área competente;
-- [ ] revisar a página da SEMA que ainda cita o Decreto nº 695/2020;
-- [ ] validar e autorizar a publicação das fontes;
+- [ ] confirmar a vigência consolidada das normas;
+- [ ] confirmar a atualização material do TR, manual, FAQ e página da SEMA;
+- [ ] decidir quais fontes poderão ser publicadas;
 - [ ] cadastrar o conteúdo oficial da LAC;
-- [ ] cadastrar documentos e termos de referência;
+- [ ] cadastrar documentos e checklist;
 - [ ] cadastrar perguntas frequentes;
+- [ ] cadastrar o roteiro de atendimento;
 - [ ] definir unidade responsável e canal de atendimento;
-- [ ] registrar responsável pela validação e data da revisão.
+- [ ] registrar responsável pela validação e data de revisão;
+- [ ] integrar a base ao assistente.
 
 **Saída:** base LAC estruturada e rastreável.
 

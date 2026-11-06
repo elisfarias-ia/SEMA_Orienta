@@ -31,7 +31,12 @@
     "nome": "PENDENTE",
     "url": null
   },
-  "links": ["sema-orientacoes-lac"],
+  "links": [
+    "sema-orientacoes-lac",
+    "tr-176-lac",
+    "manual-lac-siga-2020",
+    "faq-lac-2022"
+  ],
   "legislacao": [
     "lei-complementar-668-2020",
     "decreto-695-2020",

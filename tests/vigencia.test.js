@@ -146,7 +146,7 @@ test('V9. o Decreto nº 695/2020 está registrado como revogado e não publicado
   assert.equal(decreto.vigencia.situacao, 'revogada');
   assert.deepEqual(decreto.vigencia.normasRelacionadas, ['decreto-1268-2022']);
   assert.equal(decreto.publicado, false);
-  assert.equal(decreto.statusValidacao, 'em_validacao');
+  assert.equal(decreto.statusValidacao, 'validado');
   assert.equal(decreto.origemOficial, true);
 });
 
@@ -164,7 +164,7 @@ test('V9b. a validação rejeita publicar o Decreto nº 695/2020 (cópia tempor�
 
 test('V10. service.json referencia as fontes por id', () => {
   const servico = lerJson('services', 'lac', 'service.json');
-  assert.deepEqual(servico.links, ['sema-orientacoes-lac']);
+  assert.deepEqual(servico.links, ['sema-orientacoes-lac', 'tr-176-lac', 'manual-lac-siga-2020', 'faq-lac-2022']);
   assert.deepEqual(servico.legislacao, [
     'lei-complementar-668-2020',
     'decreto-695-2020',
@@ -204,9 +204,9 @@ test('V10c. serviço publicado não pode referenciar fonte não validada (cópia
 
 test('V11. nada da LAC está publicado e o serviço segue em rascunho', () => {
   const fontes = lerJson('services', 'lac', 'fontes.json');
-  assert.equal(fontes.statusValidacao, 'rascunho');
+  assert.equal(fontes.statusValidacao, 'em_validacao');
   assert.ok(fontes.fontes.every((f) => f.publicado === false));
-  assert.ok(fontes.fontes.every((f) => f.statusValidacao === 'em_validacao'));
+  assert.ok(fontes.fontes.every((f) => f.statusValidacao === 'validado'));
   const servico = lerJson('services', 'lac', 'service.json');
   assert.equal(servico.statusValidacao, 'rascunho');
   assert.equal(servico.publicado, false);

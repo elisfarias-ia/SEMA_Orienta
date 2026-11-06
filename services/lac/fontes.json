@@ -1,6 +1,6 @@
 {
   "serviceId": "lac",
-  "statusValidacao": "rascunho",
+  "statusValidacao": "em_validacao",
   "fontes": [
     {
       "id": "sema-orientacoes-lac",
@@ -10,7 +10,7 @@
       "url": "https://www.sema.mt.gov.br/site/index.php/sema/%C3%BAltimos-avisos/5299-saiba-mais-sobre-a-licen%C3%A7a-por-ades%C3%A3o-e-compromisso-lac",
       "descricao": "Página institucional com orientações gerais e etapas para solicitação da LAC no SIGA. O conteúdo precisa ser conferido pela área competente porque ainda referencia o Decreto nº 695/2020.",
       "origemOficial": true,
-      "statusValidacao": "em_validacao",
+      "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2020-11-24",
       "dataConsulta": "2026-11-05",
@@ -29,7 +29,7 @@
       "url": "https://www.iomat.mt.gov.br/portal/visualizacoes/html/15979/#e:15979/#m:1178629",
       "descricao": "Norma que alterou a Lei Complementar nº 592/2017 e inseriu disposições relacionadas à Licença por Adesão e Compromisso.",
       "origemOficial": true,
-      "statusValidacao": "em_validacao",
+      "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2020-07-27",
       "dataConsulta": "2026-11-05",
@@ -48,7 +48,7 @@
       "url": "https://www.iomat.mt.gov.br/portal/visualizacoes/html/16082/#e:16082/#m:1199813",
       "descricao": "Norma histórica que continha enquadramentos de atividades e empreendimentos para licenciamento ambiental, incluindo a LAC.",
       "origemOficial": true,
-      "statusValidacao": "em_validacao",
+      "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2020-10-29",
       "dataConsulta": "2026-11-05",
@@ -67,7 +67,7 @@
       "url": "https://iomat.mt.gov.br/legislacao/diario_oficial/detalhes/93091",
       "descricao": "Norma que substituiu o Decreto nº 695/2020 e redefiniu os anexos de enquadramento do licenciamento ambiental.",
       "origemOficial": true,
-      "statusValidacao": "em_validacao",
+      "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2022-01-25",
       "dataConsulta": "2026-11-05",
@@ -86,7 +86,7 @@
       "url": "https://iomat.mt.gov.br/legislacao/diario_oficial/detalhes/46563",
       "descricao": "Norma que alterou os anexos do Decreto nº 1.268/2022.",
       "origemOficial": true,
-      "statusValidacao": "em_validacao",
+      "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2022-12-22",
       "dataConsulta": "2026-11-05",
@@ -96,7 +96,64 @@
         "normasRelacionadas": ["decreto-1268-2022"],
         "observacao": "Deve ser analisado em conjunto com o Decreto nº 1.268/2022 e validado pela área competente."
       }
+    },
+    {
+      "id": "tr-176-lac",
+      "titulo": "Termo de Referência Padrão nº 176/SUIMIS/SEMA/MT — LAC",
+      "tipo": "outro",
+      "orgaoResponsavel": "Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT",
+      "url": "https://sema.mt.gov.br/site/phocadownload/Termo_de_ref/TERMO%20DE%20REFERENCIA%20-%20TR%20N%20176_SUIMIS_SEMA_MT%20LAC.docx",
+      "descricao": "Termo de Referência com a relação de documentos, estudos, planos e projetos apresentados para o requerimento da LAC. A fonte foi conferida para fins de teste, mas suas exigências ainda precisam de confirmação quanto à atualização.",
+      "origemOficial": true,
+      "statusValidacao": "validado",
+      "publicado": false,
+      "dataPublicacao": "2020-12-07",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": null,
+      "vigencia": {
+        "situacao": "nao_se_aplica",
+        "normasRelacionadas": [],
+        "observacao": "Fonte oficial validada quanto à identidade e procedência. Confirmar se o TR nº 176 continua atualizado antes de publicar seu conteúdo."
+      }
+    },
+    {
+      "id": "manual-lac-siga-2020",
+      "titulo": "Manual da Licença por Adesão e Compromisso no SIGA",
+      "tipo": "manual",
+      "orgaoResponsavel": "Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT",
+      "url": "https://sema.mt.gov.br/site/phocadownload/SEMAMT%20-%20LAC%20-%20MANUAL.pdf",
+      "descricao": "Manual com o fluxo e as telas utilizadas para solicitar a LAC no SIGA. A fonte foi validada para fins de teste, mas as telas e os requisitos técnicos precisam ser comparados com o sistema atual.",
+      "origemOficial": true,
+      "statusValidacao": "validado",
+      "publicado": false,
+      "dataPublicacao": "2020-11-30",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": null,
+      "vigencia": {
+        "situacao": "nao_se_aplica",
+        "normasRelacionadas": [],
+        "observacao": "Fonte oficial validada quanto à identidade e procedência. Confirmar telas, fluxo, tamanho dos arquivos e requisitos técnicos antes de publicar seu conteúdo."
+      }
+    },
+    {
+      "id": "faq-lac-2022",
+      "titulo": "Perguntas e Respostas sobre a Licença por Adesão e Compromisso",
+      "tipo": "outro",
+      "orgaoResponsavel": "Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT",
+      "url": "https://sema.mt.gov.br/site/phocadownload/FAQ%20da%20LAC_revisado%202%201.pdf",
+      "descricao": "Documento oficial de perguntas frequentes sobre ART, responsável legal, uso de água, enquadramento, Termo de Referência, prazo, validade, taxa, imóvel, assinatura e pendências da LAC.",
+      "origemOficial": true,
+      "statusValidacao": "validado",
+      "publicado": false,
+      "dataPublicacao": "2022-05-31",
+      "dataConsulta": "2026-11-05",
+      "dispositivoRelevante": null,
+      "vigencia": {
+        "situacao": "nao_se_aplica",
+        "normasRelacionadas": ["decreto-1268-2022"],
+        "observacao": "Fonte oficial validada quanto à identidade e procedência. O conteúdo menciona o Decreto nº 1.268/2022, posteriormente alterado, e precisa de revisão antes da publicação."
+      }
     }
   ],
-  "pendencia": "PENDENTE: validar, pela área competente, as fontes preliminares da LAC e a situação de vigência das normas."
+  "pendencia": "PENDENTE: as fontes tiveram identidade e procedência validadas para fins de teste, mas nenhuma está publicada. Confirmar vigência das normas e atualização do conteúdo de cada fonte antes de qualquer publicação."
 }
