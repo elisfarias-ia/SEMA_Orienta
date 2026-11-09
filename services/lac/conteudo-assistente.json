@@ -1,0 +1,79 @@
+{
+  "serviceId": "lac",
+  "statusValidacao": "em_validacao",
+  "autorizacao": {
+    "escopo": "teste_local",
+    "data": "2026-11-09",
+    "aprovacaoMaterial": false,
+    "aprovacaoPublica": false,
+    "observacao": "Autoriza somente a demonstração local controlada destes blocos. Não representa aprovação material do conteúdo, validação pela área competente nem publicação."
+  },
+  "blocos": [
+    {
+      "id": "lac-limitacoes",
+      "tipo": "limitacao",
+      "texto": "O SEMA Orienta apenas orienta: não concede licença, não decide se uma atividade pode obter a LAC, não promete aprovação, prazo ou emissão e não substitui a análise da SEMA. Este conteúdo está em validação e pode estar desatualizado.",
+      "origem": "regra_institucional",
+      "fonteIds": [],
+      "ambiente": "teste_local",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente"
+    },
+    {
+      "id": "lac-descricao",
+      "tipo": "descricao",
+      "texto": "Segundo a página oficial da SEMA-MT, a Licença por Adesão e Compromisso (LAC) é uma modalidade de licenciamento ambiental, e a solicitação é feita de forma digital pelo SIGA. A página é de 2020 e a legislação aplicável, com sua situação de vigência, ainda precisa ser confirmada pela área competente.",
+      "origem": "fonte",
+      "fonteIds": [
+        "sema-orientacoes-lac"
+      ],
+      "ambiente": "teste_local",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "aviso": "Conteúdo em validação, baseado em página oficial de 2020; pode estar desatualizado."
+    },
+    {
+      "id": "lac-sequencia-geral",
+      "tipo": "sequencia",
+      "texto": "Fluxo de referência descrito em uma página oficial da SEMA-MT de 2020; as telas e as etapas atuais podem ter mudado, confirme com a SEMA. 1. Acessar o SIGA. 2. Iniciar um novo requerimento e selecionar a LAC. 3. Informar a atividade, a localização, os responsáveis e os dados geográficos. 4. Conferir os dados da atividade. 5. Inserir a documentação solicitada. 6. Ler e concordar com o termo de responsabilidade e enviar o requerimento. O que acontece depois do envio não está disponível neste teste.",
+      "origem": "fonte",
+      "fonteIds": [
+        "sema-orientacoes-lac"
+      ],
+      "ambiente": "teste_local",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "aviso": "Conteúdo em validação, baseado em página oficial de 2020; pode estar desatualizado."
+    },
+    {
+      "id": "lac-link-oficial",
+      "tipo": "link",
+      "texto": "Página oficial da SEMA-MT sobre a LAC (conteúdo de 2020; pode estar desatualizado): https://www.sema.mt.gov.br/site/index.php/sema/%C3%BAltimos-avisos/5299-saiba-mais-sobre-a-licen%C3%A7a-por-ades%C3%A3o-e-compromisso-lac. A página cita uma norma de enquadramento cuja situação precisa ser confirmada; não a use para decidir enquadramento.",
+      "origem": "fonte",
+      "fonteIds": [
+        "sema-orientacoes-lac"
+      ],
+      "ambiente": "teste_local",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "aviso": "Link de página oficial de 2020; pode estar desatualizado.",
+      "url": "https://www.sema.mt.gov.br/site/index.php/sema/%C3%BAltimos-avisos/5299-saiba-mais-sobre-a-licen%C3%A7a-por-ades%C3%A3o-e-compromisso-lac"
+    },
+    {
+      "id": "lac-sem-conteudo",
+      "tipo": "sem_conteudo",
+      "texto": "Não encontrei informação validada na base do SEMA Orienta para responder a essa pergunta. Consulte os canais oficiais da SEMA ou reformule sua dúvida.",
+      "origem": "regra_institucional",
+      "fonteIds": [],
+      "ambiente": "teste_local",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente"
+    }
+  ],
+  "pendencia": "PENDENTE: blocos disponíveis apenas no modo teste_local, sem publicação. Documentos e perguntas frequentes não fazem parte deste conteúdo e continuam indisponíveis ao assistente."
+}

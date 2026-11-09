@@ -12,7 +12,8 @@
     "roteiro": "services/lac/roteiro.md",
     "documentos": "services/lac/documentos.json",
     "perguntasFrequentes": "services/lac/perguntas-frequentes.json",
-    "fontes": "services/lac/fontes.json"
+    "fontes": "services/lac/fontes.json",
+    "conteudoAssistente": "services/lac/conteudo-assistente.json"
   },
   "statusValidacao": "em_validacao",
   "publicado": false,

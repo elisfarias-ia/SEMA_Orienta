@@ -39,6 +39,8 @@ export const TEMAS_PERGUNTA = [
   'correcao',
   'outro',
 ];
+export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'link', 'sem_conteudo'];
+export const AMBIENTES_ASSISTENTE = ['teste_local', 'publico'];
 export const BLOQUEIOS_PERGUNTA = [
   'desatualizacao',
   'vigencia',
@@ -464,6 +466,130 @@ export function validarPerguntas(doc, { rotulo = 'perguntas', idServico, fontesP
   return erros;
 }
 
+// Temas que não podem aparecer em bloco de teste local (ficam bloqueados até validação da área competente).
+const CONTEUDO_PROIBIDO_NO_TESTE = [
+  [/\bUPFs?\b|R\$\s?\d/i, 'valor ou taxa'],
+  [/\b\d+\s*(dias?|anos?|meses|horas?)\b|\b(dois|três|dez|seis)\s+(dias|anos|meses)\b/i, 'prazo ou validade'],
+  [/\b(Decreto|Lei|Resolução|Portaria|Instrução Normativa)\b/i, 'norma'],
+  // Afirmar que uma norma está vigente é confirmação jurídica que o conteúdo em teste não pode fazer.
+  // Avisos como "norma pendente de confirmação" ou "situação de vigência a confirmar" continuam permitidos.
+  [/\b(est[áa]|est[ãa]o|[ée]|s[ãa]o|continua|continuam|permanece|permanecem|segue|seguem|encontra-se|encontram-se)\s+(plenamente\s+|atualmente\s+)?(vigentes?|em vigor)\b|\b(norma|decreto|lei|resolu[çc][ãa]o|legisla[çc][ãa]o)s?\s+(vigentes?|em vigor)\b/i, 'norma apresentada como vigente'],
+  [/\bobrigat[óo]ri/i, 'obrigatoriedade documental'],
+  [/e-?sac/i, 'canal de protocolo'],
+];
+
+/**
+ * Valida o arquivo de conteúdo do assistente (blocos por ambiente).
+ * Bloco teste_local nunca é publicado nem validado; a autorização de teste não é aprovação material nem pública.
+ */
+export function validarConteudoAssistente(doc, { rotulo = 'conteudoAssistente', idServico, fontesPorId = new Map() } = {}) {
+  const erros = [];
+  if (!ehObjeto(doc)) return [`${rotulo}: conteúdo deve ser um objeto`];
+  if (idServico !== undefined && doc.serviceId !== idServico) {
+    erros.push(`${rotulo}: serviceId "${doc.serviceId}" difere do serviço "${idServico}"`);
+  }
+  if (!STATUS_VALIDOS.includes(doc.statusValidacao)) {
+    erros.push(`${rotulo}: statusValidacao inválido ${JSON.stringify(doc.statusValidacao)}`);
+  }
+  if (!Array.isArray(doc.blocos)) {
+    erros.push(`${rotulo}: "blocos" deve ser uma lista`);
+    return erros;
+  }
+
+  const temBlocoDeTeste = doc.blocos.some((b) => ehObjeto(b) && b.ambiente === 'teste_local');
+  const a = doc.autorizacao;
+  if (a !== undefined && !ehObjeto(a)) {
+    erros.push(`${rotulo}: autorizacao deve ser um objeto`);
+  } else if (a === undefined) {
+    if (temBlocoDeTeste) erros.push(`${rotulo}: bloco teste_local exige autorizacao estruturada`);
+  } else {
+    if (a.escopo !== 'teste_local') erros.push(`${rotulo}: autorizacao.escopo deve ser "teste_local"`);
+    if (!dataValida(a.data)) erros.push(`${rotulo}: autorizacao.data deve ser uma data válida AAAA-MM-DD`);
+    if (a.aprovacaoMaterial !== false) erros.push(`${rotulo}: autorizacao.aprovacaoMaterial deve ser false (a autorização de teste não é aprovação material)`);
+    if (a.aprovacaoPublica !== false) erros.push(`${rotulo}: autorizacao.aprovacaoPublica deve ser false (a autorização de teste não é aprovação pública)`);
+    if (!textoPreenchido(a.observacao)) erros.push(`${rotulo}: autorizacao.observacao obrigatória`);
+  }
+
+  const ids = new Set();
+  doc.blocos.forEach((b, i) => {
+    const ref = `${rotulo}[${i}]`;
+    if (!ehObjeto(b)) {
+      erros.push(`${ref}: bloco deve ser um objeto`);
+      return;
+    }
+    if (!textoPreenchido(b.id)) erros.push(`${ref}: id obrigatório`);
+    else if (ids.has(b.id)) erros.push(`${ref}: id duplicado "${b.id}"`);
+    else ids.add(b.id);
+    if (!TIPOS_BLOCO_ASSISTENTE.includes(b.tipo)) erros.push(`${ref}: tipo inválido ${JSON.stringify(b.tipo)}`);
+    if (!textoPreenchido(b.texto)) erros.push(`${ref}: texto obrigatório`);
+    if (!AMBIENTES_ASSISTENTE.includes(b.ambiente)) erros.push(`${ref}: ambiente inválido ${JSON.stringify(b.ambiente)}`);
+    if (!STATUS_VALIDOS.includes(b.statusValidacao)) erros.push(`${ref}: statusValidacao inválido ${JSON.stringify(b.statusValidacao)}`);
+    if (!ESTADOS_REVISAO_ATUALIDADE.includes(b.revisaoAtualidade)) {
+      erros.push(`${ref}: revisaoAtualidade inválida ${JSON.stringify(b.revisaoAtualidade)}`);
+    }
+    if (typeof b.publicado !== 'boolean') erros.push(`${ref}: publicado deve ser booleano`);
+    if (b.aviso !== undefined && !textoPreenchido(b.aviso)) erros.push(`${ref}: aviso deve ser um texto não vazio`);
+
+    // Origem e fontes: bloco apoiado em fonte cita fontes existentes e não revogadas.
+    const fonteIds = Array.isArray(b.fonteIds) ? b.fonteIds : null;
+    if (!fonteIds || !fonteIds.every(textoPreenchido)) erros.push(`${ref}: fonteIds deve ser uma lista de ids`);
+    if (b.origem === 'fonte') {
+      if (!fonteIds || fonteIds.length === 0) erros.push(`${ref}: bloco com origem "fonte" exige fonteIds`);
+      for (const id of fonteIds ?? []) {
+        const fonte = fontesPorId.get(id);
+        if (!fonte) erros.push(`${ref}: fonteId "${id}" não existe em fontes.json`);
+        else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
+          erros.push(`${ref}: bloco usa fonte revogada "${id}" como fundamento`);
+        }
+      }
+    } else if (b.origem === 'regra_institucional') {
+      if (fonteIds && fonteIds.length > 0) erros.push(`${ref}: bloco com origem "regra_institucional" não cita fontes`);
+    } else {
+      erros.push(`${ref}: origem inválida ${JSON.stringify(b.origem)}`);
+    }
+
+    // Link: a URL deve ser a da fonte citada e constar do texto.
+    if (b.tipo === 'link') {
+      const fonte = fonteIds && fonteIds.length === 1 ? fontesPorId.get(fonteIds[0]) : null;
+      const url = analisarUrl(b.url);
+      if (!url.ok) erros.push(`${ref}: ${url.erro}`);
+      else if (!fonte || fonte.url !== b.url) erros.push(`${ref}: a url do link deve ser a da fonte citada`);
+      if (textoPreenchido(b.texto) && typeof b.url === 'string' && !b.texto.includes(b.url)) {
+        erros.push(`${ref}: o texto do link deve conter a url`);
+      }
+    } else if (b.url !== undefined) {
+      erros.push(`${ref}: url só é permitida em bloco do tipo link`);
+    }
+
+    if (b.ambiente === 'teste_local') {
+      if (b.publicado !== false) erros.push(`${ref}: bloco teste_local não pode estar publicado`);
+      if (b.statusValidacao === 'validado') erros.push(`${ref}: bloco teste_local não pode estar validado`);
+      if (textoPreenchido(b.texto)) {
+        for (const [regex, tema] of CONTEUDO_PROIBIDO_NO_TESTE) {
+          if (regex.test(b.texto)) erros.push(`${ref}: bloco teste_local contém ${tema}, que permanece bloqueado`);
+        }
+        if (PADRAO_EMAIL.test(b.texto) || PADRAO_TELEFONE.test(b.texto)) {
+          erros.push(`${ref}: bloco teste_local contém e-mail ou telefone; contatos não podem ser armazenados`);
+        }
+      }
+    } else if (b.ambiente === 'publico' && b.publicado === true) {
+      if (b.statusValidacao !== 'validado') erros.push(`${ref}: bloco ${b.statusValidacao} não pode estar publicado`);
+      if (b.revisaoAtualidade !== 'concluida') erros.push(`${ref}: bloco publicado não pode ter revisão de atualidade ${b.revisaoAtualidade}`);
+      if (b.origem === 'fonte') {
+        for (const id of fonteIds ?? []) {
+          const fonte = fontesPorId.get(id);
+          if (fonte && fonte.publicado !== true) erros.push(`${ref}: bloco publicado não pode usar fonte não publicada "${id}"`);
+        }
+      }
+    }
+  });
+
+  if (doc.blocos.length === 0 && !(typeof doc.pendencia === 'string' && doc.pendencia.startsWith(PENDENTE))) {
+    erros.push(`${rotulo}: lista vazia exige "pendencia" iniciada por ${PENDENTE}`);
+  }
+  return erros;
+}
+
 /**
  * Regra de bloqueio para perguntas: só pergunta publicada, validada, com revisão concluída, sem bloqueios,
  * com resposta publicável e fonte publicada e não revogada é liberada. O assistente recebe apenas
@@ -805,6 +931,17 @@ export function validarServicos(raiz) {
     if (arquivos.perguntasFrequentes) {
       const perguntas = lerJson(raiz, arquivos.perguntasFrequentes, erros, `${rotulo} perguntas`);
       if (perguntas) erros.push(...validarPerguntas(perguntas, { rotulo: `${rotulo} perguntas`, idServico: id, fontesPorId }));
+    }
+    // Conteúdo do assistente (opcional): blocos separados por ambiente.
+    if (arquivos.conteudoAssistente !== undefined) {
+      if (typeof arquivos.conteudoAssistente !== 'string' || !arquivos.conteudoAssistente.startsWith(`services/${id}/`)) {
+        erros.push(`${rotulo}: arquivos.conteudoAssistente deve estar em services/${id}/`);
+      } else {
+        const conteudo = lerJson(raiz, arquivos.conteudoAssistente, erros, `${rotulo} conteudoAssistente`);
+        if (conteudo) {
+          erros.push(...validarConteudoAssistente(conteudo, { rotulo: `${rotulo} conteudoAssistente`, idServico: id, fontesPorId }));
+        }
+      }
     }
     if (arquivos.roteiro) {
       const caminho = resolverDentro(raiz, arquivos.roteiro);
