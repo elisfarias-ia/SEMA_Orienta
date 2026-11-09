@@ -2,6 +2,9 @@
 .env
 .env.*
 
+# Dados do módulo administrativo (decisões com identificação pessoal ficam fora do Git)
+data/admin-private/
+
 # Dependências e build
 node_modules/
 dist/

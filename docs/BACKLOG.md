@@ -81,6 +81,10 @@ Concluído (Passo 7B — fluxo de versões e decisões, funções puras e testad
 
 - [x] criar versão, enviar para validação com hash, registrar decisão material, autorizar publicação e publicar, com histórico apenas de acréscimos e nova versão preservando a anterior (`services/admin/versao.js`, `decisoes.js` e esquemas).
 
+Concluído (Passo 7C1 — armazenamento local seguro, sem uso ainda):
+
+- [x] ler e gravar JSON de forma atômica, acrescentar e listar JSONL, com proteção de caminhos e links simbólicos (`services/admin/armazenamento.js`), e documentar os limites em `docs/ADMINISTRACAO.md`; `data/admin-private/` no `.gitignore`.
+
 Pendente (ainda não iniciado): migrar a LAC para versões, armazenamento local, endpoint e interface administrativos, isolamento do `dist/`. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA

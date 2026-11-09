@@ -205,7 +205,7 @@ test('V17. o esquema da versão corresponde ao modelo e aos estados do fluxo', (
 });
 
 test('V18. nada foi migrado nem registrado: não há versão real, nem módulo de interface, endpoint ou armazenamento', () => {
-  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'services', 'admin')).sort(), ['decisoes.js', 'fluxo.js', 'hash.js', 'versao.js']);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'services', 'admin')).sort(), ['armazenamento.js', 'decisoes.js', 'fluxo.js', 'hash.js', 'versao.js']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.equal(fs.existsSync(path.join(RAIZ, 'admin')), false);
   for (const arquivo of ['src/main.js', 'src/chat.js', 'src/assistant.js', 'vite.config.js']) {
