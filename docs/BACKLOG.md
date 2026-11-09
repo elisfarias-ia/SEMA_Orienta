@@ -46,7 +46,8 @@ Concluído:
 - [x] validar referências de fontes documentais para legislações;
 - [x] impedir a publicação automática de fontes apenas por estarem validadas;
 - [x] cadastrar descrição, público, condições e roteiro de solicitação no SIGA (15 etapas) como conteúdo em validação, com fontes por `fonteId`, sem publicação;
-- [x] transcrever os 28 itens do checklist de documentos do TR nº 176 (em validação, não publicados, `obrigatorio: null`, `revisaoAtualidade: pendente`, com alertas específicos).
+- [x] transcrever os 28 itens do checklist de documentos do TR nº 176 (em validação, não publicados, `obrigatorio: null`, `revisaoAtualidade: pendente`, com alertas específicos);
+- [x] transcrever 21 perguntas do FAQ de 2022 (18 numeradas e as perguntas i, j e k das observações) em linguagem de fonte histórica, em validação, não publicadas, com `respostaPublicavel: null`, bloqueios controlados e sem contatos armazenados.
 
 > Nota: a validação realizada nesta etapa é experimental e abrange identidade, procedência e metadados das fontes. Não representa aprovação jurídica, confirmação de atualização integral ou autorização de publicação.
 
@@ -58,7 +59,7 @@ Pendente:
 - [ ] decidir quais fontes poderão ser publicadas;
 - [ ] cadastrar o conteúdo oficial da LAC;
 - [ ] revisar o checklist de documentos (28 itens do TR nº 176, de 2020) e confirmar a obrigatoriedade e a atualidade de cada item;
-- [ ] cadastrar perguntas frequentes;
+- [ ] analisar as observações a até h do FAQ de 2022 (Passo 4) e revisar as 21 perguntas, aprovando ou não uma `respostaPublicavel` para cada uma;
 - [ ] definir unidade responsável e canal de atendimento;
 - [ ] registrar responsável pela validação e data de revisão;
 - [ ] integrar a base ao assistente.

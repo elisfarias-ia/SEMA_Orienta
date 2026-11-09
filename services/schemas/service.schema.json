@@ -188,19 +188,60 @@
         "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
         "perguntas": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "pergunta", "resposta", "statusValidacao"],
-            "properties": {
-              "id": { "type": "string" },
-              "pergunta": { "type": "string" },
-              "resposta": { "type": "string" },
-              "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json." },
-              "statusValidacao": { "$ref": "#/$defs/statusValidacao" }
-            }
-          }
+          "items": { "$ref": "#/$defs/pergunta" }
         },
         "pendencia": { "type": "string" }
+      }
+    },
+    "temaPergunta": {
+      "enum": [
+        "conceito", "enquadramento", "legislacao", "siga", "documentos", "responsavel_tecnico",
+        "imovel", "taxa", "prazo", "validade", "atendimento", "correcao", "outro"
+      ]
+    },
+    "bloqueioPergunta": {
+      "enum": [
+        "desatualizacao", "vigencia", "informacao_variavel", "fonte_complementar", "conflito_com_base",
+        "contato_desatualizado", "procedimento_do_sistema", "enquadramento_dependente_de_analise"
+      ]
+    },
+    "pergunta": {
+      "type": "object",
+      "required": [
+        "id", "numeroFonte", "pergunta", "tema", "conteudoFonte", "respostaPublicavel", "fonteId",
+        "localizacaoFonte", "statusValidacao", "publicado", "revisaoAtualidade", "bloqueios", "alertas"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "numeroFonte": { "type": "string", "minLength": 1, "description": "Numeração da pergunta na fonte." },
+        "pergunta": { "type": "string", "minLength": 1 },
+        "tema": { "$ref": "#/$defs/temaPergunta" },
+        "temasSecundarios": { "type": "array", "items": { "$ref": "#/$defs/temaPergunta" }, "uniqueItems": true },
+        "conteudoFonte": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resumo fiel do que a fonte (histórica) responde, em linguagem de fonte histórica. NUNCA é usado diretamente pelo assistente."
+        },
+        "respostaPublicavel": {
+          "type": ["string", "null"],
+          "description": "Resposta aprovada para o assistente. null enquanto não houver aprovação e publicação. Só ela poderá ser usada pelo assistente."
+        },
+        "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json, não revogada." },
+        "localizacaoFonte": { "type": "string", "minLength": 1 },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "publicado": {
+          "type": "boolean",
+          "description": "Só pode ser true com status validado, revisão de atualidade concluída, resposta publicável preenchida, sem bloqueios e fonte publicada."
+        },
+        "revisaoAtualidade": { "$ref": "#/$defs/estadoRevisaoAtualidade" },
+        "bloqueios": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/bloqueioPergunta" },
+          "uniqueItems": true,
+          "description": "Motivos que impedem a publicação. Lista vazia só quando não há bloqueio específico (a pergunta continua em validação)."
+        },
+        "alertas": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
       }
     }
   }

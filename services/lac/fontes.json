@@ -140,18 +140,18 @@
       "titulo": "Perguntas e Respostas sobre a Licença por Adesão e Compromisso",
       "tipo": "outro",
       "orgaoResponsavel": "Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT",
-      "url": "https://sema.mt.gov.br/site/phocadownload/FAQ%20da%20LAC_revisado%202%201.pdf",
-      "descricao": "Documento oficial de perguntas frequentes sobre ART, responsável legal, uso de água, enquadramento, Termo de Referência, prazo, validade, taxa, imóvel, assinatura e pendências da LAC.",
+      "url": "https://www.sema.mt.gov.br/site/phocadownload/FAQ%20da%20LAC_revisado%202%201.pdf",
+      "descricao": "Documento oficial de perguntas frequentes sobre a LAC. O PDF foi acessado no domínio oficial da SEMA-MT em 09/11/2026; tem o título \"FAQ Perguntas e Respostas\" e o cabeçalho \"PERGUNTAS FREQUENTES – LAC\", e contém conteúdo produzido em 2022. As respostas materiais ainda precisam de validação de atualidade.",
       "origemOficial": true,
       "statusValidacao": "validado",
       "publicado": false,
       "dataPublicacao": "2022-05-31",
-      "dataConsulta": "2026-11-05",
+      "dataConsulta": "2026-11-09",
       "dispositivoRelevante": null,
       "vigencia": {
         "situacao": "nao_se_aplica",
         "normasRelacionadas": ["decreto-1268-2022"],
-        "observacao": "Fonte oficial validada quanto à identidade e procedência. O conteúdo menciona o Decreto nº 1.268/2022, posteriormente alterado, e precisa de revisão antes da publicação."
+        "observacao": "A vigência jurídica não se aplica a esta fonte documental."
       }
     }
   ],

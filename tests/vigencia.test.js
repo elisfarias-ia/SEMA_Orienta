@@ -215,8 +215,10 @@ test('V11. nada da LAC está publicado e o serviço segue sem responsável e sem
   assert.equal(servico.unidadeResponsavel, 'PENDENTE');
 });
 
-test('V11b. as perguntas frequentes ainda não receberam conteúdo', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
+test('V11b. as perguntas frequentes cadastradas (Passo 3) não estão publicadas', () => {
+  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  assert.equal(perguntas.length, 21);
+  assert.ok(perguntas.every((q) => q.publicado === false));
 });
 
 test('V12. todos os links reais usam HTTPS e não se repetem', () => {

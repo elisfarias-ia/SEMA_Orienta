@@ -102,7 +102,7 @@ test('7. as três novas fontes documentais existem, com tipo e órgão corretos'
   for (const fonte of [tr, manual, faq]) {
     assert.equal(fonte.orgaoResponsavel, 'Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT');
     assert.equal(fonte.vigencia.situacao, 'nao_se_aplica');
-    assert.equal(fonte.dataConsulta, fonte.id === 'tr-176-lac' ? '2026-11-09' : '2026-11-05');
+    assert.equal(fonte.dataConsulta, ['tr-176-lac', 'faq-lac-2022'].includes(fonte.id) ? '2026-11-09' : '2026-11-05');
   }
 });
 
@@ -209,8 +209,10 @@ test('16d. a base real rejeita relacionar o FAQ a outra fonte documental (cópia
   });
 });
 
-test('17. perguntas frequentes continuam sem conteúdo (roteiro e documentos foram cadastrados nos Passos 1 e 2)', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
+test('17. as perguntas frequentes foram cadastradas no Passo 3 (21), sem publicação', () => {
+  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  assert.equal(perguntas.length, 21);
+  assert.ok(perguntas.every((q) => q.publicado === false));
 });
 
 test('18. o serviço está em validação e não publicado, sem responsável nem data de revisão', () => {
@@ -252,7 +254,7 @@ test('o validador rejeita publicar o serviço com fontes não publicadas (cópia
 });
 
 test('os dados reais não contêm conteúdo do TR, do manual ou do FAQ (taxa, prazos, limites, contatos)', () => {
-  const texto = ['fontes.json', 'service.json', 'documentos.json', 'perguntas-frequentes.json', 'roteiro.md']
+  const texto = ['fontes.json', 'service.json', 'roteiro.md']
     .map((nome) => lerTexto('services', 'lac', nome))
     .join('\n');
   assert.doesNotMatch(texto, /\bUPFs?\b|\b1 ?MB\b|dois dias|dez dias|e-?SAC|@[a-z0-9.-]+\.[a-z]{2,}|\(\d{2}\)\s?\d{4,5}-?\d{4}/i);

@@ -115,8 +115,9 @@ test('P1-6. o Decreto nº 695/2020 só aparece como revogado e com a fonte da re
   assert.equal(fontes().find((f) => f.id === 'decreto-695-2020').vigencia.situacao, 'revogada');
 });
 
-test('P1-7. as perguntas frequentes continuam vazias (os documentos foram cadastrados no Passo 2)', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
+test('P1-7. as perguntas frequentes (Passo 3) seguem sem publicação', () => {
+  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  assert.ok(perguntas.every((q) => q.publicado === false && q.respostaPublicavel === null));
 });
 
 test('P1-8. a interface não recebeu conteúdo da LAC (index.html e src/)', () => {

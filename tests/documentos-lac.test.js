@@ -327,8 +327,10 @@ test('D-V2. rejeita grupo inválido, estado de revisão inválido e alertas inv�
 
 // ---------- Escopo do passo ----------
 
-test('D29. as perguntas frequentes continuam vazias', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
+test('D29. as perguntas frequentes foram cadastradas no Passo 3 (21) e nenhuma está publicada', () => {
+  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  assert.equal(perguntas.length, 21);
+  assert.ok(perguntas.every((q) => q.publicado === false));
 });
 
 test('D30. a interface não foi alterada e não contém o checklist', () => {

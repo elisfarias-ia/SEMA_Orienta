@@ -24,6 +24,31 @@ export const GRUPOS_DOCUMENTO = [
   'estudos_planos_projetos',
 ];
 export const ESTADOS_REVISAO_ATUALIDADE = ['pendente', 'em_revisao', 'concluida'];
+export const TEMAS_PERGUNTA = [
+  'conceito',
+  'enquadramento',
+  'legislacao',
+  'siga',
+  'documentos',
+  'responsavel_tecnico',
+  'imovel',
+  'taxa',
+  'prazo',
+  'validade',
+  'atendimento',
+  'correcao',
+  'outro',
+];
+export const BLOQUEIOS_PERGUNTA = [
+  'desatualizacao',
+  'vigencia',
+  'informacao_variavel',
+  'fonte_complementar',
+  'conflito_com_base',
+  'contato_desatualizado',
+  'procedimento_do_sistema',
+  'enquadramento_dependente_de_analise',
+];
 export const PENDENTE = 'PENDENTE';
 
 const SECOES_ROTEIRO = [
@@ -323,6 +348,140 @@ export function validarDocumentos(doc, { rotulo = 'documentos', idServico, fonte
     erros.push(`${rotulo}: lista vazia exige "pendencia" iniciada por ${PENDENTE}`);
   }
   return erros;
+}
+
+const PADRAO_EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/;
+const PADRAO_TELEFONE = /(\(\d{2}\)|\b\d{2})\s?\d{4,5}[-\s]?\d{4}\b/;
+
+/**
+ * Valida o arquivo de perguntas frequentes de um serviço.
+ * `conteudoFonte` é resumo de fonte histórica e nunca é usado pelo assistente;
+ * só `respostaPublicavel` (aprovada e publicada) poderá ser usada.
+ * Contatos (e-mails e telefones) não podem ser armazenados no arquivo.
+ */
+export function validarPerguntas(doc, { rotulo = 'perguntas', idServico, fontesPorId = new Map() } = {}) {
+  const erros = [];
+  if (!ehObjeto(doc)) return [`${rotulo}: conteúdo deve ser um objeto`];
+  if (idServico !== undefined && doc.serviceId !== idServico) {
+    erros.push(`${rotulo}: serviceId "${doc.serviceId}" difere do serviço "${idServico}"`);
+  }
+  if (!STATUS_VALIDOS.includes(doc.statusValidacao)) {
+    erros.push(`${rotulo}: statusValidacao inválido ${JSON.stringify(doc.statusValidacao)}`);
+  }
+  if (!Array.isArray(doc.perguntas)) {
+    erros.push(`${rotulo}: "perguntas" deve ser uma lista`);
+    return erros;
+  }
+
+  const ids = new Set();
+  const numeros = new Set();
+  doc.perguntas.forEach((item, i) => {
+    const ref = `${rotulo}[${i}]`;
+    if (!ehObjeto(item)) {
+      erros.push(`${ref}: item deve ser um objeto`);
+      return;
+    }
+    if (!textoPreenchido(item.id)) erros.push(`${ref}: id obrigatório`);
+    else if (ids.has(item.id)) erros.push(`${ref}: id duplicado "${item.id}"`);
+    else ids.add(item.id);
+
+    if (!textoPreenchido(item.numeroFonte)) erros.push(`${ref}: numeroFonte obrigatório`);
+    else if (numeros.has(`${item.fonteId}|${item.numeroFonte}`)) erros.push(`${ref}: numeroFonte duplicado "${item.numeroFonte}"`);
+    else numeros.add(`${item.fonteId}|${item.numeroFonte}`);
+
+    if (!textoPreenchido(item.pergunta)) erros.push(`${ref}: "pergunta" obrigatória`);
+    if (!textoPreenchido(item.conteudoFonte)) erros.push(`${ref}: "conteudoFonte" obrigatório`);
+    if (!TEMAS_PERGUNTA.includes(item.tema)) erros.push(`${ref}: tema inválido ${JSON.stringify(item.tema)}`);
+    if (item.temasSecundarios !== undefined) {
+      if (!Array.isArray(item.temasSecundarios) || !item.temasSecundarios.every((t) => TEMAS_PERGUNTA.includes(t))) {
+        erros.push(`${ref}: temasSecundarios deve ser uma lista de temas válidos`);
+      } else {
+        if (new Set(item.temasSecundarios).size !== item.temasSecundarios.length) erros.push(`${ref}: temasSecundarios com tema repetido`);
+        if (item.temasSecundarios.includes(item.tema)) erros.push(`${ref}: temasSecundarios repete o tema principal`);
+      }
+    }
+
+    let fonte = null;
+    if (!textoPreenchido(item.fonteId)) erros.push(`${ref}: pergunta sem fonteId`);
+    else if (!fontesPorId.has(item.fonteId)) erros.push(`${ref}: fonteId "${item.fonteId}" não existe em fontes.json`);
+    else {
+      fonte = fontesPorId.get(item.fonteId);
+      if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
+        erros.push(`${ref}: pergunta usa fonte revogada "${item.fonteId}" como fundamento`);
+      }
+    }
+    if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
+    if (!STATUS_VALIDOS.includes(item.statusValidacao)) erros.push(`${ref}: statusValidacao inválido ${JSON.stringify(item.statusValidacao)}`);
+    if (!ESTADOS_REVISAO_ATUALIDADE.includes(item.revisaoAtualidade)) {
+      erros.push(`${ref}: revisaoAtualidade inválida ${JSON.stringify(item.revisaoAtualidade)}`);
+    }
+    if (!Array.isArray(item.bloqueios) || !item.bloqueios.every((b) => BLOQUEIOS_PERGUNTA.includes(b))) {
+      erros.push(`${ref}: bloqueios deve ser uma lista de motivos válidos`);
+    } else if (new Set(item.bloqueios).size !== item.bloqueios.length) {
+      erros.push(`${ref}: bloqueios com motivo repetido`);
+    }
+    if (!Array.isArray(item.alertas) || !item.alertas.every(textoPreenchido)) {
+      erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
+    }
+    if (doc.statusValidacao === 'rascunho' && item.statusValidacao === 'validado') {
+      erros.push(`${ref}: arquivo em rascunho não pode conter item validado`);
+    }
+
+    // Resposta publicável: null até haver aprovação; só preenchida após revisão concluída e validação.
+    if (item.respostaPublicavel !== null && !textoPreenchido(item.respostaPublicavel)) {
+      erros.push(`${ref}: respostaPublicavel deve ser null ou um texto não vazio`);
+    } else if (item.respostaPublicavel !== null && !(item.revisaoAtualidade === 'concluida' && item.statusValidacao === 'validado')) {
+      erros.push(`${ref}: respostaPublicavel só pode ser preenchida após revisão de atualidade concluída e validação`);
+    }
+
+    // Publicação: exige validação, revisão concluída, resposta publicável, nenhum bloqueio e fonte publicada.
+    if (typeof item.publicado !== 'boolean') erros.push(`${ref}: publicado deve ser booleano`);
+    else if (item.publicado) {
+      if (item.statusValidacao !== 'validado') erros.push(`${ref}: pergunta ${item.statusValidacao} não pode estar publicada`);
+      if (item.revisaoAtualidade !== 'concluida') erros.push(`${ref}: pergunta publicada não pode ter revisão de atualidade ${item.revisaoAtualidade}`);
+      if (item.respostaPublicavel === null) erros.push(`${ref}: pergunta publicada exige respostaPublicavel`);
+      if (Array.isArray(item.bloqueios) && item.bloqueios.length > 0) erros.push(`${ref}: pergunta publicada não pode ter bloqueios`);
+      if (fonte && fonte.publicado !== true) erros.push(`${ref}: pergunta publicada não pode usar fonte não publicada "${item.fonteId}"`);
+    }
+
+    // Privacidade: nenhum e-mail ou telefone em qualquer campo de texto.
+    for (const [campo, valor] of Object.entries(item)) {
+      const textos = Array.isArray(valor) ? valor : [valor];
+      for (const texto of textos) {
+        if (typeof texto === 'string' && (PADRAO_EMAIL.test(texto) || PADRAO_TELEFONE.test(texto))) {
+          erros.push(`${ref}: o campo "${campo}" contém e-mail ou telefone; contatos não podem ser armazenados`);
+        }
+      }
+    }
+  });
+
+  if (doc.perguntas.length === 0 && !(typeof doc.pendencia === 'string' && doc.pendencia.startsWith(PENDENTE))) {
+    erros.push(`${rotulo}: lista vazia exige "pendencia" iniciada por ${PENDENTE}`);
+  }
+  if (typeof doc.pendencia === 'string' && (PADRAO_EMAIL.test(doc.pendencia) || PADRAO_TELEFONE.test(doc.pendencia))) {
+    erros.push(`${rotulo}: a pendência contém e-mail ou telefone; contatos não podem ser armazenados`);
+  }
+  return erros;
+}
+
+/**
+ * Regra de bloqueio para perguntas: só pergunta publicada, validada, com revisão concluída, sem bloqueios,
+ * com resposta publicável e fonte publicada e não revogada é liberada. O assistente recebe apenas
+ * { id, pergunta, respostaPublicavel, fonteId } e NUNCA o conteudoFonte.
+ */
+export function perguntasDisponiveisParaAssistente(doc, fontesPorId = new Map()) {
+  if (!ehObjeto(doc) || !Array.isArray(doc.perguntas)) return [];
+  return doc.perguntas
+    .filter((item) => {
+      if (!ehObjeto(item) || item.publicado !== true) return false;
+      if (item.statusValidacao !== 'validado' || item.revisaoAtualidade !== 'concluida') return false;
+      if (!textoPreenchido(item.respostaPublicavel)) return false;
+      if (!Array.isArray(item.bloqueios) || item.bloqueios.length > 0) return false;
+      const fonte = fontesPorId.get(item.fonteId);
+      if (!fonte || fonte.publicado !== true) return false;
+      return !(ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada');
+    })
+    .map(({ id, pergunta, respostaPublicavel, fonteId }) => ({ id, pergunta, respostaPublicavel, fonteId }));
 }
 
 /**
@@ -645,7 +804,7 @@ export function validarServicos(raiz) {
     }
     if (arquivos.perguntasFrequentes) {
       const perguntas = lerJson(raiz, arquivos.perguntasFrequentes, erros, `${rotulo} perguntas`);
-      if (perguntas) erros.push(...validarListaDeItens(perguntas, { rotulo: `${rotulo} perguntas`, chave: 'perguntas', idServico: id, idsFontes }));
+      if (perguntas) erros.push(...validarPerguntas(perguntas, { rotulo: `${rotulo} perguntas`, idServico: id, fontesPorId }));
     }
     if (arquivos.roteiro) {
       const caminho = resolverDentro(raiz, arquivos.roteiro);

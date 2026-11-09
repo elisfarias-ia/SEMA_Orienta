@@ -131,6 +131,8 @@ Há oito fontes oficiais da LAC cadastradas em `services/lac/fontes.json` (pági
 
 O checklist de documentos (`services/lac/documentos.json`) reúne 28 itens transcritos do Termo de Referência nº 176 (2020). Todos permanecem em validação e não publicados, a obrigatoriedade atual ainda não foi confirmada (`obrigatorio: null`) e o conteúdo não está disponível para respostas do assistente. O TR contém inconsistências e possíveis sinais de desatualização, registrados em cada item; a área competente deverá revisar os itens antes de qualquer publicação.
 
+As perguntas frequentes (`services/lac/perguntas-frequentes.json`) reúnem 21 perguntas transcritas do FAQ de 2022, em resumo fiel e linguagem de fonte histórica. Todas permanecem em validação, não publicadas e sem resposta publicável (`respostaPublicavel: null`); cada uma traz os bloqueios que impedem a publicação. Informações variáveis (prazos, validade, taxas), procedimentos do sistema, normas a confirmar e contatos estão bloqueados. Contatos citados no FAQ não são armazenados. As observações a até h do FAQ serão analisadas na revisão geral, e nenhum conteúdo do FAQ está disponível para respostas do assistente.
+
 ## Estado atual
 
 - Marco 0 — pacote de contexto concluído.

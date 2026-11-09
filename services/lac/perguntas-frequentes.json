@@ -1,6 +1,492 @@
 {
   "serviceId": "lac",
-  "statusValidacao": "rascunho",
-  "perguntas": [],
-  "pendencia": "PENDENTE: cadastrar e validar as perguntas frequentes oficiais da LAC."
+  "statusValidacao": "em_validacao",
+  "perguntas": [
+    {
+      "id": "faq2022-01-art-nao-substitui-procuracao",
+      "numeroFonte": "1",
+      "pergunta": "A apresentação da ART assinada pelo interessado e pelo responsável técnico serve como procuração ao responsável técnico?",
+      "tema": "responsavel_tecnico",
+      "temasSecundarios": [
+        "documentos"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que a apresentação da ART não substitui a procuração do requerente ao responsável técnico: ela cumpre apenas o item da ART do Termo de Referência, mas não o item da procuração. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 1, p. 3",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "fonte_complementar"
+      ],
+      "alertas": [
+        "Depende dos itens 2.1 e 2.2 do TR 176, que têm alertas de atualidade e de inconsistência."
+      ]
+    },
+    {
+      "id": "faq2022-02-representante-legal",
+      "numeroFonte": "2",
+      "pergunta": "Quem é o representante legal?",
+      "tema": "conceito",
+      "temasSecundarios": [
+        "documentos"
+      ],
+      "conteudoFonte": "O FAQ de 2022 define representante legal como aquele que assina o Requerimento Padrão e responde legalmente, perante os órgãos ambientais, pela empresa ou pela pessoa física.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 2, p. 3",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [],
+      "alertas": []
+    },
+    {
+      "id": "faq2022-03-protocolo-outorga-agua",
+      "numeroFonte": "3",
+      "pergunta": "A apresentação de um protocolo de requerimento para autorização de perfuração ou outorga de uso de água para captação e diluição vigentes é suficiente para a emissão da LAC?",
+      "tema": "documentos",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 informa que o protocolo do requerimento não é suficiente e que deveria ser apresentado o cadastro de uso insignificante ou a outorga de uso de água para captação e diluição vigentes, publicada no diário oficial (superficial ou subterrânea). Informa ainda que atividades que, por seu caráter, não utilizam água (como pontes e estradas vicinais, entre outras do mesmo tipo) poderiam apresentar declaração de não uso de água, com justificativas. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 3, p. 3",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "fonte_complementar",
+        "conflito_com_base"
+      ],
+      "alertas": [
+        "O FAQ de 2022 é mais restritivo que o item 4.3 do TR 176 cadastrado, que admite o protocolo; há possível conflito com o checklist."
+      ]
+    },
+    {
+      "id": "faq2022-04-atividade-fora-dos-anexos",
+      "numeroFonte": "4",
+      "pergunta": "O interessado quer uma licença por adesão e compromisso para uma atividade que não consta nos anexos do decreto 1268 de 2022, como posso obter a licença?",
+      "tema": "enquadramento",
+      "temasSecundarios": [
+        "legislacao",
+        "atendimento"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que uma atividade que não consta no Decreto nº 1.268/2022 não poderia ser licenciada pela modalidade LAC. Informa que o responsável técnico poderia pedir uma declaração à unidade da SEMA indicada no FAQ. O FAQ de 2022 indica um contato institucional que precisa ser atualizado antes da publicação. Informa também que atividades descritas em uma lei complementar citada como 688/2021 seriam dispensadas de licenciamento, por serem de baixo impacto ambiental. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 4, p. 3-4",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "vigencia",
+        "fonte_complementar",
+        "contato_desatualizado",
+        "enquadramento_dependente_de_analise"
+      ],
+      "alertas": [
+        "O FAQ trata o Decreto nº 1.268/2022 como a norma de enquadramento; a base o registra como alterado pelo Decreto nº 1.585/2022, com vigência consolidada a confirmar.",
+        "A lei complementar citada como 688/2021 é a numeração encontrada no FAQ; ela tem número diferente da Lei Complementar nº 668/2020 cadastrada e não está cadastrada na base. Não se pode afirmar que sejam a mesma norma: a numeração e a norma precisam de fonte complementar e de confirmação.",
+        "A afirmação de que a atividade \"não é passível de licenciamento\" é uma decisão de enquadramento e não pode ser usada pelo assistente para decidir enquadramento: este sistema orienta, mas não decide se uma atividade pode obter a LAC."
+      ]
+    },
+    {
+      "id": "faq2022-05-descricao-requerimento-padrao",
+      "numeroFonte": "5",
+      "pergunta": "Quais informações devem conter na descrição do Requerimento Padrão?",
+      "tema": "documentos",
+      "temasSecundarios": [
+        "siga"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que a descrição deve conter a atividade e o seu parâmetro; em casos como atividades em municípios descentralizados que extrapolam os limites municipais, ou correlatas a uma atividade já licenciada na SEMA, deve haver uma descrição expondo o caso. Informa ainda que a opção \"LAC\" deve estar marcada na lacuna inicial do Requerimento Padrão. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 5, p. 4",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema"
+      ],
+      "alertas": [
+        "O item 4.1 do TR 176 (Requerimento Padrão) tem alerta sobre o formato do requerimento, que precisa de confirmação atual."
+      ]
+    },
+    {
+      "id": "faq2022-06-termo-referencia-e-decreto",
+      "numeroFonte": "6",
+      "pergunta": "Qual é o Termo de Referência e o Decreto que deve ser utilizado para a obtenção da LAC?",
+      "tema": "legislacao",
+      "temasSecundarios": [
+        "documentos",
+        "enquadramento"
+      ],
+      "conteudoFonte": "O FAQ de 2022 indica como Termo de Referência o TR nº 176/SUIMIS/SEMA/MT e apresenta o Decreto nº 1.268, de 25 de janeiro de 2022, como o decreto vigente à época. Informa ainda que, para atividades em municípios descentralizados, deve-se verificar a Resolução CONSEMA 41/2021 e que, se a atividade constar nessa resolução, o licenciamento seria feito na secretaria municipal de meio ambiente. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 6, p. 4",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "vigencia",
+        "fonte_complementar"
+      ],
+      "alertas": [
+        "O FAQ de 2022 apresenta o Decreto nº 1.268/2022 como vigente; a base o registra como alterado pelo Decreto nº 1.585/2022 (dezembro de 2022), com vigência consolidada a confirmar.",
+        "A Resolução CONSEMA 41/2021 não está cadastrada na base."
+      ]
+    },
+    {
+      "id": "faq2022-07-prazo-checklist",
+      "numeroFonte": "7",
+      "pergunta": "Quantos dias leva o processo de checklist da LAC?",
+      "tema": "prazo",
+      "temasSecundarios": [
+        "siga"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa prazo médio de dois dias para o checklist, podendo variar de acordo com a demanda ou a instabilidade do sistema. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 7, p. 4",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "informacao_variavel"
+      ],
+      "alertas": [
+        "Prazo médio informado em 2022; não deve ser apresentado como prazo garantido."
+      ]
+    },
+    {
+      "id": "faq2022-08-duracao-da-licenca",
+      "numeroFonte": "8",
+      "pergunta": "Qual o tempo de duração da licença por adesão e compromisso - LAC?",
+      "tema": "validade",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 informa vigência de seis anos a partir da emissão da LAC. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 8, p. 4",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "informacao_variavel",
+        "fonte_complementar"
+      ],
+      "alertas": [
+        "A norma que fixa a validade da licença não está cadastrada na base."
+      ]
+    },
+    {
+      "id": "faq2022-09-alterar-dados-apos-emissao",
+      "numeroFonte": "9",
+      "pergunta": "Após a emissão da LAC, consigo alterar a razão social, ou alguma outra informação que não consta na minha licença?",
+      "tema": "correcao",
+      "temasSecundarios": [
+        "siga",
+        "taxa"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que, após a emissão, o sistema não permitia a alteração de dados; o responsável técnico deveria abrir outro requerimento e pedir o reaproveitamento da taxa à coordenadoria de arrecadação, pedido avaliado pelo setor responsável pela emissão da licença. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 9, p. 4-5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema"
+      ],
+      "alertas": [
+        "Procedimento do sistema descrito em 2022; a interface e o fluxo atuais do SIGA precisam ser conferidos."
+      ]
+    },
+    {
+      "id": "faq2022-10-recebimento-da-lac",
+      "numeroFonte": "10",
+      "pergunta": "Por onde eu recebo minha LAC?",
+      "tema": "atendimento",
+      "temasSecundarios": [
+        "siga"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que a LAC é disponibilizada pelo sistema, com comunicado enviado ao e-mail do responsável cadastrado. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 10, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema",
+        "contato_desatualizado"
+      ],
+      "alertas": [
+        "A redação da resposta no FAQ é confusa, pois repete termos ao descrever o comunicado ao responsável cadastrado.",
+        "A redação da fonte pode transmitir a ideia de emissão automática da licença após a assinatura; este sistema não pode afirmar isso, pois não promete aprovação, prazo nem emissão."
+      ]
+    },
+    {
+      "id": "faq2022-11-assinar-termo-de-compromisso",
+      "numeroFonte": "11",
+      "pergunta": "Como assinar o termo de compromisso?",
+      "tema": "siga",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 informa que, após a notificação de que o termo de compromisso está disponível para assinatura, o usuário deve acionar o botão \"ASSINAR TERMO DE COMPROMISSO\" e aguardar o envio da licença por e-mail. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 11, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema"
+      ],
+      "alertas": [
+        "Nome de botão citado em 2022; a interface atual do SIGA precisa ser conferida.",
+        "O FAQ usa \"termo de compromisso\"; a página da SEMA de 2020 cita \"Termo por Adesão e Compromisso\".",
+        "A redação da fonte pode transmitir a ideia de emissão automática da licença após a assinatura; este sistema não pode afirmar isso, pois não promete aprovação, prazo nem emissão."
+      ]
+    },
+    {
+      "id": "faq2022-12-responder-pendencias",
+      "numeroFonte": "12",
+      "pergunta": "Como responder pendências?",
+      "tema": "siga",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 descreve o caminho \"Menu\" > \"Caixa de entrada\" > \"Pesquisar\" para encontrar o requerimento e atender às notificações nas abas de documentação geral ou documentação técnica. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 12, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema"
+      ],
+      "alertas": [
+        "Menus citados em 2022; a interface atual do SIGA precisa ser conferida."
+      ]
+    },
+    {
+      "id": "faq2022-13-salvar-coordenada",
+      "numeroFonte": "13",
+      "pergunta": "Não consigo salvar uma coordenada, como prosseguir?",
+      "tema": "siga",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 descreve que, após inserir o ponto por shapefile ou manualmente, o usuário deve localizar o ponto no mapa, usar os comandos indicados (ponto, camada de trabalho e feições do requerimento), selecionar o ponto e nomeá-lo para poder salvá-lo. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 13, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "procedimento_do_sistema"
+      ],
+      "alertas": [
+        "Comandos e menus citados em 2022; a interface atual do SIGA precisa ser conferida."
+      ]
+    },
+    {
+      "id": "faq2022-14-custo-da-lac",
+      "numeroFonte": "14",
+      "pergunta": "Qual é o custo de uma LAC?",
+      "tema": "taxa",
+      "temasSecundarios": [],
+      "conteudoFonte": "O FAQ de 2022 informa custo de 3 UPFs (Unidade Padrão Fiscal), com valor variável conforme a atualização periódica das UPFs. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 14, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "informacao_variavel"
+      ],
+      "alertas": [
+        "A quantidade de UPFs e o valor em reais podem ter mudado; não apresentar como valor atual."
+      ]
+    },
+    {
+      "id": "faq2022-15-emissao-da-taxa-privados",
+      "numeroFonte": "15",
+      "pergunta": "Como funciona a emissão da taxa para empreendimentos privados?",
+      "tema": "taxa",
+      "temasSecundarios": [
+        "siga"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que o responsável deve acessar \"MEUS REQUERIMENTOS\", localizar o requerimento e usar a aba \"EMISSÃO DE TAXA\" para emitir o boleto de pagamento. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 15, p. 5",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "informacao_variavel",
+        "procedimento_do_sistema",
+        "conflito_com_base"
+      ],
+      "alertas": [
+        "O caminho para a cobrança difere do descrito no roteiro cadastrado (página da SEMA de 2020, que cita a disponibilização da guia após a conferência documental); possível conflito a confirmar."
+      ]
+    },
+    {
+      "id": "faq2022-16-empreendimento-intermunicipal",
+      "numeroFonte": "16",
+      "pergunta": "Quando meu empreendimento é intermunicipal, como proceder?",
+      "tema": "enquadramento",
+      "temasSecundarios": [
+        "documentos"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que deve ser apresentada a abrangência da atividade, com as coordenadas geográficas de cada ponto ou linha, especificando no Requerimento Padrão os municípios abrangidos e juntando aos documentos complementares um croqui da extensão do empreendimento. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 16, p. 6",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "enquadramento_dependente_de_analise"
+      ],
+      "alertas": [
+        "O enquadramento de empreendimento intermunicipal e a competência para licenciá-lo dependem de análise e de confirmação pela área competente, e não estão cobertos pelas fontes cadastradas."
+      ]
+    },
+    {
+      "id": "faq2022-17-conteudo-da-art",
+      "numeroFonte": "17",
+      "pergunta": "O que deve conter na ART?",
+      "tema": "responsavel_tecnico",
+      "temasSecundarios": [
+        "documentos"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que a ART deve conter informações sobre o empreendimento, a execução e o monitoramento das atividades ambientais e, no campo de observações, a informação sobre a modalidade LAC. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 17, p. 6",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "desatualizacao",
+        "fonte_complementar"
+      ],
+      "alertas": [
+        "A resposta depende da revisão do item 2.2 do TR 176, que tem alertas de inconsistência (LAS, RLAS e RLAC) e de atualidade."
+      ]
+    },
+    {
+      "id": "faq2022-18-documentos-do-imovel",
+      "numeroFonte": "18",
+      "pergunta": "Quais documentos são aceitos na parte de \"documentação do imóvel\"?",
+      "tema": "imovel",
+      "temasSecundarios": [
+        "documentos",
+        "legislacao"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que os documentos aceitos estão descritos no art. 52, do capítulo III, do Decreto nº 697/2020, norma que não está cadastrada na base. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, pergunta 18, p. 6",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "vigencia",
+        "fonte_complementar"
+      ],
+      "alertas": [
+        "O Decreto nº 697/2020 não está cadastrado na base e a resposta depende da confirmação de sua vigência e aplicabilidade (mesmo alerta do item 3 do checklist)."
+      ]
+    },
+    {
+      "id": "faq2022-i-varias-atividades-na-propriedade",
+      "numeroFonte": "i",
+      "pergunta": "Se na propriedade tiver várias atividades, será necessário fazer uma LAC, LAS ou trifásico para cada atividade individualmente?",
+      "tema": "enquadramento",
+      "temasSecundarios": [
+        "atendimento"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que depende de vários fatores: atividade correlata à principal seria requerida na secretaria ambiental onde a principal foi licenciada (por exemplo, a municipal); atividade licenciada na secretaria estadual poderia exigir, conforme o caso, a LAC, a licença ambiental simplificada ou a ampliação no processo de licenciamento trifásico. O FAQ de 2022 indica um contato institucional que precisa ser atualizado antes da publicação. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, Observações, item i, p. 8",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "fonte_complementar",
+        "desatualizacao",
+        "contato_desatualizado",
+        "enquadramento_dependente_de_analise"
+      ],
+      "alertas": [
+        "Menciona modalidades (licença ambiental simplificada e licenciamento trifásico) que não fazem parte do conteúdo cadastrado da LAC."
+      ]
+    },
+    {
+      "id": "faq2022-j-municipio-habilitado",
+      "numeroFonte": "j",
+      "pergunta": "Se a atividade estiver localizada em município habilitado para o licenciamento de acordo com a resolução 041 do CONSEMA, posso optar pelo licenciamento estadual?",
+      "tema": "enquadramento",
+      "temasSecundarios": [
+        "legislacao"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que não é possível optar pelo licenciamento estadual quando a atividade está em município habilitado conforme a resolução do CONSEMA citada. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, Observações, item j, p. 9",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "fonte_complementar",
+        "vigencia",
+        "enquadramento_dependente_de_analise"
+      ],
+      "alertas": [
+        "A resolução do CONSEMA citada não está cadastrada na base."
+      ]
+    },
+    {
+      "id": "faq2022-k-ressarcimento-de-taxas",
+      "numeroFonte": "k",
+      "pergunta": "Como proceder para solicitar o ressarcimento de taxas pagas na LAC?",
+      "tema": "taxa",
+      "temasSecundarios": [
+        "atendimento"
+      ],
+      "conteudoFonte": "O FAQ de 2022 informa que o interessado deve procurar a Secretaria de Estado de Fazenda de Mato Grosso e pedir o ressarcimento das taxas. O FAQ de 2022 indica um contato institucional que precisa ser atualizado antes da publicação. Informação pendente de confirmação pela área competente antes da publicação.",
+      "respostaPublicavel": null,
+      "fonteId": "faq-lac-2022",
+      "localizacaoFonte": "FAQ 2022, Observações, item k, p. 9",
+      "statusValidacao": "em_validacao",
+      "publicado": false,
+      "revisaoAtualidade": "pendente",
+      "bloqueios": [
+        "informacao_variavel",
+        "fonte_complementar",
+        "contato_desatualizado"
+      ],
+      "alertas": [
+        "Procedimento de órgão externo à SEMA, não coberto pelas fontes cadastradas.",
+        "Na fonte, o título da pergunta traz um prefixo de numeração inconsistente."
+      ]
+    }
+  ],
+  "pendencia": "PENDENTE: perguntas transcritas do FAQ de 2022 em linguagem de fonte histórica; nenhuma tem resposta publicável (respostaPublicavel: null), nenhuma está publicada e nenhuma está disponível ao assistente. As observações a até h do FAQ contêm orientações adicionais sobre representação legal, vínculo com o imóvel, áreas protegidas, Terras Indígenas, isenção, cadastro de pessoa jurídica, publicação e o nome que aparece na licença; não foram cadastradas como perguntas, ainda precisam ser analisadas no Passo 4 e não estão publicadas nem disponíveis ao assistente. O TR nº 177 e as normas de isenção citados nessas observações também precisam ser analisados no Passo 4 e não foram cadastrados como fontes."
 }
