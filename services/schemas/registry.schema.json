@@ -11,10 +11,15 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "arquivo", "statusValidacao", "publicado"],
+        "required": ["id", "assuntoId", "arquivo", "statusValidacao", "publicado"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "assuntoId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Assunto ativo de services/assuntos.json ao qual o serviço está vinculado; deve ser igual ao assuntoId do service.json."
+          },
           "arquivo": {
             "type": "string",
             "description": "Caminho relativo à raiz do projeto: services/<id>/service.json"

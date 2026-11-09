@@ -69,6 +69,16 @@ Pendente:
 
 **Saída:** base LAC estruturada e rastreável.
 
+## M7 — Gestão de conteúdo e validação material (em andamento)
+
+Concluído (Passo 7A — modelo básico, sem interface):
+
+- [x] catálogo de assuntos (`services/assuntos.json`) com "Licenciamento Ambiental", e vínculo da LAC por `assuntoId`;
+- [x] validação de assuntos (ids únicos, campos, assunto existente e ativo, `assuntoId` igual no registro e no `service.json`);
+- [x] estados e transições da versão do serviço (`services/admin/fluxo.js`) e hash determinístico do conteúdo (`services/admin/hash.js`).
+
+Pendente (ainda não iniciado): aplicar o fluxo a versões da LAC, registrar decisões, armazenamento local, endpoint e interface administrativos, isolamento do `dist/`. Não há validação material nem publicação autorizada.
+
 ## M3 — Conversa com IA
 
 - [ ] criar função serverless `/api/chat`;

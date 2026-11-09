@@ -137,6 +137,8 @@ Para a demonstração local, `services/lac/conteudo-assistente.json` reúne 5 bl
 
 **Assistente em teste local.** No `npm run dev`, o servidor de desenvolvimento do Vite oferece o endpoint `GET /__assistente/blocos`, que entrega somente os 5 blocos de teste local. A interface os busca apenas em desenvolvimento, reconhece a pergunta livre **no próprio navegador** (por intenção e palavras equivalentes, sem IA externa, API ou chave) e responde só com o texto desses blocos, mostrando a faixa de teste local, o aviso e as fontes oficiais com links `https`. Sem o endpoint, e no build de produção, o chat mostra apenas a mensagem segura de indisponibilidade. A conversa fica só em memória. Para conferir que o build não contém nenhum desses textos: `npm run build` e depois `node scripts/check-dist.js`.
 
+**Assuntos e serviços.** Assunto (área ampla da SEMA, em `services/assuntos.json`) e serviço (atendimento específico, em `services/registry.json`) são conceitos distintos; cada serviço aponta para um assunto ativo por `assuntoId`. A LAC está vinculada ao assunto "Licenciamento Ambiental". Há também o modelo do fluxo de versões (`services/admin/fluxo.js`) e o cálculo de hash do conteúdo (`services/admin/hash.js`), **ainda não aplicados à LAC**: não há validação material nem publicação autorizada, e não existe interface administrativa.
+
 A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](docs/REVISAO_CONTEUDO_LAC.md).
 
 ## Estado atual

@@ -4,7 +4,7 @@
   "description": "Documentação da estrutura de services/<id>/service.json e dos arquivos complementares (fontes, documentos, perguntas frequentes). A conferência é feita por scripts/validate-services.js. Enquanto o serviço estiver em rascunho, o conteúdo material deve permanecer PENDENTE, null ou lista vazia.",
   "type": "object",
   "required": [
-    "id", "nome", "sigla", "categoria", "termosEquivalentes", "arquivos",
+    "id", "assuntoId", "nome", "sigla", "categoria", "termosEquivalentes", "arquivos",
     "statusValidacao", "publicado", "descricao", "publico", "condicoes", "etapas",
     "unidadeResponsavel", "responsavelValidacao", "dataRevisao", "canalAtendimento",
     "sistemaInicio", "links", "legislacao", "pendencias"
@@ -12,6 +12,11 @@
   "additionalProperties": false,
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "assuntoId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Assunto ativo de services/assuntos.json; igual ao assuntoId do registro."
+    },
     "nome": { "type": "string", "minLength": 1 },
     "sigla": { "type": "string", "minLength": 1 },
     "categoria": { "type": "string", "minLength": 1 },

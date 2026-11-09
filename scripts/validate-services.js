@@ -794,6 +794,73 @@ function resolverDentro(raiz, caminhoRelativo) {
  * Valida o registro e todos os serviços a partir de uma pasta raiz.
  * Retorna { erros, servicos } e nunca lança por problemas de conteúdo.
  */
+/**
+ * Valida o catálogo de assuntos (services/assuntos.json). Assunto é uma área ampla da SEMA; serviço é um
+ * atendimento específico vinculado a um assunto. Retorna { erros, assuntos } (assuntos: Map id -> assunto).
+ */
+export function validarAssuntos(doc, rotulo = 'assuntos') {
+  const erros = [];
+  const assuntos = new Map();
+  if (!ehObjeto(doc)) return { erros: [`${rotulo}: arquivo deve ser um objeto`], assuntos };
+  if (!Number.isInteger(doc.versaoEstrutura) || doc.versaoEstrutura < 1) {
+    erros.push(`${rotulo}: versaoEstrutura deve ser um inteiro maior ou igual a 1`);
+  }
+  if (!Array.isArray(doc.assuntos) || doc.assuntos.length === 0) {
+    erros.push(`${rotulo}: "assuntos" deve ser uma lista não vazia`);
+    return { erros, assuntos };
+  }
+  doc.assuntos.forEach((a, i) => {
+    const ref = `${rotulo}[${i}]`;
+    if (!ehObjeto(a)) {
+      erros.push(`${ref}: assunto deve ser um objeto`);
+      return;
+    }
+    if (typeof a.id !== 'string' || !PADRAO_ID.test(a.id)) {
+      erros.push(`${ref}: id inválido ${JSON.stringify(a.id)}`);
+      return;
+    }
+    const nome = `assunto "${a.id}"`;
+    if (assuntos.has(a.id)) {
+      erros.push(`${nome}: identificador duplicado`);
+      return;
+    }
+    assuntos.set(a.id, a);
+    for (const campo of ['nome', 'descricao']) {
+      if (!textoPreenchido(a[campo])) erros.push(`${nome}: "${campo}" obrigatório`);
+    }
+    if (typeof a.ativo !== 'boolean') erros.push(`${nome}: "ativo" deve ser booleano`);
+    for (const campo of ['criadoEm', 'atualizadoEm']) {
+      if (!dataValida(a[campo])) erros.push(`${nome}: ${campo} deve ser uma data válida AAAA-MM-DD`);
+    }
+    if (dataValida(a.criadoEm) && dataValida(a.atualizadoEm) && a.atualizadoEm < a.criadoEm) {
+      erros.push(`${nome}: atualizadoEm não pode ser anterior a criadoEm`);
+    }
+  });
+  return { erros, assuntos };
+}
+
+/** Confere o assuntoId do registro e do service.json: obrigatório, igual nos dois, existente e ativo. */
+function validarAssuntoDoServico(entrada, servico, rotulo, catalogo) {
+  const erros = [];
+  const idRegistro = entrada.assuntoId;
+  const idServico = servico.assuntoId;
+  for (const [origem, valor] of [['registro', idRegistro], ['service.json', idServico]]) {
+    if (typeof valor !== 'string' || !PADRAO_ID.test(valor)) erros.push(`${rotulo}: assuntoId obrigatório e válido no ${origem}`);
+  }
+  if (typeof idRegistro === 'string' && typeof idServico === 'string' && idRegistro !== idServico) {
+    erros.push(`${rotulo}: assuntoId difere entre registro e service.json`);
+  }
+  if (catalogo) {
+    for (const valor of new Set([idRegistro, idServico])) {
+      if (typeof valor !== 'string' || !PADRAO_ID.test(valor)) continue;
+      const assunto = catalogo.get(valor);
+      if (!assunto) erros.push(`${rotulo}: assuntoId "${valor}" não existe em services/assuntos.json`);
+      else if (assunto.ativo !== true) erros.push(`${rotulo}: assunto "${valor}" está inativo e não aceita serviços`);
+    }
+  }
+  return erros;
+}
+
 export function validarServicos(raiz) {
   const erros = [];
   const registro = lerJson(raiz, 'services/registry.json', erros, 'registry');
@@ -805,6 +872,15 @@ export function validarServicos(raiz) {
   if (!Array.isArray(registro.servicos)) {
     erros.push('registry: "servicos" deve ser uma lista');
     return { erros, servicos: [] };
+  }
+
+  // Catálogo de assuntos (conceito distinto do serviço).
+  let catalogo = null;
+  const docAssuntos = lerJson(raiz, 'services/assuntos.json', erros, 'assuntos');
+  if (docAssuntos) {
+    const r = validarAssuntos(docAssuntos);
+    erros.push(...r.erros);
+    catalogo = r.assuntos;
   }
 
   const idsVistos = new Set();
@@ -844,6 +920,7 @@ export function validarServicos(raiz) {
     validados.push(id);
 
     if (servico.id !== id) erros.push(`${rotulo}: id do service.json ("${servico.id}") difere do registro`);
+    erros.push(...validarAssuntoDoServico(entrada, servico, rotulo, catalogo));
     if (servico.statusValidacao !== entrada.statusValidacao) {
       erros.push(`${rotulo}: statusValidacao difere entre registro e service.json`);
     }

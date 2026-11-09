@@ -3,6 +3,7 @@
   "servicos": [
     {
       "id": "lac",
+      "assuntoId": "licenciamento-ambiental",
       "arquivo": "services/lac/service.json",
       "statusValidacao": "em_validacao",
       "publicado": false
