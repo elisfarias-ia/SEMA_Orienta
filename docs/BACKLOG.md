@@ -44,7 +44,8 @@ Concluído:
 - [x] validar a identidade, a procedência e os metadados das oito fontes para fins de teste;
 - [x] relacionar as fontes documentais ao serviço LAC;
 - [x] validar referências de fontes documentais para legislações;
-- [x] impedir a publicação automática de fontes apenas por estarem validadas.
+- [x] impedir a publicação automática de fontes apenas por estarem validadas;
+- [x] cadastrar descrição, público, condições e roteiro de solicitação no SIGA (15 etapas) como conteúdo em validação, com fontes por `fonteId`, sem publicação.
 
 > Nota: a validação realizada nesta etapa é experimental e abrange identidade, procedência e metadados das fontes. Não representa aprovação jurídica, confirmação de atualização integral ou autorização de publicação.
 
@@ -52,11 +53,11 @@ Pendente:
 
 - [ ] confirmar a vigência consolidada das normas;
 - [ ] confirmar a atualização material do TR, manual, FAQ e página da SEMA;
+- [ ] conferir o texto integral do manual do SIGA, da LC nº 668/2020 e dos Decretos nº 1.268/2022 e nº 1.585/2022 (não acessíveis na auditoria automática; só a página da SEMA foi lida);
 - [ ] decidir quais fontes poderão ser publicadas;
 - [ ] cadastrar o conteúdo oficial da LAC;
 - [ ] cadastrar documentos e checklist;
 - [ ] cadastrar perguntas frequentes;
-- [ ] cadastrar o roteiro de atendimento;
 - [ ] definir unidade responsável e canal de atendimento;
 - [ ] registrar responsável pela validação e data de revisão;
 - [ ] integrar a base ao assistente.

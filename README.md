@@ -125,7 +125,7 @@ Para conferir a estrutura da base:
 npm run validate:services
 ```
 
-A estrutura da base da LAC está pronta, mas o **conteúdo oficial da LAC ainda está pendente** e permanece em `rascunho`, marcado como `PENDENTE`. Somente conteúdo com status `validado` poderá ser publicado ou utilizado futuramente pelo assistente.
+A estrutura da base da LAC está pronta. A LAC está em `em_validacao` e **não publicada**: descrição, público, condições e o roteiro de solicitação no SIGA estão cadastrados, com fontes por `fonteId`, e aguardam validação da área competente. Documentos, perguntas frequentes, unidade responsável, canal de atendimento, responsável pela validação e data de revisão seguem `PENDENTE`. Somente conteúdo com status `validado` poderá ser publicado ou utilizado futuramente pelo assistente.
 
 Há oito fontes oficiais da LAC cadastradas em `services/lac/fontes.json` (página da SEMA, quatro normas, Termo de Referência, manual e perguntas e respostas). Elas tiveram identidade, procedência e metadados validados para fins de teste (`statusValidacao: validado`), mas **nenhuma está publicada** (`publicado: false`). Validar a fonte não significa confirmar a vigência da norma nem a atualização integral do conteúdo, que ainda dependem da área competente. Somente conteúdo expressamente publicado poderá ser utilizado pelo assistente.
 

@@ -209,26 +209,20 @@ test('16d. a base real rejeita relacionar o FAQ a outra fonte documental (cópia
   });
 });
 
-test('17. roteiro, documentos e perguntas continuam sem conteúdo', () => {
-  const secoes = lerTexto('services', 'lac', 'roteiro.md')
-    .split(/^## /m)
-    .slice(1)
-    .map((s) => s.split('\n').slice(1).join('\n').trim());
-  assert.equal(secoes.length, 7);
-  assert.ok(secoes.every((s) => s === 'PENDENTE'));
+test('17. documentos e perguntas continuam sem conteúdo (o roteiro foi cadastrado no Passo 1)', () => {
   assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
 });
 
-test('18. o serviço continua em rascunho e não publicado', () => {
+test('18. o serviço está em validação e não publicado, sem responsável nem data de revisão', () => {
   const servico = lerJson('services', 'lac', 'service.json');
-  assert.equal(servico.statusValidacao, 'rascunho');
+  assert.equal(servico.statusValidacao, 'em_validacao');
   assert.equal(servico.publicado, false);
-  assert.equal(servico.descricao, 'PENDENTE');
+  assert.equal(servico.unidadeResponsavel, 'PENDENTE');
   assert.equal(servico.responsavelValidacao, null);
   assert.equal(servico.dataRevisao, null);
   const registro = lerJson('services', 'registry.json').servicos[0];
-  assert.equal(registro.statusValidacao, 'rascunho');
+  assert.equal(registro.statusValidacao, 'em_validacao');
   assert.equal(registro.publicado, false);
 });
 

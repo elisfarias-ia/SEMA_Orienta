@@ -14,12 +14,32 @@
     "perguntasFrequentes": "services/lac/perguntas-frequentes.json",
     "fontes": "services/lac/fontes.json"
   },
-  "statusValidacao": "rascunho",
+  "statusValidacao": "em_validacao",
   "publicado": false,
-  "descricao": "PENDENTE",
-  "publico": "PENDENTE",
-  "condicoes": [],
-  "etapas": [],
+  "descricao": "Segundo a página oficial da SEMA-MT, a Licença por Adesão e Compromisso (LAC) é uma modalidade de licenciamento ambiental, e a solicitação é feita de forma digital pelo SIGA. A página é de 2020 e a legislação aplicável, com sua situação de vigência, ainda precisa ser confirmada pela área competente.",
+  "publico": "Empreendedores que pretendam solicitar a LAC para uma atividade ou empreendimento; a página oficial menciona a adesão e o compromisso do empreendedor e a associação de responsáveis ao requerimento. A página não define quem pode solicitar: isso depende do enquadramento da atividade e deve ser confirmado pela área competente.",
+  "condicoes": [
+    "O enquadramento na LAC depende da atividade, do seu porte e potencial poluidor e das regras de enquadramento aplicáveis. A página oficial consultada é de 2020 e remete a uma norma de enquadramento que precisa ser confirmada como atual pela área competente. Este sistema apenas orienta e não decide se uma atividade pode obter a LAC.",
+    "A confirmação do enquadramento deve ser feita com base nas normas e orientações oficiais e, em caso de dúvida, junto à SEMA.",
+    "Este sistema não concede licença, não promete aprovação, prazo ou emissão e não substitui a análise da SEMA."
+  ],
+  "etapas": [
+    "Acessar o SIGA.",
+    "Selecionar a opção \"Novo Requerimento\".",
+    "Selecionar a LAC.",
+    "Preencher a aba \"Formulário de Requerimento\", selecionando a atividade a ser licenciada.",
+    "Inserir a localização do empreendimento.",
+    "Associar os responsáveis ao processo.",
+    "Inserir os dados geográficos do empreendimento.",
+    "Conferir os dados da atividade.",
+    "Inserir a documentação solicitada.",
+    "Conferir o valor da taxa.",
+    "Ler e concordar com o Termo de Responsabilidade e enviar o requerimento.",
+    "Aguardar a conferência da documentação pela equipe técnica da SEMA e a disponibilização da cobrança.",
+    "Pagar a guia de recolhimento.",
+    "Aguardar a geração do Termo por Adesão e Compromisso.",
+    "Providenciar a assinatura do responsável."
+  ],
   "unidadeResponsavel": "PENDENTE",
   "responsavelValidacao": null,
   "dataRevisao": null,
@@ -28,7 +48,7 @@
     "url": null
   },
   "sistemaInicio": {
-    "nome": "PENDENTE",
+    "nome": "SIGA",
     "url": null
   },
   "links": [
@@ -43,20 +63,34 @@
     "decreto-1268-2022",
     "decreto-1585-2022"
   ],
+  "referencias": {
+    "descricao": [
+      "sema-orientacoes-lac"
+    ],
+    "publico": [
+      "sema-orientacoes-lac"
+    ],
+    "condicoes": [
+      "sema-orientacoes-lac"
+    ],
+    "etapas": [
+      "sema-orientacoes-lac"
+    ],
+    "sistemaInicio": [
+      "sema-orientacoes-lac"
+    ]
+  },
   "pendencias": [
-    "descricao",
-    "publico",
-    "condicoes",
-    "etapas",
     "unidadeResponsavel",
     "responsavelValidacao",
     "dataRevisao",
     "canalAtendimento",
     "sistemaInicio",
-    "links",
-    "legislacao",
     "documentos",
     "perguntasFrequentes",
-    "fontes"
+    "publicacao",
+    "normaDeEnquadramentoAtual",
+    "fluxoAtualDoSIGA",
+    "conferenciaManualEnormas"
   ]
 }

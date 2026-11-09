@@ -256,6 +256,48 @@ function validarConteudoPendente(servico, rotulo) {
   return erros;
 }
 
+/**
+ * Fora do rascunho, todo campo de conteúdo preenchido precisa indicar suas fontes em "referencias"
+ * (ids de fontes existentes e não revogadas).
+ */
+function validarReferencias(servico, rotulo, fontesPorId) {
+  const erros = [];
+  const referencias = servico.referencias;
+  if (referencias !== undefined && !ehObjeto(referencias)) {
+    return [`${rotulo}: "referencias" deve ser um objeto de listas de ids`];
+  }
+  const mapa = referencias ?? {};
+  for (const [campo, ids] of Object.entries(mapa)) {
+    if (!Array.isArray(ids) || ids.length === 0 || !ids.every(textoPreenchido)) {
+      erros.push(`${rotulo}: referencias.${campo} deve ser uma lista não vazia de ids`);
+      continue;
+    }
+    for (const id of ids) {
+      const fonte = fontesPorId.get(id);
+      if (!fonte) erros.push(`${rotulo}: referencias.${campo} cita fonte inexistente "${id}"`);
+      else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
+        erros.push(`${rotulo}: referencias.${campo} cita fonte revogada "${id}" como fundamento`);
+      }
+    }
+  }
+  if (servico.statusValidacao === 'rascunho') return erros;
+
+  const preenchido = {
+    descricao: textoPreenchido(servico.descricao) && servico.descricao !== PENDENTE,
+    publico: textoPreenchido(servico.publico) && servico.publico !== PENDENTE,
+    condicoes: Array.isArray(servico.condicoes) && servico.condicoes.length > 0,
+    etapas: Array.isArray(servico.etapas) && servico.etapas.length > 0,
+    sistemaInicio: ehObjeto(servico.sistemaInicio) && servico.sistemaInicio.nome !== PENDENTE,
+    canalAtendimento: ehObjeto(servico.canalAtendimento) && servico.canalAtendimento.nome !== PENDENTE,
+  };
+  for (const [campo, temConteudo] of Object.entries(preenchido)) {
+    if (temConteudo && !(Array.isArray(mapa[campo]) && mapa[campo].length > 0)) {
+      erros.push(`${rotulo}: "${campo}" tem conteúdo mas não indica fonte em referencias.${campo}`);
+    }
+  }
+  return erros;
+}
+
 function validarServicoValidado(servico, rotulo) {
   const erros = [];
   for (const campo of ['descricao', 'publico', 'unidadeResponsavel']) {
@@ -278,8 +320,17 @@ function validarPontoDeAcesso(servico, campo, rotulo) {
   return url.ok ? [] : [`${rotulo}: ${campo}.${url.erro}`];
 }
 
-function validarRoteiro(texto, servico, rotulo) {
+function validarRoteiro(texto, servico, rotulo, fontesPorId = new Map()) {
   const erros = [];
+  const verificarIds = (linha, contexto) => {
+    for (const m of linha.matchAll(/`([^`]+)`/g)) {
+      const fonte = fontesPorId.get(m[1]);
+      if (!fonte) erros.push(`${rotulo}: ${contexto} cita fonte inexistente "${m[1]}"`);
+      else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
+        erros.push(`${rotulo}: ${contexto} cita fonte revogada "${m[1]}" como fundamento`);
+      }
+    }
+  };
   const secoes = new Map();
   let atual = null;
   for (const linha of texto.split(/\r?\n/)) {
@@ -296,11 +347,24 @@ function validarRoteiro(texto, servico, rotulo) {
       erros.push(`${rotulo}: seção ausente "${nome}"`);
       continue;
     }
+    const corpo = secoes.get(nome);
+    const somentePendente = corpo.length === 1 && corpo[0] === PENDENTE;
     if (servico.statusValidacao === 'rascunho') {
-      const corpo = secoes.get(nome);
-      if (!(corpo.length === 1 && corpo[0] === PENDENTE)) {
+      if (!somentePendente) {
         erros.push(`${rotulo}: seção "${nome}" deve conter somente ${PENDENTE} enquanto o serviço estiver em rascunho`);
       }
+      continue;
+    }
+    // Fora do rascunho, toda seção com conteúdo (exceto a lista "Fontes") deve indicar suas fontes por id.
+    if (nome === 'Fontes') {
+      corpo.forEach((linha) => verificarIds(linha, 'seção "Fontes"'));
+    } else if (!somentePendente) {
+      const linhasFontes = corpo.filter((linha) => /^Fontes?:/i.test(linha));
+      if (linhasFontes.length === 0) erros.push(`${rotulo}: seção "${nome}" tem conteúdo mas não indica "Fontes:" por id`);
+      linhasFontes.forEach((linha) => {
+        if (!/`[^`]+`/.test(linha)) erros.push(`${rotulo}: seção "${nome}" indica "Fontes:" sem nenhum id`);
+        verificarIds(linha, `seção "${nome}"`);
+      });
     }
   }
   return erros;
@@ -465,6 +529,7 @@ export function validarServicos(raiz) {
     for (const campo of ['condicoes', 'etapas', 'pendencias']) {
       if (!Array.isArray(servico[campo])) erros.push(`${rotulo}: "${campo}" deve ser uma lista`);
     }
+    erros.push(...validarReferencias(servico, rotulo, fontesPorId));
 
     if (arquivos.documentos) {
       const docs = lerJson(raiz, arquivos.documentos, erros, `${rotulo} documentos`);
@@ -478,7 +543,7 @@ export function validarServicos(raiz) {
       const caminho = resolverDentro(raiz, arquivos.roteiro);
       if (!caminho) erros.push(`${rotulo}: roteiro fora da pasta services/`);
       else if (!fs.existsSync(caminho)) erros.push(`${rotulo}: arquivo não encontrado: ${arquivos.roteiro}`);
-      else erros.push(...validarRoteiro(fs.readFileSync(caminho, 'utf8'), servico, `${rotulo} roteiro`));
+      else erros.push(...validarRoteiro(fs.readFileSync(caminho, 'utf8'), servico, `${rotulo} roteiro`, fontesPorId));
     }
   });
 

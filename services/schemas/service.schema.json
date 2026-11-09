@@ -48,6 +48,11 @@
       "description": "Identificadores de fontes do tipo legislacao cadastradas em fontes.json.",
       "items": { "type": "string" }
     },
+    "referencias": {
+      "type": "object",
+      "description": "Fontes que sustentam cada campo de conteúdo (descricao, publico, condicoes, etapas, sistemaInicio, canalAtendimento). Obrigatória para todo campo preenchido quando o serviço não está em rascunho. Não pode citar fonte revogada.",
+      "additionalProperties": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+    },
     "pendencias": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {

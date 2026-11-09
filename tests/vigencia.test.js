@@ -202,24 +202,20 @@ test('V10c. serviço publicado não pode referenciar fonte não validada (cópia
   });
 });
 
-test('V11. nada da LAC está publicado e o serviço segue em rascunho', () => {
+test('V11. nada da LAC está publicado e o serviço segue sem responsável e sem data de revisão', () => {
   const fontes = lerJson('services', 'lac', 'fontes.json');
   assert.equal(fontes.statusValidacao, 'em_validacao');
   assert.ok(fontes.fontes.every((f) => f.publicado === false));
   assert.ok(fontes.fontes.every((f) => f.statusValidacao === 'validado'));
   const servico = lerJson('services', 'lac', 'service.json');
-  assert.equal(servico.statusValidacao, 'rascunho');
+  assert.equal(servico.statusValidacao, 'em_validacao');
   assert.equal(servico.publicado, false);
   assert.equal(servico.responsavelValidacao, null);
   assert.equal(servico.dataRevisao, null);
-  assert.equal(servico.descricao, 'PENDENTE');
+  assert.equal(servico.unidadeResponsavel, 'PENDENTE');
 });
 
-test('V11b. roteiro, documentos e perguntas não receberam conteúdo ambiental', () => {
-  const roteiro = fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'roteiro.md'), 'utf8');
-  const secoes = roteiro.split(/^## /m).slice(1).map((s) => s.split('\n').slice(1).join('\n').trim());
-  assert.equal(secoes.length, 7);
-  assert.ok(secoes.every((s) => s === 'PENDENTE'));
+test('V11b. documentos e perguntas ainda não receberam conteúdo', () => {
   assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
 });

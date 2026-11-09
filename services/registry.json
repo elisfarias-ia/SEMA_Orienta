@@ -4,7 +4,7 @@
     {
       "id": "lac",
       "arquivo": "services/lac/service.json",
-      "statusValidacao": "rascunho",
+      "statusValidacao": "em_validacao",
       "publicado": false
     }
   ]

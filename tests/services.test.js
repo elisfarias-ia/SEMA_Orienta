@@ -102,10 +102,10 @@ test('3. todos os arquivos referenciados existem', () => {
   }
 });
 
-test('4. a LAC está em rascunho no registro e nos arquivos', () => {
+test('4. a LAC está em validação no registro e no serviço; documentos e perguntas seguem em rascunho', () => {
   const registro = lerJson('services', 'registry.json').servicos[0];
-  assert.equal(registro.statusValidacao, 'rascunho');
-  assert.equal(lerJson('services', 'lac', 'service.json').statusValidacao, 'rascunho');
+  assert.equal(registro.statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'service.json').statusValidacao, 'em_validacao');
   for (const nome of ['documentos', 'perguntas-frequentes']) {
     assert.equal(lerJson('services', 'lac', `${nome}.json`).statusValidacao, 'rascunho');
   }
@@ -130,14 +130,16 @@ test('a base real passa na validação', () => {
   assert.deepEqual(servicos, ['lac']);
 });
 
-test('a LAC não tem URL nem conteúdo oficial preenchido', () => {
+test('campos sem fonte ou validação suficiente continuam PENDENTE', () => {
   const servico = lerJson('services', 'lac', 'service.json');
-  assert.equal(servico.sistemaInicio.url, null);
-  assert.equal(servico.sistemaInicio.nome, 'PENDENTE');
-  assert.equal(servico.canalAtendimento.url, null);
-  assert.equal(servico.descricao, 'PENDENTE');
+  assert.equal(servico.unidadeResponsavel, 'PENDENTE');
   assert.equal(servico.responsavelValidacao, null);
   assert.equal(servico.dataRevisao, null);
+  assert.deepEqual(servico.canalAtendimento, { nome: 'PENDENTE', url: null });
+  assert.equal(servico.sistemaInicio.url, null);
+  for (const campo of ['unidadeResponsavel', 'responsavelValidacao', 'dataRevisao', 'canalAtendimento', 'sistemaInicio', 'documentos', 'perguntasFrequentes']) {
+    assert.ok(servico.pendencias.includes(campo), campo);
+  }
   assert.match(lerJson('services', 'lac', 'fontes.json').pendencia, /^PENDENTE/);
   assert.doesNotMatch(fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'roteiro.md'), 'utf8'), /https?:\/\//);
 });
@@ -210,9 +212,11 @@ test('falha quando documentos não é uma lista', () => {
   });
 });
 
-test('falha quando conteúdo oficial é preenchido em rascunho (suposição)', () => {
+test('falha quando conteúdo oficial está preenchido em rascunho (suposição)', () => {
   comCopia(({ dir, editarJson }) => {
+    editarJson('services/registry.json', (r) => { r.servicos[0].statusValidacao = 'rascunho'; });
     editarJson('services/lac/service.json', (s) => {
+      s.statusValidacao = 'rascunho';
       s.descricao = 'Texto inventado';
       s.etapas = ['Etapa inventada'];
       s.sistemaInicio = { nome: 'Sistema X', url: 'https://exemplo.test/' };
@@ -224,10 +228,10 @@ test('falha quando conteúdo oficial é preenchido em rascunho (suposição)', (
   });
 });
 
-test('falha quando o roteiro em rascunho tem seção preenchida', () => {
-  comCopia(({ dir }) => {
-    const arquivo = path.join(dir, 'services', 'lac', 'roteiro.md');
-    fs.writeFileSync(arquivo, fs.readFileSync(arquivo, 'utf8').replace('## Etapas\n\nPENDENTE', '## Etapas\n\nFaça isto e aquilo.'));
+test('falha quando o roteiro de um serviço em rascunho tem seção preenchida', () => {
+  comCopia(({ dir, editarJson }) => {
+    editarJson('services/registry.json', (r) => { r.servicos[0].statusValidacao = 'rascunho'; });
+    editarJson('services/lac/service.json', (s) => { s.statusValidacao = 'rascunho'; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /seção "Etapas" deve conter somente PENDENTE/.test(e)), erros.join('\n'));
   });
@@ -315,11 +319,10 @@ test('analisarUrl normaliza e não acessa a rede', () => {
 test('fonte em arquivo temporário referenciada pelo serviço é aceita; referência inexistente falha', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/lac/fontes.json', (f) => {
-      f.fontes = [fonteValida({ statusValidacao: 'rascunho', dataConsulta: null })];
+      f.fontes.push(fonteValida({ statusValidacao: 'rascunho', dataConsulta: null }));
     });
     editarJson('services/lac/service.json', (s) => {
-      s.links = ['fonte-teste-1'];
-      s.legislacao = [];
+      s.links.push('fonte-teste-1');
     });
     assert.deepEqual(validarServicos(dir).erros, []);
     editarJson('services/lac/documentos.json', (d) => {
