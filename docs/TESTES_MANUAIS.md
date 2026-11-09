@@ -49,3 +49,26 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 **Resultado geral do Marco 1:** aprovado.
 
 **Não executados (funcionalidades ainda inexistentes):** T01 a T07, T09, T10, T11, T14 e T15, relacionados a IA, API, chave, base oficial, checklist, fontes e serviço de demonstração.
+
+### Execução — assistente em teste local (Passo 6)
+
+**Status: conferência manual aprovada pela usuária (M6-01 a M6-11), incluindo a correção da prioridade de intenção ("O que é enquadramento?" não devolve mais a descrição da LAC). M6-12 (`build` + `preview`, opcional) e M6-13 (recarregar a página) não foram executados manualmente.**
+
+- **Ambiente:** `npm run dev` (somente computador local; não usar `--host`).
+- **Dimensão móvel:** 390 × 844 px.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| M6-01 | Abrir a página no servidor de desenvolvimento | Faixa "Modo de teste local — conteúdo em validação, não oficial." visível | aprovado |
+| M6-02 | "O que é a LAC?" | Descrição cautelosa, limitações, aviso de conteúdo de 2020 e "Fontes oficiais" com link | aprovado |
+| M6-03 | "Como solicitar a LAC?" e "Quais as etapas?" | Sequência de 6 passos, aviso de que as telas atuais podem ter mudado, sem taxa, pagamento nem botões | aprovado |
+| M6-04 | "Qual o link oficial?" | Texto do link com aviso; link de fonte `https` abre em nova aba | aprovado |
+| M6-05 | "Minha atividade pode ter LAC?" | O assistente não decide; mostra "Não encontrei informação validada…" | aprovado |
+| M6-06 | "Quais documentos?", "Quanto custa?", "Qual o prazo?", "Qual a validade?", "Qual o telefone?" | Somente "Não encontrei informação validada…" e as limitações | aprovado |
+| M6-07 | "Como funciona o licenciamento ambiental?" | Frase de escopo (base só com LAC; sem afirmar adequação) | aprovado |
+| M6-08 | "LAC" sozinho; "animal silvestre" | Pergunta de esclarecimento; "Não encontrei informação validada…" | aprovado |
+| M6-09 | Enter, Shift + Enter, Reiniciar | Envia; nova linha; limpa a conversa; foco volta ao campo | aprovado |
+| M6-10 | Largura de 390 × 844 px | Sem rolagem horizontal; URL longa quebra linha; botões e links utilizáveis | aprovado |
+| M6-11 | Navegação só por Tab | Foco visível em campo, botões e links das fontes | aprovado |
+| M6-12 | `npm run build` e `npm run preview` | Sem faixa; resposta apenas "A base de informações da LAC está em configuração…" | não executado |
+| M6-13 | Recarregar a página | Conversa não é mantida (nada gravado no navegador) | não executado |

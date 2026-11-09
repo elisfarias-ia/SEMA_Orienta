@@ -259,3 +259,46 @@ body {
     transition: background-color 0.15s ease;
   }
 }
+
+/* Faixa de teste local (só aparece quando o servidor de desenvolvimento entrega conteúdo de teste) */
+.faixa-teste {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  background: #fef9c3;
+  color: #422006;
+  border: 2px solid #ca8a04;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.faixa-teste[hidden] {
+  display: none;
+}
+
+/* Avisos e fontes dentro das respostas */
+.message__aviso {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+.message__fontes-titulo {
+  margin: 0.5rem 0 0.1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.message__fontes {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+.message__fontes a {
+  color: var(--verde-900);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.message__fontes a:hover {
+  text-decoration-thickness: 2px;
+}
+.message--assistente .message__text + .message__text {
+  margin-top: 0.5rem;
+}

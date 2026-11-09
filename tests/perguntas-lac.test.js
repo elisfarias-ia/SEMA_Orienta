@@ -375,7 +375,8 @@ test('A1. nenhuma pergunta está disponível para resposta do chat; conteudoFont
 
 test('A2. a interface não foi alterada e não contém o conteúdo do FAQ', () => {
   const arquivos = fs.readdirSync(path.join(RAIZ, 'src')).sort();
-  assert.deepEqual(arquivos, ['chat.js', 'main.js', 'styles.css']);
+  // Passo 6 acrescentou src/assistant.js (reconhecimento local de intenção); nenhum arquivo importa o JSON do conteúdo.
+  assert.deepEqual(arquivos, ['assistant.js', 'chat.js', 'main.js', 'styles.css']);
   const proibido = /FAQ|UPF|perguntas-frequentes|shapefile|decreto|CONSEMA|services\//i;
   for (const arquivo of ['index.html', ...arquivos.map((n) => path.join('src', n))]) {
     assert.doesNotMatch(lerTexto(arquivo), proibido, arquivo);

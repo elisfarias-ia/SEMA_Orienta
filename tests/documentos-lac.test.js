@@ -335,7 +335,8 @@ test('D29. as perguntas frequentes foram cadastradas no Passo 3 (21) e nenhuma e
 
 test('D30. a interface não foi alterada e não contém o checklist', () => {
   const arquivos = fs.readdirSync(path.join(RAIZ, 'src')).sort();
-  assert.deepEqual(arquivos, ['chat.js', 'main.js', 'styles.css']);
+  // Passo 6 acrescentou src/assistant.js (reconhecimento local de intenção); nenhum arquivo importa o JSON do conteúdo.
+  assert.deepEqual(arquivos, ['assistant.js', 'chat.js', 'main.js', 'styles.css']);
   const proibido = /tr176|decreto|certid[ãa]o|procura[çc][ãa]o|simcar|documentos\.json|services\/|TR 176|\bART\b/i;
   for (const arquivo of ['index.html', ...arquivos.map((n) => path.join('src', n))]) {
     // "ART" é conferida como palavra inteira (\bART\b), para não acusar "start" do CSS.

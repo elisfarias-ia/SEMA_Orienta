@@ -135,6 +135,8 @@ As perguntas frequentes (`services/lac/perguntas-frequentes.json`) reúnem 21 pe
 
 Para a demonstração local, `services/lac/conteudo-assistente.json` reúne 5 blocos curtos (limitações, descrição geral, sequência geral, link oficial e mensagem sem conteúdo), todos com `ambiente: teste_local`, em validação e **não publicados**. A função `selecionarBlocosAssistente`, em `services/assistant-content.js`, escolhe o conteúdo por modo: `publico` (padrão) retorna zero blocos hoje; `teste_local` retorna somente esses 5 blocos; qualquer outro modo é rejeitado. Documentos e perguntas continuam indisponíveis. A ligação com a interface e a escolha do modo ficam para o Passo 6, e o build de produção não contém esses textos.
 
+**Assistente em teste local.** No `npm run dev`, o servidor de desenvolvimento do Vite oferece o endpoint `GET /__assistente/blocos`, que entrega somente os 5 blocos de teste local. A interface os busca apenas em desenvolvimento, reconhece a pergunta livre **no próprio navegador** (por intenção e palavras equivalentes, sem IA externa, API ou chave) e responde só com o texto desses blocos, mostrando a faixa de teste local, o aviso e as fontes oficiais com links `https`. Sem o endpoint, e no build de produção, o chat mostra apenas a mensagem segura de indisponibilidade. A conversa fica só em memória. Para conferir que o build não contém nenhum desses textos: `npm run build` e depois `node scripts/check-dist.js`.
+
 A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](docs/REVISAO_CONTEUDO_LAC.md).
 
 ## Estado atual

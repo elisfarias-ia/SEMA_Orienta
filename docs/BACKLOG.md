@@ -49,7 +49,8 @@ Concluído:
 - [x] transcrever os 28 itens do checklist de documentos do TR nº 176 (em validação, não publicados, `obrigatorio: null`, `revisaoAtualidade: pendente`, com alertas específicos);
 - [x] transcrever 21 perguntas do FAQ de 2022 (18 numeradas e as perguntas i, j e k das observações) em linguagem de fonte histórica, em validação, não publicadas, com `respostaPublicavel: null`, bloqueios controlados e sem contatos armazenados;
 - [x] realizar a revisão técnica consolidada da base da LAC (`docs/REVISAO_CONTEUDO_LAC.md`), sem alterar status, sem publicar e sem validar o conteúdo materialmente;
-- [x] preparar o conteúdo controlado para teste local (5 blocos em `conteudo-assistente.json`, `ambiente: teste_local`, não publicados) e a regra de seleção por modo (`services/assistant-content.js`), sem ligar à interface.
+- [x] preparar o conteúdo controlado para teste local (5 blocos em `conteudo-assistente.json`, `ambiente: teste_local`, não publicados) e a regra de seleção por modo (`services/assistant-content.js`), sem ligar à interface;
+- [x] integrar o assistente em teste local à interface, com endpoint exclusivo do Vite em desenvolvimento, reconhecimento local de intenção e conferência do `dist/` (implementado; conferência manual aprovada pela usuária; M6-12 e M6-13 não executados).
 
 > Nota: a validação realizada nesta etapa é experimental e abrange identidade, procedência e metadados das fontes. Não representa aprovação jurídica, confirmação de atualização integral ou autorização de publicação.
 
