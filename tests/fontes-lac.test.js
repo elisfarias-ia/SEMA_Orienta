@@ -102,7 +102,7 @@ test('7. as três novas fontes documentais existem, com tipo e órgão corretos'
   for (const fonte of [tr, manual, faq]) {
     assert.equal(fonte.orgaoResponsavel, 'Secretaria de Estado de Meio Ambiente de Mato Grosso - SEMA-MT');
     assert.equal(fonte.vigencia.situacao, 'nao_se_aplica');
-    assert.equal(fonte.dataConsulta, '2026-11-05');
+    assert.equal(fonte.dataConsulta, fonte.id === 'tr-176-lac' ? '2026-11-09' : '2026-11-05');
   }
 });
 
@@ -209,8 +209,7 @@ test('16d. a base real rejeita relacionar o FAQ a outra fonte documental (cópia
   });
 });
 
-test('17. documentos e perguntas continuam sem conteúdo (o roteiro foi cadastrado no Passo 1)', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
+test('17. perguntas frequentes continuam sem conteúdo (roteiro e documentos foram cadastrados nos Passos 1 e 2)', () => {
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
 });
 

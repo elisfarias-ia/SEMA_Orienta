@@ -134,22 +134,50 @@
         "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
         "documentos": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "nome", "statusValidacao"],
-            "properties": {
-              "id": { "type": "string" },
-              "nome": { "type": "string" },
-              "descricao": { "type": "string" },
-              "obrigatoriedade": { "type": "string" },
-              "condicao": { "type": "string" },
-              "observacao": { "type": "string" },
-              "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json." },
-              "statusValidacao": { "$ref": "#/$defs/statusValidacao" }
-            }
-          }
+          "items": { "$ref": "#/$defs/documento" }
         },
         "pendencia": { "type": "string" }
+      }
+    },
+    "grupoDocumento": {
+      "enum": ["empreendedor_empreendimento", "responsavel_tecnico", "imovel", "documentos_especificos", "estudos_planos_projetos"]
+    },
+    "estadoRevisaoAtualidade": { "enum": ["pendente", "em_revisao", "concluida"] },
+    "documento": {
+      "type": "object",
+      "required": [
+        "id", "grupo", "nome", "descricao", "aplicabilidade", "condicional", "obrigatorio",
+        "fonteId", "localizacaoFonte", "statusValidacao", "publicado", "revisaoAtualidade", "alertas"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "grupo": { "$ref": "#/$defs/grupoDocumento" },
+        "nome": { "type": "string", "minLength": 1 },
+        "descricao": { "type": "string", "minLength": 1 },
+        "aplicabilidade": { "type": "string", "minLength": 1, "description": "Condição de aplicação registrada na fonte." },
+        "condicional": {
+          "type": "boolean",
+          "description": "Reflete a condição descrita na fonte (TR de 2020), não uma confirmação atual. false = a fonte não apresentou condição expressa naquele item; isso não significa que o documento esteja atualmente confirmado como obrigatório. A obrigatoriedade atual é representada por obrigatorio."
+        },
+        "alertas": {
+          "type": "array",
+          "description": "Sempre presente. Lista vazia quando não há inconsistência específica; quando há problema identificado, um ou mais textos não vazios.",
+          "items": { "type": "string", "minLength": 1, "pattern": "\\S" }
+        },
+        "obrigatorio": {
+          "type": ["boolean", "null"],
+          "description": "null = obrigatoriedade atual ainda não confirmada pela área competente (não significa dispensa). true/false só após revisão de atualidade concluída e validação."
+        },
+        "fonteId": { "type": "string", "description": "Identificador de uma fonte de fontes.json, não revogada." },
+        "localizacaoFonte": { "type": "string", "minLength": 1, "description": "Numeração do item na fonte." },
+        "statusValidacao": { "$ref": "#/$defs/statusValidacao" },
+        "publicado": {
+          "type": "boolean",
+          "description": "Só pode ser true com status validado, revisão de atualidade concluída e fonte publicada."
+        },
+        "revisaoAtualidade": { "$ref": "#/$defs/estadoRevisaoAtualidade" },
+        "observacao": { "type": "string" }
       }
     },
     "arquivoPerguntas": {

@@ -215,8 +215,7 @@ test('V11. nada da LAC está publicado e o serviço segue sem responsável e sem
   assert.equal(servico.unidadeResponsavel, 'PENDENTE');
 });
 
-test('V11b. documentos e perguntas ainda não receberam conteúdo', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
+test('V11b. as perguntas frequentes ainda não receberam conteúdo', () => {
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
 });
 

@@ -16,6 +16,14 @@ export const TIPOS_FONTE = [
   'outro',
 ];
 export const SITUACOES_VIGENCIA = ['vigente', 'alterada', 'revogada', 'a_confirmar', 'nao_se_aplica'];
+export const GRUPOS_DOCUMENTO = [
+  'empreendedor_empreendimento',
+  'responsavel_tecnico',
+  'imovel',
+  'documentos_especificos',
+  'estudos_planos_projetos',
+];
+export const ESTADOS_REVISAO_ATUALIDADE = ['pendente', 'em_revisao', 'concluida'];
 export const PENDENTE = 'PENDENTE';
 
 const SECOES_ROTEIRO = [
@@ -230,6 +238,106 @@ function validarListaDeItens(doc, { rotulo, chave, idServico, idsFontes }) {
     erros.push(`${rotulo}: lista vazia exige "pendencia" iniciada por ${PENDENTE}`);
   }
   return erros;
+}
+
+/**
+ * Valida o arquivo de documentos (checklist) de um serviço.
+ * `obrigatorio: null` significa "obrigatoriedade atual ainda não confirmada" (não é dispensa).
+ */
+export function validarDocumentos(doc, { rotulo = 'documentos', idServico, fontesPorId = new Map() } = {}) {
+  const erros = [];
+  if (!ehObjeto(doc)) return [`${rotulo}: conteúdo deve ser um objeto`];
+  if (idServico !== undefined && doc.serviceId !== idServico) {
+    erros.push(`${rotulo}: serviceId "${doc.serviceId}" difere do serviço "${idServico}"`);
+  }
+  if (!STATUS_VALIDOS.includes(doc.statusValidacao)) {
+    erros.push(`${rotulo}: statusValidacao inválido ${JSON.stringify(doc.statusValidacao)}`);
+  }
+  if (!Array.isArray(doc.documentos)) {
+    erros.push(`${rotulo}: "documentos" deve ser uma lista`);
+    return erros;
+  }
+
+  const ids = new Set();
+  doc.documentos.forEach((item, i) => {
+    const ref = `${rotulo}[${i}]`;
+    if (!ehObjeto(item)) {
+      erros.push(`${ref}: item deve ser um objeto`);
+      return;
+    }
+    if (!textoPreenchido(item.id)) erros.push(`${ref}: id obrigatório`);
+    else if (ids.has(item.id)) erros.push(`${ref}: id duplicado "${item.id}"`);
+    else ids.add(item.id);
+
+    if (!GRUPOS_DOCUMENTO.includes(item.grupo)) erros.push(`${ref}: grupo inválido ${JSON.stringify(item.grupo)}`);
+    for (const campo of ['nome', 'descricao', 'aplicabilidade']) {
+      if (!textoPreenchido(item[campo])) erros.push(`${ref}: "${campo}" obrigatório`);
+    }
+    if (typeof item.condicional !== 'boolean') erros.push(`${ref}: condicional deve ser booleano`);
+    if (item.observacao !== undefined && typeof item.observacao !== 'string') {
+      erros.push(`${ref}: observacao deve ser texto`);
+    }
+
+    // Fonte: obrigatória, existente e não revogada.
+    let fonte = null;
+    if (!textoPreenchido(item.fonteId)) erros.push(`${ref}: documento sem fonteId`);
+    else if (!fontesPorId.has(item.fonteId)) erros.push(`${ref}: fonteId "${item.fonteId}" não existe em fontes.json`);
+    else {
+      fonte = fontesPorId.get(item.fonteId);
+      if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
+        erros.push(`${ref}: documento usa fonte revogada "${item.fonteId}" como fundamento`);
+      }
+    }
+    if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
+
+    if (!STATUS_VALIDOS.includes(item.statusValidacao)) {
+      erros.push(`${ref}: statusValidacao inválido ${JSON.stringify(item.statusValidacao)}`);
+    }
+    if (!ESTADOS_REVISAO_ATUALIDADE.includes(item.revisaoAtualidade)) {
+      erros.push(`${ref}: revisaoAtualidade inválida ${JSON.stringify(item.revisaoAtualidade)}`);
+    }
+    if (!Array.isArray(item.alertas) || !item.alertas.every(textoPreenchido)) {
+      erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
+    }
+    if (doc.statusValidacao === 'rascunho' && item.statusValidacao === 'validado') {
+      erros.push(`${ref}: arquivo em rascunho não pode conter item validado`);
+    }
+
+    // Obrigatoriedade: true, false ou null; só se define após revisão de atualidade e validação.
+    if (item.obrigatorio !== null && typeof item.obrigatorio !== 'boolean') {
+      erros.push(`${ref}: obrigatorio deve ser true, false ou null`);
+    } else if (item.obrigatorio !== null && !(item.revisaoAtualidade === 'concluida' && item.statusValidacao === 'validado')) {
+      erros.push(`${ref}: obrigatoriedade só pode ser definida (true/false) após revisão de atualidade concluída e validação; use null enquanto não confirmada`);
+    }
+
+    // Publicação: exige validação, revisão concluída e fonte publicada.
+    if (typeof item.publicado !== 'boolean') erros.push(`${ref}: publicado deve ser booleano`);
+    else if (item.publicado) {
+      if (item.statusValidacao !== 'validado') erros.push(`${ref}: documento ${item.statusValidacao} não pode estar publicado`);
+      if (item.revisaoAtualidade !== 'concluida') erros.push(`${ref}: documento publicado não pode ter revisão de atualidade ${item.revisaoAtualidade}`);
+      if (fonte && fonte.publicado !== true) erros.push(`${ref}: documento publicado não pode usar fonte não publicada "${item.fonteId}"`);
+    }
+  });
+
+  if (doc.documentos.length === 0 && !(typeof doc.pendencia === 'string' && doc.pendencia.startsWith(PENDENTE))) {
+    erros.push(`${rotulo}: lista vazia exige "pendencia" iniciada por ${PENDENTE}`);
+  }
+  return erros;
+}
+
+/**
+ * Regra de bloqueio: somente documentos publicados, validados, com revisão de atualidade concluída
+ * e fonte publicada e não revogada podem ser disponibilizados ao assistente.
+ */
+export function documentosDisponiveisParaAssistente(doc, fontesPorId = new Map()) {
+  if (!ehObjeto(doc) || !Array.isArray(doc.documentos)) return [];
+  return doc.documentos.filter((item) => {
+    if (!ehObjeto(item) || item.publicado !== true) return false;
+    if (item.statusValidacao !== 'validado' || item.revisaoAtualidade !== 'concluida') return false;
+    const fonte = fontesPorId.get(item.fonteId);
+    if (!fonte || fonte.publicado !== true) return false;
+    return !(ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada');
+  });
 }
 
 /** Em rascunho, o conteúdo material deve estar pendente (nunca preenchido por suposição). */
@@ -533,7 +641,7 @@ export function validarServicos(raiz) {
 
     if (arquivos.documentos) {
       const docs = lerJson(raiz, arquivos.documentos, erros, `${rotulo} documentos`);
-      if (docs) erros.push(...validarListaDeItens(docs, { rotulo: `${rotulo} documentos`, chave: 'documentos', idServico: id, idsFontes }));
+      if (docs) erros.push(...validarDocumentos(docs, { rotulo: `${rotulo} documentos`, idServico: id, fontesPorId }));
     }
     if (arquivos.perguntasFrequentes) {
       const perguntas = lerJson(raiz, arquivos.perguntasFrequentes, erros, `${rotulo} perguntas`);

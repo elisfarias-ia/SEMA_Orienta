@@ -129,6 +129,8 @@ A estrutura da base da LAC está pronta. A LAC está em `em_validacao` e **não 
 
 Há oito fontes oficiais da LAC cadastradas em `services/lac/fontes.json` (página da SEMA, quatro normas, Termo de Referência, manual e perguntas e respostas). Elas tiveram identidade, procedência e metadados validados para fins de teste (`statusValidacao: validado`), mas **nenhuma está publicada** (`publicado: false`). Validar a fonte não significa confirmar a vigência da norma nem a atualização integral do conteúdo, que ainda dependem da área competente. Somente conteúdo expressamente publicado poderá ser utilizado pelo assistente.
 
+O checklist de documentos (`services/lac/documentos.json`) reúne 28 itens transcritos do Termo de Referência nº 176 (2020). Todos permanecem em validação e não publicados, a obrigatoriedade atual ainda não foi confirmada (`obrigatorio: null`) e o conteúdo não está disponível para respostas do assistente. O TR contém inconsistências e possíveis sinais de desatualização, registrados em cada item; a área competente deverá revisar os itens antes de qualquer publicação.
+
 ## Estado atual
 
 - Marco 0 — pacote de contexto concluído.

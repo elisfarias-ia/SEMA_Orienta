@@ -102,13 +102,12 @@ test('3. todos os arquivos referenciados existem', () => {
   }
 });
 
-test('4. a LAC está em validação no registro e no serviço; documentos e perguntas seguem em rascunho', () => {
+test('4. a LAC está em validação no registro e no serviço; documentos em validação e perguntas em rascunho', () => {
   const registro = lerJson('services', 'registry.json').servicos[0];
   assert.equal(registro.statusValidacao, 'em_validacao');
   assert.equal(lerJson('services', 'lac', 'service.json').statusValidacao, 'em_validacao');
-  for (const nome of ['documentos', 'perguntas-frequentes']) {
-    assert.equal(lerJson('services', 'lac', `${nome}.json`).statusValidacao, 'rascunho');
-  }
+  assert.equal(lerJson('services', 'lac', 'documentos.json').statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'perguntas-frequentes.json').statusValidacao, 'rascunho');
   // O conjunto de fontes está em validação: as fontes têm identidade e procedência validadas, mas nada foi publicado.
   assert.equal(lerJson('services', 'lac', 'fontes.json').statusValidacao, 'em_validacao');
 });
@@ -118,8 +117,8 @@ test('5. a LAC não está publicada', () => {
   assert.equal(lerJson('services', 'lac', 'service.json').publicado, false);
 });
 
-test('6. listas de documentos e perguntas continuam vazias; há 8 fontes cadastradas', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
+test('6. a lista de perguntas continua vazia; há 28 documentos e 8 fontes cadastrados', () => {
+  assert.equal(lerJson('services', 'lac', 'documentos.json').documentos.length, 28);
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
   assert.equal(lerJson('services', 'lac', 'fontes.json').fontes.length, 8);
 });

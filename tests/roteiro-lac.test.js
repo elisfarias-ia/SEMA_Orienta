@@ -115,8 +115,7 @@ test('P1-6. o Decreto nº 695/2020 só aparece como revogado e com a fonte da re
   assert.equal(fontes().find((f) => f.id === 'decreto-695-2020').vigencia.situacao, 'revogada');
 });
 
-test('P1-7. documentos e perguntas frequentes continuam vazios', () => {
-  assert.deepEqual(lerJson('services', 'lac', 'documentos.json').documentos, []);
+test('P1-7. as perguntas frequentes continuam vazias (os documentos foram cadastrados no Passo 2)', () => {
   assert.deepEqual(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas, []);
 });
 
