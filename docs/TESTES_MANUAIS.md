@@ -52,7 +52,7 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 
 ### Execução — assistente em teste local (Passo 6)
 
-**Status: conferência manual aprovada pela usuária (M6-01 a M6-11), incluindo a correção da prioridade de intenção ("O que é enquadramento?" não devolve mais a descrição da LAC). M6-12 (`build` + `preview`, opcional) e M6-13 (recarregar a página) não foram executados manualmente.**
+**Status: conferência manual aprovada pela usuária (M6-01 a M6-12), incluindo a correção da prioridade de intenção ("O que é enquadramento?" não devolve mais a descrição da LAC). M6-12 (`build` + `preview`) aprovado pela usuária em 09/11/2026; M6-13 (recarregar a página) não foi executado manualmente.**
 
 - **Ambiente:** `npm run dev` (somente computador local; não usar `--host`).
 - **Dimensão móvel:** 390 × 844 px.
@@ -70,5 +70,5 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 | M6-09 | Enter, Shift + Enter, Reiniciar | Envia; nova linha; limpa a conversa; foco volta ao campo | aprovado |
 | M6-10 | Largura de 390 × 844 px | Sem rolagem horizontal; URL longa quebra linha; botões e links utilizáveis | aprovado |
 | M6-11 | Navegação só por Tab | Foco visível em campo, botões e links das fontes | aprovado |
-| M6-12 | `npm run build` e `npm run preview` | Sem faixa; resposta apenas "A base de informações da LAC está em configuração…" | não executado |
+| M6-12 | `npm run build` e `npm run preview` | Sem faixa; resposta apenas "A base de informações da LAC está em configuração…" | aprovado — `npm run preview` em `localhost:4173`; faixa e conteúdo de teste ausentes; pergunta respondida só com a mensagem segura de indisponibilidade (validação da usuária em 09/11/2026) |
 | M6-13 | Recarregar a página | Conversa não é mantida (nada gravado no navegador) | não executado |
