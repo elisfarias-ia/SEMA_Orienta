@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decisão de validação material (modelo do Marco 7)",
+  "description": "Registro do histórico tratado por services/admin/decisoes.js. Só se acrescenta ao histórico; nunca se edita, apaga ou reordena. 'responsavel' e 'unidade' são identificadores de registro, sem valor de comprovação de identidade; nenhuma decisão real foi registrada e decisões com identificação pessoal ficam fora do Git.",
+  "type": "object",
+  "required": ["tipo", "id", "versaoId", "decisao", "hashConteudo", "responsavel", "unidade", "data", "observacao"],
+  "additionalProperties": false,
+  "properties": {
+    "tipo": { "const": "decisao_material" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Único em todo o histórico." },
+    "versaoId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Deve ser a versão em validação." },
+    "decisao": { "enum": ["ajustes_solicitados", "validado_materialmente"] },
+    "hashConteudo": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Deve ser igual ao hash da versão." },
+    "responsavel": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "unidade": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "data": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Não pode ser anterior ao envio da versão nem ao registro anterior." },
+    "observacao": { "type": ["string", "null"], "description": "Obrigatória (não vazia) quando a decisão é ajustes_solicitados." }
+  }
+}

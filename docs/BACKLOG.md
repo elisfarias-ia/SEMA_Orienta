@@ -77,7 +77,11 @@ Concluído (Passo 7A — modelo básico, sem interface):
 - [x] validação de assuntos (ids únicos, campos, assunto existente e ativo, `assuntoId` igual no registro e no `service.json`);
 - [x] estados e transições da versão do serviço (`services/admin/fluxo.js`) e hash determinístico do conteúdo (`services/admin/hash.js`).
 
-Pendente (ainda não iniciado): aplicar o fluxo a versões da LAC, registrar decisões, armazenamento local, endpoint e interface administrativos, isolamento do `dist/`. Não há validação material nem publicação autorizada.
+Concluído (Passo 7B — fluxo de versões e decisões, funções puras e testadas, com dados fictícios):
+
+- [x] criar versão, enviar para validação com hash, registrar decisão material, autorizar publicação e publicar, com histórico apenas de acréscimos e nova versão preservando a anterior (`services/admin/versao.js`, `decisoes.js` e esquemas).
+
+Pendente (ainda não iniciado): migrar a LAC para versões, armazenamento local, endpoint e interface administrativos, isolamento do `dist/`. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
 

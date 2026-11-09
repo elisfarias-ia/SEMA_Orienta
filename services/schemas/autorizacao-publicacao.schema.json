@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Autorização de publicação (modelo do Marco 7)",
+  "description": "Decisão separada da validação material, tratada por services/admin/decisoes.js. Só pode existir depois de uma validação material do mesmo versaoId e do mesmo hash. Nenhuma autorização real foi registrada; registros com identificação pessoal ficam fora do Git.",
+  "type": "object",
+  "required": ["tipo", "id", "versaoId", "hashConteudo", "responsavel", "unidade", "data", "observacao"],
+  "additionalProperties": false,
+  "properties": {
+    "tipo": { "const": "autorizacao_publicacao" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Único em todo o histórico." },
+    "versaoId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "hashConteudo": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Igual ao hash da versão e ao da validação material." },
+    "responsavel": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "unidade": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "data": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Não pode ser anterior ao registro anterior." },
+    "observacao": { "type": ["string", "null"] }
+  }
+}
