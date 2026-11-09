@@ -12,9 +12,9 @@ import { validarServicos } from '../scripts/validate-services.js';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...partes) => fs.readFileSync(path.join(RAIZ, ...partes), 'utf8');
 const lerJson = (...partes) => JSON.parse(lerTexto(...partes));
-const servico = () => lerJson('services', 'lac', 'service.json');
-const fontes = () => lerJson('services', 'lac', 'fontes.json').fontes;
-const roteiro = () => lerTexto('services', 'lac', 'roteiro.md');
+const servico = () => lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
+const fontes = () => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes;
+const roteiro = () => lerTexto('services', 'lac', 'versoes', 'v1', 'roteiro.md');
 
 function secoesDoRoteiro() {
   const mapa = new Map();
@@ -116,7 +116,7 @@ test('P1-6. o Decreto nº 695/2020 só aparece como revogado e com a fonte da re
 });
 
 test('P1-7. as perguntas frequentes (Passo 3) seguem sem publicação', () => {
-  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  const { perguntas } = lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
   assert.ok(perguntas.every((q) => q.publicado === false && q.respostaPublicavel === null));
 });
 
@@ -160,7 +160,7 @@ test('P1-12. falha quando registro e serviço têm status diferentes (cópia tem
 test('P1-13. falha quando o serviço em validação é marcado como publicado (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/registry.json', (r) => { r.servicos[0].publicado = true; });
-    editarJson('services/lac/service.json', (s) => { s.publicado = true; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.publicado = true; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /em_validacao não pode estar publicado/.test(e)), erros.join('\n'));
   });
@@ -168,7 +168,7 @@ test('P1-13. falha quando o serviço em validação é marcado como publicado (c
 
 test('P1-14. falha quando referencias cita fonte inexistente ou revogada (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.referencias.descricao = ['nao-existe'];
       s.referencias.etapas = ['decreto-695-2020'];
     });
@@ -180,7 +180,7 @@ test('P1-14. falha quando referencias cita fonte inexistente ou revogada (cópia
 
 test('P1-15. falha quando um campo preenchido não indica fonte (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/service.json', (s) => { delete s.referencias.etapas; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { delete s.referencias.etapas; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /"etapas" tem conteúdo mas não indica fonte/.test(e)), erros.join('\n'));
   });
@@ -188,7 +188,7 @@ test('P1-15. falha quando um campo preenchido não indica fonte (cópia temporá
 
 test('P1-16. falha quando seção do roteiro cita fonte inexistente, revogada ou nenhuma (cópia temporária)', () => {
   comCopia(({ dir, editarTexto }) => {
-    editarTexto('services/lac/roteiro.md', (t) =>
+    editarTexto('services/lac/versoes/v1/roteiro.md', (t) =>
       t
         .replace('Fontes: `sema-orientacoes-lac`.\n\n## Quem pode solicitar', 'Fontes: `fonte-inventada`.\n\n## Quem pode solicitar')
         .replace('Fontes: `sema-orientacoes-lac`.\n\n## Condições', '\n## Condições')

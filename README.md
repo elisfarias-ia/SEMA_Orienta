@@ -75,11 +75,15 @@ sema-orienta/
     │   ├── registry.schema.json
     │   └── service.schema.json
     └── lac/
-        ├── service.json
-        ├── roteiro.md
-        ├── documentos.json
-        ├── perguntas-frequentes.json
-        └── fontes.json
+        └── versoes/
+            └── v1/
+                ├── versao.json
+                ├── service.json
+                ├── roteiro.md
+                ├── documentos.json
+                ├── perguntas-frequentes.json
+                ├── fontes.json
+                └── conteudo-assistente.json
 ```
 
 ## Tecnologias utilizadas
@@ -117,7 +121,7 @@ A pasta `services/` reúne o cadastro dos serviços ambientais:
 
 - `services/registry.json`: registro central. Lista cada serviço com identificador, caminho do `service.json`, status de validação e indicação de publicação. Novos serviços entram aqui.
 - `services/schemas/`: esquemas que documentam a estrutura do registro e dos serviços.
-- `services/lac/`: pasta do serviço LAC, com `service.json` (dados do serviço), `roteiro.md`, `documentos.json`, `perguntas-frequentes.json` e `fontes.json` (fontes e links oficiais).
+- `services/lac/`: pasta do serviço LAC. O conteúdo fica na versão atual, `services/lac/versoes/v1/`, com `versao.json` (manifesto da versão), `service.json` (dados do serviço), `roteiro.md`, `documentos.json`, `perguntas-frequentes.json`, `fontes.json` (fontes e links oficiais) e `conteudo-assistente.json`. Nada fica solto na raiz de `services/lac/`.
 
 Para conferir a estrutura da base:
 
@@ -127,13 +131,13 @@ npm run validate:services
 
 A estrutura da base da LAC está pronta. A LAC está em `em_validacao` e **não publicada**: descrição, público, condições e o roteiro de solicitação no SIGA estão cadastrados, com fontes por `fonteId`, e aguardam validação da área competente. Documentos, perguntas frequentes, unidade responsável, canal de atendimento, responsável pela validação e data de revisão seguem `PENDENTE`. Somente conteúdo com status `validado` poderá ser publicado ou utilizado futuramente pelo assistente.
 
-Há oito fontes oficiais da LAC cadastradas em `services/lac/fontes.json` (página da SEMA, quatro normas, Termo de Referência, manual e perguntas e respostas). Elas tiveram identidade, procedência e metadados validados para fins de teste (`statusValidacao: validado`), mas **nenhuma está publicada** (`publicado: false`). Validar a fonte não significa confirmar a vigência da norma nem a atualização integral do conteúdo, que ainda dependem da área competente. Somente conteúdo expressamente publicado poderá ser utilizado pelo assistente.
+Há oito fontes oficiais da LAC cadastradas em `services/lac/versoes/v1/fontes.json` (página da SEMA, quatro normas, Termo de Referência, manual e perguntas e respostas). Elas tiveram identidade, procedência e metadados validados para fins de teste (`statusValidacao: validado`), mas **nenhuma está publicada** (`publicado: false`). Validar a fonte não significa confirmar a vigência da norma nem a atualização integral do conteúdo, que ainda dependem da área competente. Somente conteúdo expressamente publicado poderá ser utilizado pelo assistente.
 
-O checklist de documentos (`services/lac/documentos.json`) reúne 28 itens transcritos do Termo de Referência nº 176 (2020). Todos permanecem em validação e não publicados, a obrigatoriedade atual ainda não foi confirmada (`obrigatorio: null`) e o conteúdo não está disponível para respostas do assistente. O TR contém inconsistências e possíveis sinais de desatualização, registrados em cada item; a área competente deverá revisar os itens antes de qualquer publicação.
+O checklist de documentos (`services/lac/versoes/v1/documentos.json`) reúne 28 itens transcritos do Termo de Referência nº 176 (2020). Todos permanecem em validação e não publicados, a obrigatoriedade atual ainda não foi confirmada (`obrigatorio: null`) e o conteúdo não está disponível para respostas do assistente. O TR contém inconsistências e possíveis sinais de desatualização, registrados em cada item; a área competente deverá revisar os itens antes de qualquer publicação.
 
-As perguntas frequentes (`services/lac/perguntas-frequentes.json`) reúnem 21 perguntas transcritas do FAQ de 2022, em resumo fiel e linguagem de fonte histórica. Todas permanecem em validação, não publicadas e sem resposta publicável (`respostaPublicavel: null`); cada uma traz os bloqueios que impedem a publicação. Informações variáveis (prazos, validade, taxas), procedimentos do sistema, normas a confirmar e contatos estão bloqueados. Contatos citados no FAQ não são armazenados. As observações a até h do FAQ serão analisadas na revisão geral, e nenhum conteúdo do FAQ está disponível para respostas do assistente.
+As perguntas frequentes (`services/lac/versoes/v1/perguntas-frequentes.json`) reúnem 21 perguntas transcritas do FAQ de 2022, em resumo fiel e linguagem de fonte histórica. Todas permanecem em validação, não publicadas e sem resposta publicável (`respostaPublicavel: null`); cada uma traz os bloqueios que impedem a publicação. Informações variáveis (prazos, validade, taxas), procedimentos do sistema, normas a confirmar e contatos estão bloqueados. Contatos citados no FAQ não são armazenados. As observações a até h do FAQ serão analisadas na revisão geral, e nenhum conteúdo do FAQ está disponível para respostas do assistente.
 
-Para a demonstração local, `services/lac/conteudo-assistente.json` reúne 5 blocos curtos (limitações, descrição geral, sequência geral, link oficial e mensagem sem conteúdo), todos com `ambiente: teste_local`, em validação e **não publicados**. A função `selecionarBlocosAssistente`, em `services/assistant-content.js`, escolhe o conteúdo por modo: `publico` (padrão) retorna zero blocos hoje; `teste_local` retorna somente esses 5 blocos; qualquer outro modo é rejeitado. Documentos e perguntas continuam indisponíveis. A ligação com a interface e a escolha do modo ficam para o Passo 6, e o build de produção não contém esses textos.
+Para a demonstração local, `services/lac/versoes/v1/conteudo-assistente.json` reúne 5 blocos curtos (limitações, descrição geral, sequência geral, link oficial e mensagem sem conteúdo), todos com `ambiente: teste_local`, em validação e **não publicados**. A função `selecionarBlocosAssistente`, em `services/assistant-content.js`, escolhe o conteúdo por modo: `publico` (padrão) retorna zero blocos hoje; `teste_local` retorna somente esses 5 blocos; qualquer outro modo é rejeitado. Documentos e perguntas continuam indisponíveis. A ligação com a interface e a escolha do modo ficam para o Passo 6, e o build de produção não contém esses textos.
 
 **Assistente em teste local.** No `npm run dev`, o servidor de desenvolvimento do Vite oferece o endpoint `GET /__assistente/blocos`, que entrega somente os 5 blocos de teste local. A interface os busca apenas em desenvolvimento, reconhece a pergunta livre **no próprio navegador** (por intenção e palavras equivalentes, sem IA externa, API ou chave) e responde só com o texto desses blocos, mostrando a faixa de teste local, o aviso e as fontes oficiais com links `https`. Sem o endpoint, e no build de produção, o chat mostra apenas a mensagem segura de indisponibilidade. A conversa fica só em memória. Para conferir que o build não contém nenhum desses textos: `npm run build` e depois `node scripts/check-dist.js`.
 

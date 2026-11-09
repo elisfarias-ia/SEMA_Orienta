@@ -8,17 +8,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { selecionarBlocosAssistente } from './assistant-content.js';
 import { FRASE_ESCOPO, FAIXA_TESTE_LOCAL } from './assistant-messages.js';
+import { localizarVersaoAtual } from './versao-atual.js';
 
 export const ROTA_BLOCOS = '/__assistente/blocos';
 const MODO_DO_ENDPOINT = 'teste_local';
 const ORIGENS_LOCAIS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
-/** Lê os dados da base da LAC (conteúdo do assistente e fontes) a partir da raiz do projeto. */
-export function lerDadosDaBase(raiz) {
-  const ler = (...partes) => JSON.parse(fs.readFileSync(path.join(raiz, ...partes), 'utf8'));
+/** Serviço que o assistente atende hoje. Só o identificador é fixo: a pasta vem do registro e do manifesto da versão atual. */
+export const SERVICO_DO_ASSISTENTE = 'lac';
+
+/** Lê os dados da versão atual do serviço (conteúdo do assistente e fontes), localizada pelo registro e pelo manifesto. */
+export function lerDadosDaBase(raiz, servicoId = SERVICO_DO_ASSISTENTE) {
+  const versao = localizarVersaoAtual(raiz, servicoId);
+  if (!versao.ok) throw new Error(versao.erro);
+  const ler = (relativo) => JSON.parse(fs.readFileSync(path.join(raiz, ...relativo.split('/')), 'utf8'));
   return {
-    conteudo: ler('services', 'lac', 'conteudo-assistente.json'),
-    fontes: ler('services', 'lac', 'fontes.json').fontes,
+    conteudo: ler(versao.arquivos.conteudoAssistente),
+    fontes: ler(versao.arquivos.fontes).fontes,
   };
 }
 

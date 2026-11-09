@@ -11,7 +11,7 @@ import { validarServicos, validarFontes, analisarUrl, dataValida } from '../scri
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerJson = (...partes) => JSON.parse(fs.readFileSync(path.join(RAIZ, ...partes), 'utf8'));
-const fonteReal = (id) => lerJson('services', 'lac', 'fontes.json').fontes.find((f) => f.id === id);
+const fonteReal = (id) => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes.find((f) => f.id === id);
 
 function comCopia(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-vig-'));
@@ -152,7 +152,7 @@ test('V9. o Decreto nº 695/2020 está registrado como revogado e não publicado
 
 test('V9b. a validação rejeita publicar o Decreto nº 695/2020 (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/fontes.json', (f) => {
+    editarJson('services/lac/versoes/v1/fontes.json', (f) => {
       const decreto = f.fontes.find((x) => x.id === 'decreto-695-2020');
       decreto.publicado = true;
       decreto.statusValidacao = 'validado';
@@ -163,7 +163,7 @@ test('V9b. a validação rejeita publicar o Decreto nº 695/2020 (cópia tempor�
 });
 
 test('V10. service.json referencia as fontes por id', () => {
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.deepEqual(servico.links, ['sema-orientacoes-lac', 'tr-176-lac', 'manual-lac-siga-2020', 'faq-lac-2022']);
   assert.deepEqual(servico.legislacao, [
     'lei-complementar-668-2020',
@@ -177,7 +177,7 @@ test('V10. service.json referencia as fontes por id', () => {
 
 test('V10b. falha quando service.json cita fonte inexistente ou legislação de outro tipo', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.links = ['nao-existe'];
       s.legislacao = ['sema-orientacoes-lac'];
     });
@@ -193,7 +193,7 @@ test('V10c. serviço publicado não pode referenciar fonte não validada (cópia
       r.servicos[0].publicado = true;
       r.servicos[0].statusValidacao = 'validado';
     });
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.publicado = true;
       s.statusValidacao = 'validado';
     });
@@ -203,11 +203,11 @@ test('V10c. serviço publicado não pode referenciar fonte não validada (cópia
 });
 
 test('V11. nada da LAC está publicado e o serviço segue sem responsável e sem data de revisão', () => {
-  const fontes = lerJson('services', 'lac', 'fontes.json');
+  const fontes = lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json');
   assert.equal(fontes.statusValidacao, 'em_validacao');
   assert.ok(fontes.fontes.every((f) => f.publicado === false));
   assert.ok(fontes.fontes.every((f) => f.statusValidacao === 'validado'));
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.equal(servico.statusValidacao, 'em_validacao');
   assert.equal(servico.publicado, false);
   assert.equal(servico.responsavelValidacao, null);
@@ -216,20 +216,20 @@ test('V11. nada da LAC está publicado e o serviço segue sem responsável e sem
 });
 
 test('V11b. as perguntas frequentes cadastradas (Passo 3) não estão publicadas', () => {
-  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  const { perguntas } = lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
   assert.equal(perguntas.length, 21);
   assert.ok(perguntas.every((q) => q.publicado === false));
 });
 
 test('V12. todos os links reais usam HTTPS e não se repetem', () => {
-  const { fontes } = lerJson('services', 'lac', 'fontes.json');
+  const { fontes } = lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json');
   for (const fonte of fontes) assert.ok(fonte.url.startsWith('https://'), fonte.url);
   assert.ok(fontes.every((f) => analisarUrl(f.url).ok));
   assert.equal(new Set(fontes.map((f) => analisarUrl(f.url).normalizada)).size, fontes.length);
 });
 
 test('V13. o campo antigo "oficial" não existe nos arquivos reais nem no esquema', () => {
-  for (const fonte of lerJson('services', 'lac', 'fontes.json').fontes) {
+  for (const fonte of lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes) {
     assert.equal('oficial' in fonte, false, fonte.id);
     assert.equal(typeof fonte.origemOficial, 'boolean');
   }

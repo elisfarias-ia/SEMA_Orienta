@@ -19,9 +19,9 @@ import {
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...partes) => fs.readFileSync(path.join(RAIZ, ...partes), 'utf8');
 const lerJson = (...partes) => JSON.parse(lerTexto(...partes));
-const arquivoPerguntas = () => lerJson('services', 'lac', 'perguntas-frequentes.json');
+const arquivoPerguntas = () => lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
 const perguntas = () => arquivoPerguntas().perguntas;
-const fontes = () => lerJson('services', 'lac', 'fontes.json').fontes;
+const fontes = () => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes;
 const fontesPorId = () => new Map(fontes().map((f) => [f.id, f]));
 const porNumero = (n) => {
   const q = perguntas().find((x) => x.numeroFonte === n);
@@ -208,7 +208,7 @@ test('C1. nenhum e-mail ou telefone é armazenado nos dados, na documentação n
   const email = /[A-Za-z0-9._-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/;
   const telefone = /(\(\d{2}\)|\b\d{2})\s?\d{4,5}[-\s]?\d{4}\b/;
   const arquivos = [
-    ...fs.readdirSync(path.join(RAIZ, 'services', 'lac')).map((n) => path.join('services', 'lac', n)),
+    ...fs.readdirSync(path.join(RAIZ, 'services', 'lac', 'versoes', 'v1')).map((n) => path.join('services', 'lac', 'versoes', 'v1', n)),
     'README.md',
     ...fs.readdirSync(path.join(RAIZ, 'docs')).map((n) => path.join('docs', n)),
     ...fs.readdirSync(path.join(RAIZ, 'tests')).map((n) => path.join('tests', n)),
@@ -233,7 +233,7 @@ test('C2. perguntas com contato citado no FAQ registram apenas a frase genérica
 });
 
 test('C3. o Decreto nº 695/2020 não aparece e o Decreto nº 1.268/2022 não é apresentado como vigente atual', () => {
-  const texto = lerTexto('services', 'lac', 'perguntas-frequentes.json');
+  const texto = lerTexto('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
   assert.doesNotMatch(texto, /695/);
   for (const n of ['4', '6']) {
     assert.match(porNumero(n).alertas.join(' '), /1\.585\/2022/, n);
@@ -267,7 +267,7 @@ test('V0. a base real passa na validação, inclusive as perguntas', () => {
 
 test('V1. rejeita pergunta sem fonte, com fonte inexistente ou revogada', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       delete d.perguntas[0].fonteId;
       d.perguntas[1].fonteId = 'fonte-inexistente';
       d.perguntas[2].fonteId = 'decreto-695-2020';
@@ -281,7 +281,7 @@ test('V1. rejeita pergunta sem fonte, com fonte inexistente ou revogada', () => 
 
 test('V2. rejeita id duplicado, tema inválido, bloqueio inválido e localização vazia', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       d.perguntas[1].id = d.perguntas[0].id;
       d.perguntas[2].tema = 'tema_inventado';
       d.perguntas[3].bloqueios = ['bloqueio_inventado'];
@@ -297,7 +297,7 @@ test('V2. rejeita id duplicado, tema inválido, bloqueio inválido e localizaç�
 
 test('V3. rejeita pergunta em validação publicada e resposta publicável antes da aprovação', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       d.perguntas[0].publicado = true;
       d.perguntas[1].respostaPublicavel = 'Resposta de teste.';
     });
@@ -310,7 +310,7 @@ test('V3. rejeita pergunta em validação publicada e resposta publicável antes
 
 test('V4. rejeita pergunta publicada com bloqueios, revisão pendente ou fonte não publicada', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       Object.assign(d.perguntas[0], { publicado: true, statusValidacao: 'validado', revisaoAtualidade: 'concluida', respostaPublicavel: 'Resposta de teste.' });
       Object.assign(d.perguntas[1], { publicado: true, statusValidacao: 'validado', respostaPublicavel: null });
     });
@@ -325,7 +325,7 @@ test('V5. rejeita e-mail ou telefone em qualquer campo (dados sintéticos de tes
   const emailSintetico = ['usuario', 'exemplo.test'].join('@');
   const telefoneSintetico = ['(00)', '0000-0000'].join(' ');
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       d.perguntas[0].conteudoFonte += ` ${emailSintetico}`;
       d.perguntas[1].alertas = [`Ligar para ${telefoneSintetico}`];
       d.pendencia += ` ${emailSintetico}`;
@@ -337,7 +337,7 @@ test('V5. rejeita e-mail ou telefone em qualquer campo (dados sintéticos de tes
 
 test('V6. rejeita alertas inválidos, lista de perguntas inválida e serviceId divergente', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       d.perguntas[0].alertas = ['   '];
       d.serviceId = 'outro';
     });
@@ -346,7 +346,7 @@ test('V6. rejeita alertas inválidos, lista de perguntas inválida e serviceId d
     temErro(lista, /serviceId "outro" difere/);
   });
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => { d.perguntas = {}; });
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => { d.perguntas = {}; });
     temErro(erros(dir), /"perguntas" deve ser uma lista/);
   });
 });
@@ -491,7 +491,7 @@ test('CAMPOS. numeroFonte único, temas sem repetição, bloqueios sem duplicata
   const numeros = perguntas().map((q) => q.numeroFonte);
   assert.equal(new Set(numeros).size, 21);
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => {
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => {
       d.perguntas[1].numeroFonte = d.perguntas[0].numeroFonte;
       d.perguntas[2].temasSecundarios = ['documentos', 'documentos'];
       d.perguntas[3].temasSecundarios = [d.perguntas[3].tema];
@@ -506,7 +506,7 @@ test('CAMPOS. numeroFonte único, temas sem repetição, bloqueios sem duplicata
     temErro(lista, /temasSecundarios deve ser uma lista de temas válidos/);
   });
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => { d.perguntas[3].alertas = []; });
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => { d.perguntas[3].alertas = []; });
     assert.deepEqual(erros(dir), []);
   });
 });
@@ -514,7 +514,7 @@ test('CAMPOS. numeroFonte único, temas sem repetição, bloqueios sem duplicata
 test('CONTATOS. a mensagem de erro não repete o valor do contato encontrado', () => {
   const emailSintetico = ['usuario', 'exemplo.test'].join('@');
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/perguntas-frequentes.json', (d) => { d.perguntas[0].conteudoFonte += ` ${emailSintetico}`; });
+    editarJson('services/lac/versoes/v1/perguntas-frequentes.json', (d) => { d.perguntas[0].conteudoFonte += ` ${emailSintetico}`; });
     const lista = erros(dir);
     temErro(lista, /contém e-mail ou telefone/);
     assert.equal(lista.some((e) => e.includes(emailSintetico) || e.includes('exemplo.test')), false);
@@ -538,6 +538,6 @@ test('DOC. README, arquitetura e backlog descrevem o estado das perguntas e o bl
 });
 
 test('A3. documentos e roteiro do Passo 1 e 2 seguem como estavam (28 itens, 15 etapas)', () => {
-  assert.equal(lerJson('services', 'lac', 'documentos.json').documentos.length, 28);
-  assert.equal(lerJson('services', 'lac', 'service.json').etapas.length, 15);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json').documentos.length, 28);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').etapas.length, 15);
 });

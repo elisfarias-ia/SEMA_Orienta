@@ -11,7 +11,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "assuntoId", "arquivo", "statusValidacao", "publicado"],
+        "required": ["id", "assuntoId", "versaoAtualId", "versaoPublicadaId", "arquivo", "statusValidacao", "publicado"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
@@ -20,9 +20,18 @@
             "pattern": "^[a-z][a-z0-9-]*$",
             "description": "Assunto ativo de services/assuntos.json ao qual o serviço está vinculado; deve ser igual ao assuntoId do service.json."
           },
+          "versaoAtualId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*-v[1-9][0-9]*$",
+            "description": "Versão atual do serviço, no formato <id>-v<número>. A pasta é services/<id>/versoes/v<número>/ e o manifesto é versao.json."
+          },
+          "versaoPublicadaId": {
+            "type": ["string", "null"],
+            "description": "null enquanto não houver publicação. Só pode apontar para uma versão em estado publicado; deve coincidir com publicado."
+          },
           "arquivo": {
             "type": "string",
-            "description": "Caminho relativo à raiz do projeto: services/<id>/service.json"
+            "description": "Caminho relativo à raiz do projeto: services/<id>/versoes/v<número>/service.json, o service.json da versão atual."
           },
           "statusValidacao": { "enum": ["rascunho", "em_validacao", "validado"] },
           "publicado": {

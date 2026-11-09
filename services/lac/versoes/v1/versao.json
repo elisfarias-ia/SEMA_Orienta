@@ -1,0 +1,18 @@
+{
+  "id": "lac-v1",
+  "servicoId": "lac",
+  "numero": 1,
+  "baseadaEm": null,
+  "estado": "rascunho",
+  "arquivos": {
+    "service": "services/lac/versoes/v1/service.json",
+    "roteiro": "services/lac/versoes/v1/roteiro.md",
+    "documentos": "services/lac/versoes/v1/documentos.json",
+    "perguntasFrequentes": "services/lac/versoes/v1/perguntas-frequentes.json",
+    "fontes": "services/lac/versoes/v1/fontes.json",
+    "conteudoAssistente": "services/lac/versoes/v1/conteudo-assistente.json"
+  },
+  "hashConteudo": null,
+  "criadoEm": "2026-11-09",
+  "enviadaEm": null
+}

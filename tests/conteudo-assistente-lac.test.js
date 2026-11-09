@@ -27,8 +27,8 @@ import {
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...partes) => fs.readFileSync(path.join(RAIZ, ...partes), 'utf8');
 const lerJson = (...partes) => JSON.parse(lerTexto(...partes));
-const conteudo = () => lerJson('services', 'lac', 'conteudo-assistente.json');
-const fontes = () => lerJson('services', 'lac', 'fontes.json').fontes;
+const conteudo = () => lerJson('services', 'lac', 'versoes', 'v1', 'conteudo-assistente.json');
+const fontes = () => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes;
 const fontesPorId = () => new Map(fontes().map((f) => [f.id, f]));
 const dados = () => ({ conteudo: conteudo(), fontes: fontes() });
 const bloco = (id) => conteudo().blocos.find((b) => b.id === id);
@@ -51,7 +51,7 @@ function comCopia(fn) {
 const erros = (dir) => validarServicos(dir).erros;
 const temErro = (lista, regex) => assert.ok(lista.some((e) => regex.test(e)), lista.join('\n'));
 const editarConteudo = (editar) => ({ dir, editarJson }) => {
-  editarJson('services/lac/conteudo-assistente.json', editar);
+  editarJson('services/lac/versoes/v1/conteudo-assistente.json', editar);
   return erros(dir);
 };
 
@@ -82,7 +82,7 @@ test('B2. todos os blocos são teste_local, não publicados, em validação e co
     assert.equal(b.revisaoAtualidade, 'pendente', b.id);
   }
   assert.equal(conteudo().statusValidacao, 'em_validacao');
-  assert.doesNotMatch(lerTexto('services', 'lac', 'conteudo-assistente.json'), /"publicado"\s*:\s*true/);
+  assert.doesNotMatch(lerTexto('services', 'lac', 'versoes', 'v1', 'conteudo-assistente.json'), /"publicado"\s*:\s*true/);
 });
 
 test('B3. a autorização é estruturada (teste_local, 2026-11-09) e não indica aprovação material nem pública', () => {
@@ -216,14 +216,14 @@ test('M8. a seleção não usa variável de ambiente, rede nem leitura de arquiv
 
 test('M9. documentos e perguntas continuam indisponíveis ao assistente e fora dos blocos', () => {
   const mapa = fontesPorId();
-  assert.deepEqual(documentosDisponiveisParaAssistente(lerJson('services', 'lac', 'documentos.json'), mapa), []);
-  assert.deepEqual(perguntasDisponiveisParaAssistente(lerJson('services', 'lac', 'perguntas-frequentes.json'), mapa), []);
+  assert.deepEqual(documentosDisponiveisParaAssistente(lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json'), mapa), []);
+  assert.deepEqual(perguntasDisponiveisParaAssistente(lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json'), mapa), []);
   const textos = selecionarBlocosAssistente(dados(), 'teste_local').map((b) => b.texto).join(' ');
-  const documentos = lerJson('services', 'lac', 'documentos.json').documentos;
+  const documentos = lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json').documentos;
   for (const d of documentos) assert.equal(textos.includes(d.nome), false, d.id);
-  for (const q of lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas) assert.equal(textos.includes(q.conteudoFonte), false, q.id);
-  assert.ok(lerJson('services', 'lac', 'documentos.json').documentos.every((d) => d.publicado === false));
-  assert.ok(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas.every((q) => q.publicado === false && q.respostaPublicavel === null));
+  for (const q of lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json').perguntas) assert.equal(textos.includes(q.conteudoFonte), false, q.id);
+  assert.ok(lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json').documentos.every((d) => d.publicado === false));
+  assert.ok(lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json').perguntas.every((q) => q.publicado === false && q.respostaPublicavel === null));
 });
 
 // ---------- Validador (cópias temporárias) ----------
@@ -231,8 +231,8 @@ test('M9. documentos e perguntas continuam indisponíveis ao assistente e fora d
 test('V0. a base real passa na validação, inclusive o conteúdo do assistente', () => {
   assert.deepEqual(validarServicos(RAIZ).erros, []);
   assert.deepEqual(validarConteudoAssistente(conteudo(), { idServico: 'lac', fontesPorId: fontesPorId() }), []);
-  assert.equal(lerJson('services', 'lac', 'service.json').arquivos.conteudoAssistente, 'services/lac/conteudo-assistente.json');
-  assert.ok(fs.existsSync(path.join(RAIZ, 'services', 'lac', 'conteudo-assistente.json')));
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').arquivos.conteudoAssistente, 'services/lac/versoes/v1/conteudo-assistente.json');
+  assert.ok(fs.existsSync(path.join(RAIZ, 'services', 'lac', 'versoes', 'v1', 'conteudo-assistente.json')));
 });
 
 test('V1. rejeita bloco teste_local publicado ou validado', () => {

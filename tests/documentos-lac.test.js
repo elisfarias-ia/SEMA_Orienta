@@ -19,9 +19,9 @@ import {
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...partes) => fs.readFileSync(path.join(RAIZ, ...partes), 'utf8');
 const lerJson = (...partes) => JSON.parse(lerTexto(...partes));
-const arquivoDocumentos = () => lerJson('services', 'lac', 'documentos.json');
+const arquivoDocumentos = () => lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json');
 const documentos = () => arquivoDocumentos().documentos;
-const fontes = () => lerJson('services', 'lac', 'fontes.json').fontes;
+const fontes = () => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes;
 const fontesPorId = () => new Map(fontes().map((f) => [f.id, f]));
 const porNumero = (n) => {
   const item = documentos().find((d) => new RegExp(`^TR 176, item ${n.replace(/\./g, '\\.')}( |$)`).test(d.localizacaoFonte));
@@ -118,7 +118,7 @@ test('D8. todos os documentos estão em em_validacao', () => {
 
 test('D9. nenhum documento está publicado', () => {
   assert.ok(documentos().every((d) => d.publicado === false));
-  assert.doesNotMatch(lerTexto('services', 'lac', 'documentos.json'), /"publicado"\s*:\s*true/);
+  assert.doesNotMatch(lerTexto('services', 'lac', 'versoes', 'v1', 'documentos.json'), /"publicado"\s*:\s*true/);
 });
 
 test('D10. todos têm revisaoAtualidade pendente', () => {
@@ -128,7 +128,7 @@ test('D10. todos têm revisaoAtualidade pendente', () => {
 
 test('D11. todos têm obrigatorio null (obrigatoriedade atual não confirmada)', () => {
   assert.ok(documentos().every((d) => d.obrigatorio === null));
-  assert.doesNotMatch(lerTexto('services', 'lac', 'documentos.json'), /"obrigatorio"\s*:\s*(true|false)/);
+  assert.doesNotMatch(lerTexto('services', 'lac', 'versoes', 'v1', 'documentos.json'), /"obrigatorio"\s*:\s*(true|false)/);
 });
 
 test('D12. condição e aplicabilidade são coerentes com o TR', () => {
@@ -189,14 +189,14 @@ test('D18. item 3: alerta do Decreto nº 697/2020, que não está cadastrado na 
   assert.match(texto, /ainda não está cadastrada na base/);
   assert.match(texto, /vigência e a aplicabilidade.*confirmadas/);
   assert.equal(fontes().some((f) => /697/.test(`${f.id} ${f.titulo}`)), false);
-  assert.equal(lerJson('services', 'lac', 'service.json').legislacao.some((id) => /697/.test(id)), false);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').legislacao.some((id) => /697/.test(id)), false);
 });
 
 test('D18b. item 4.1: alerta de e-mails e WhatsApp; nenhum dado pessoal é registrado', () => {
   assert.match(alertasTexto('4.1'), /e-mails ativos e WhatsApp/);
   assert.match(alertasTexto('4.1'), /formato do requerimento/);
   assert.match(porNumero('4.1').observacao, /não solicita nem armazena/);
-  assert.doesNotMatch(lerTexto('services', 'lac', 'documentos.json'), /[\w.-]+@[\w-]+\.[a-z]{2,}|\(\d{2}\)\s?\d{4,5}-?\d{4}/i);
+  assert.doesNotMatch(lerTexto('services', 'lac', 'versoes', 'v1', 'documentos.json'), /[\w.-]+@[\w-]+\.[a-z]{2,}|\(\d{2}\)\s?\d{4,5}-?\d{4}/i);
 });
 
 test('D19. item 4.2: alerta da publicação em periódico e Diário Oficial', () => {
@@ -236,14 +236,14 @@ test('D-V0. a base real passa na validação, inclusive o checklist', () => {
 
 test('D22. rejeita documento sem fonte', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { delete d.documentos[0].fonteId; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { delete d.documentos[0].fonteId; });
     temErro(erros(dir), /documento sem fonteId/);
   });
 });
 
 test('D23. rejeita fonte inexistente ou revogada', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos[0].fonteId = 'fonte-inexistente';
       d.documentos[1].fonteId = 'decreto-695-2020';
     });
@@ -255,21 +255,21 @@ test('D23. rejeita fonte inexistente ou revogada', () => {
 
 test('D24. rejeita localização da fonte vazia', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.documentos[3].localizacaoFonte = '  '; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos[3].localizacaoFonte = '  '; });
     temErro(erros(dir), /localizacaoFonte obrigatória/);
   });
 });
 
 test('D25. rejeita documento em validação marcado como publicado', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.documentos[0].publicado = true; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos[0].publicado = true; });
     temErro(erros(dir), /documento em_validacao não pode estar publicado/);
   });
 });
 
 test('D26. rejeita documento publicado com revisão de atualidade pendente ou fonte não publicada', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos[0].publicado = true;
       d.documentos[0].statusValidacao = 'validado';
     });
@@ -281,7 +281,7 @@ test('D26. rejeita documento publicado com revisão de atualidade pendente ou fo
 
 test('D27. rejeita documento sem aplicabilidade (inclusive os condicionais)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos[0].condicional = true;
       d.documentos[0].aplicabilidade = '';
     });
@@ -291,14 +291,14 @@ test('D27. rejeita documento sem aplicabilidade (inclusive os condicionais)', ()
 
 test('D28. rejeita id de documento duplicado', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.documentos[1].id = d.documentos[0].id; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos[1].id = d.documentos[0].id; });
     temErro(erros(dir), /id duplicado/);
   });
 });
 
 test('D-V1. rejeita obrigatorio true ou false enquanto a revisão de atualidade está pendente', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos[0].obrigatorio = true;
       d.documentos[1].obrigatorio = false;
       d.documentos[2].obrigatorio = 'sim';
@@ -311,7 +311,7 @@ test('D-V1. rejeita obrigatorio true ou false enquanto a revisão de atualidade 
 
 test('D-V2. rejeita grupo inválido, estado de revisão inválido e alertas inválidos', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos[0].grupo = 'outro_grupo';
       d.documentos[1].revisaoAtualidade = 'ok';
       d.documentos[2].alertas = ['', 3];
@@ -328,7 +328,7 @@ test('D-V2. rejeita grupo inválido, estado de revisão inválido e alertas inv�
 // ---------- Escopo do passo ----------
 
 test('D29. as perguntas frequentes foram cadastradas no Passo 3 (21) e nenhuma está publicada', () => {
-  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  const { perguntas } = lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
   assert.equal(perguntas.length, 21);
   assert.ok(perguntas.every((q) => q.publicado === false));
 });
@@ -370,7 +370,7 @@ test('A2. lista vazia de alertas é aceita (15 itens sem inconsistência especí
     '1.1.3', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.3.1', '1.3.3', '1.4.2', '1.4.3', '2.3', '2.4', '4.3', '4.4', '4.5', '4.6',
   ]);
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.documentos[0].alertas = []; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos[0].alertas = []; });
     assert.deepEqual(erros(dir), []);
   });
 });
@@ -378,12 +378,12 @@ test('A2. lista vazia de alertas é aceita (15 itens sem inconsistência especí
 test('A3. texto vazio ou só com espaços dentro de alertas é rejeitado; alertas fora de lista também', () => {
   for (const alertas of [[''], ['   '], ['ok', '\t\n'], 'texto solto', null]) {
     comCopia(({ dir, editarJson }) => {
-      editarJson('services/lac/documentos.json', (d) => { d.documentos[0].alertas = alertas; });
+      editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos[0].alertas = alertas; });
       temErro(erros(dir), /alertas deve ser uma lista de textos não vazios/);
     });
   }
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { delete d.documentos[0].alertas; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { delete d.documentos[0].alertas; });
     temErro(erros(dir), /alertas deve ser uma lista de textos não vazios/);
   });
 });
@@ -435,6 +435,6 @@ test('A7. a estrutura e a documentação esclarecem que "condicional" não confi
 });
 
 test('D-X. nenhum dado do FAQ, taxa, prazo ou contato de atendimento foi cadastrado no checklist', () => {
-  const texto = lerTexto('services', 'lac', 'documentos.json');
+  const texto = lerTexto('services', 'lac', 'versoes', 'v1', 'documentos.json');
   assert.doesNotMatch(texto, /\bUPFs?\b|dois dias|dez dias|e-?SAC|R\$\s?\d|\b1 ?MB\b/i);
 });

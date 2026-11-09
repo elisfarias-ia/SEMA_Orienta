@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Cadastro de um serviço do SEMA Orienta",
-  "description": "Documentação da estrutura de services/<id>/service.json e dos arquivos complementares (fontes, documentos, perguntas frequentes). A conferência é feita por scripts/validate-services.js. Enquanto o serviço estiver em rascunho, o conteúdo material deve permanecer PENDENTE, null ou lista vazia.",
+  "description": "Documentação da estrutura de services/<id>/versoes/v<N>/service.json e dos arquivos complementares (fontes, documentos, perguntas frequentes). A conferência é feita por scripts/validate-services.js. Enquanto o serviço estiver em rascunho, o conteúdo material deve permanecer PENDENTE, null ou lista vazia.",
   "type": "object",
   "required": [
     "id", "assuntoId", "nome", "sigla", "categoria", "termosEquivalentes", "arquivos",
@@ -32,7 +32,7 @@
         "fontes": { "type": "string" },
         "conteudoAssistente": {
           "type": "string",
-          "description": "Opcional. Blocos de conteúdo que o assistente pode usar, separados por ambiente (teste_local ou publico)."
+          "description": "Opcional. Caminho dentro da pasta da versão. Blocos de conteúdo que o assistente pode usar, separados por ambiente (teste_local ou publico)."
         }
       }
     },

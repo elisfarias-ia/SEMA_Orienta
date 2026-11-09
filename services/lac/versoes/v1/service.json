@@ -10,11 +10,11 @@
     "licenca por adesao e compromisso"
   ],
   "arquivos": {
-    "roteiro": "services/lac/roteiro.md",
-    "documentos": "services/lac/documentos.json",
-    "perguntasFrequentes": "services/lac/perguntas-frequentes.json",
-    "fontes": "services/lac/fontes.json",
-    "conteudoAssistente": "services/lac/conteudo-assistente.json"
+    "roteiro": "services/lac/versoes/v1/roteiro.md",
+    "documentos": "services/lac/versoes/v1/documentos.json",
+    "perguntasFrequentes": "services/lac/versoes/v1/perguntas-frequentes.json",
+    "fontes": "services/lac/versoes/v1/fontes.json",
+    "conteudoAssistente": "services/lac/versoes/v1/conteudo-assistente.json"
   },
   "statusValidacao": "em_validacao",
   "publicado": false,

@@ -79,7 +79,7 @@ test('E5. não recebe nem repete a pergunta: qualquer parâmetro é recusado e n
 });
 
 test('E6. outros caminhos passam adiante (next) sem resposta do endpoint', async () => {
-  for (const url of ['/', '/index.html', '/__assistente', `${ROTA_BLOCOS}/outro`, '/api/chat', '/services/lac/conteudo-assistente.json']) {
+  for (const url of ['/', '/index.html', '/__assistente', `${ROTA_BLOCOS}/outro`, '/api/chat', '/services/lac/versoes/v1/conteudo-assistente.json']) {
     const r = await chamar({ url });
     assert.equal(r.proximo, true, url);
     assert.equal(r.status, 0, url);

@@ -293,7 +293,7 @@ test('D24. os esquemas da decisão material e da autorização correspondem ao m
 
 test('D25. nenhuma decisão real existe no repositório: não há registros de decisão nos dados da LAC nem arquivo de histórico', () => {
   for (const arquivo of ['service.json', 'fontes.json', 'documentos.json', 'perguntas-frequentes.json', 'conteudo-assistente.json']) {
-    const texto = fs.readFileSync(path.join(RAIZ, 'services', 'lac', arquivo), 'utf8');
+    const texto = fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'versoes', 'v1', arquivo), 'utf8');
     assert.doesNotMatch(texto, /decisao_material|autorizacao_publicacao|hashConteudo/, arquivo);
   }
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);

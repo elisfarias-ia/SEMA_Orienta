@@ -13,7 +13,7 @@ import { validarServicos, validarFontes, analisarUrl } from '../scripts/validate
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerJson = (...partes) => JSON.parse(fs.readFileSync(path.join(RAIZ, ...partes), 'utf8'));
 const lerTexto = (...partes) => fs.readFileSync(path.join(RAIZ, ...partes), 'utf8');
-const arquivoReal = () => lerJson('services', 'lac', 'fontes.json');
+const arquivoReal = () => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json');
 const fonteReal = (id) => arquivoReal().fontes.find((f) => f.id === id);
 
 const IDS_ESPERADOS = [
@@ -121,7 +121,7 @@ test('8. as datas de publicação estão corretas', () => {
 });
 
 test('9. service.json referencia as oito fontes por id (links e legislacao)', () => {
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.deepEqual(servico.links, ['sema-orientacoes-lac', ...IDS_DOCUMENTAIS]);
   assert.deepEqual(servico.legislacao, [
     'lei-complementar-668-2020',
@@ -134,7 +134,7 @@ test('9. service.json referencia as oito fontes por id (links e legislacao)', ()
 });
 
 test('10. as fontes documentais não aparecem em legislacao', () => {
-  const { legislacao } = lerJson('services', 'lac', 'service.json');
+  const { legislacao } = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   for (const id of IDS_DOCUMENTAIS) assert.equal(legislacao.includes(id), false, id);
   assert.equal(legislacao.includes('sema-orientacoes-lac'), false);
 });
@@ -154,7 +154,7 @@ test('11b. as demais situações de vigência foram preservadas', () => {
 
 test('12. o Decreto nº 695/2020 não pode ser publicado (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/fontes.json', (f) => {
+    editarJson('services/lac/versoes/v1/fontes.json', (f) => {
       f.fontes.find((x) => x.id === 'decreto-695-2020').publicado = true;
     });
     const { erros } = validarServicos(dir);
@@ -201,7 +201,7 @@ test('16c. fonte não legislativa continua exigindo nao_se_aplica mesmo ao relac
 
 test('16d. a base real rejeita relacionar o FAQ a outra fonte documental (cópia temporária)', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/fontes.json', (f) => {
+    editarJson('services/lac/versoes/v1/fontes.json', (f) => {
       f.fontes.find((x) => x.id === 'faq-lac-2022').vigencia.normasRelacionadas = ['manual-lac-siga-2020'];
     });
     const { erros } = validarServicos(dir);
@@ -210,13 +210,13 @@ test('16d. a base real rejeita relacionar o FAQ a outra fonte documental (cópia
 });
 
 test('17. as perguntas frequentes foram cadastradas no Passo 3 (21), sem publicação', () => {
-  const { perguntas } = lerJson('services', 'lac', 'perguntas-frequentes.json');
+  const { perguntas } = lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json');
   assert.equal(perguntas.length, 21);
   assert.ok(perguntas.every((q) => q.publicado === false));
 });
 
 test('18. o serviço está em validação e não publicado, sem responsável nem data de revisão', () => {
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.equal(servico.statusValidacao, 'em_validacao');
   assert.equal(servico.publicado, false);
   assert.equal(servico.unidadeResponsavel, 'PENDENTE');
@@ -244,7 +244,7 @@ test('o validador rejeita publicar o serviço com fontes não publicadas (cópia
       r.servicos[0].publicado = true;
       r.servicos[0].statusValidacao = 'validado';
     });
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.publicado = true;
       s.statusValidacao = 'validado';
     });
@@ -255,7 +255,7 @@ test('o validador rejeita publicar o serviço com fontes não publicadas (cópia
 
 test('os dados reais não contêm conteúdo do TR, do manual ou do FAQ (taxa, prazos, limites, contatos)', () => {
   const texto = ['fontes.json', 'service.json', 'roteiro.md']
-    .map((nome) => lerTexto('services', 'lac', nome))
+    .map((nome) => lerTexto('services', 'lac', 'versoes', 'v1', nome))
     .join('\n');
   assert.doesNotMatch(texto, /\bUPFs?\b|\b1 ?MB\b|dois dias|dez dias|e-?SAC|@[a-z0-9.-]+\.[a-z]{2,}|\(\d{2}\)\s?\d{4,5}-?\d{4}/i);
 });

@@ -11,7 +11,7 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Versões e decisões | `services/admin/versao.js`, `decisoes.js` | Funções puras, sem dados reais. |
 | Armazenamento local | `services/admin/armazenamento.js` | Leitura e gravação seguras, ainda sem uso. |
 
-Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC continua em `services/lac/`, sem migração.
+Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC está na versão 1 (`services/lac/versoes/v1/`, em rascunho), migrada de forma estrutural, sem alteração material, sem hash, sem envio e sem decisões.
 
 ## Armazenamento local
 

@@ -97,7 +97,7 @@ test('F8. os estados de versão não substituem os status atuais de serviço, fo
   assert.deepEqual(STATUS_VALIDOS, ['rascunho', 'em_validacao', 'validado']);
   assert.equal(ESTADOS_VERSAO.includes('validado'), false);
   for (const arquivo of ['service.json', 'fontes.json', 'documentos.json', 'perguntas-frequentes.json', 'conteudo-assistente.json']) {
-    assert.doesNotMatch(lerTexto('services', 'lac', arquivo), /validado_materialmente|autorizado_publicacao|ajustes_solicitados/, arquivo);
+    assert.doesNotMatch(lerTexto('services', 'lac', 'versoes', 'v1', arquivo), /validado_materialmente|autorizado_publicacao|ajustes_solicitados/, arquivo);
   }
 });
 
@@ -161,7 +161,7 @@ test('H7. rejeita valores que não são JSON, em vez de produzir hash instável'
 });
 
 test('H8. não altera o conteúdo recebido e funciona com o conteúdo real da LAC', () => {
-  const doc = JSON.parse(lerTexto('services', 'lac', 'documentos.json'));
+  const doc = JSON.parse(lerTexto('services', 'lac', 'versoes', 'v1', 'documentos.json'));
   const antes = JSON.stringify(doc);
   const h = hashConteudo(doc);
   assert.equal(JSON.stringify(doc), antes);

@@ -4,7 +4,9 @@
     {
       "id": "lac",
       "assuntoId": "licenciamento-ambiental",
-      "arquivo": "services/lac/service.json",
+      "versaoAtualId": "lac-v1",
+      "versaoPublicadaId": null,
+      "arquivo": "services/lac/versoes/v1/service.json",
       "statusValidacao": "em_validacao",
       "publicado": false
     }

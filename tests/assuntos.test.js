@@ -47,7 +47,7 @@ test('A1. o catálogo real tem só "Licenciamento Ambiental", ativo, e passa na 
 
 test('A2. a LAC aponta para o assunto no registro e no service.json (mesmo id), sem mudar seus status', () => {
   const registro = lerJson('services', 'registry.json').servicos[0];
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.equal(registro.assuntoId, 'licenciamento-ambiental');
   assert.equal(servico.assuntoId, 'licenciamento-ambiental');
   assert.equal(registro.statusValidacao, 'em_validacao');
@@ -86,7 +86,7 @@ test('A5. falha com campos obrigatórios ausentes ou inválidos', () => {
 test('A6. falha quando o assuntoId do serviço não existe no catálogo', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/registry.json', (r) => { r.servicos[0].assuntoId = 'fauna'; });
-    editarJson('services/lac/service.json', (s) => { s.assuntoId = 'fauna'; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.assuntoId = 'fauna'; });
     temErro(validarServicos(dir).erros, /assuntoId "fauna" não existe/);
   });
 });
@@ -101,7 +101,7 @@ test('A7. falha quando o assunto está inativo', () => {
 test('A8. falha quando o assuntoId difere entre registro e service.json', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/assuntos.json', (d) => { d.assuntos.push({ ...d.assuntos[0], id: 'fauna', nome: 'Fauna' }); });
-    editarJson('services/lac/service.json', (s) => { s.assuntoId = 'fauna'; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.assuntoId = 'fauna'; });
     temErro(validarServicos(dir).erros, /assuntoId difere entre registro e service\.json/);
   });
 });
@@ -112,7 +112,7 @@ test('A9. falha quando o assuntoId falta no registro ou no service.json', () => 
     temErro(validarServicos(dir).erros, /assuntoId obrigatório e válido no registro/);
   });
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/service.json', (s) => { delete s.assuntoId; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { delete s.assuntoId; });
     temErro(validarServicos(dir).erros, /assuntoId obrigatório e válido no service\.json/);
   });
 });
@@ -137,6 +137,6 @@ test('A11. os esquemas documentam assuntoId e o catálogo, com os mesmos campos 
 test('A12. assunto e serviço são conceitos distintos: o registro de serviços não guarda dados do assunto', () => {
   const registro = lerJson('services', 'registry.json');
   for (const s of registro.servicos) {
-    assert.deepEqual(Object.keys(s).sort(), ['arquivo', 'assuntoId', 'id', 'publicado', 'statusValidacao']);
+    assert.deepEqual(Object.keys(s).sort(), ['arquivo', 'assuntoId', 'id', 'publicado', 'statusValidacao', 'versaoAtualId', 'versaoPublicadaId']);
   }
 });

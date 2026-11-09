@@ -67,7 +67,7 @@ const normaValida = (extra = {}) =>
     ...extra,
   });
 const vigencia = (situacao, normasRelacionadas = []) => ({ situacao, normasRelacionadas, observacao: null });
-const fonteReal = (id) => lerJson('services', 'lac', 'fontes.json').fontes.find((f) => f.id === id);
+const fonteReal = (id) => lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes.find((f) => f.id === id);
 const arquivoFontes = (fontes, extra = {}) => ({
   serviceId: 'lac',
   statusValidacao: 'validado',
@@ -88,11 +88,11 @@ test('2. a LAC aparece uma única vez e é o único serviço', () => {
   const { servicos } = lerJson('services', 'registry.json');
   assert.equal(servicos.filter((s) => s.id === 'lac').length, 1);
   assert.equal(servicos.length, 1);
-  assert.equal(servicos[0].arquivo, 'services/lac/service.json');
+  assert.equal(servicos[0].arquivo, 'services/lac/versoes/v1/service.json');
 });
 
 test('3. todos os arquivos referenciados existem', () => {
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.equal(servico.id, 'lac');
   for (const caminho of Object.values(servico.arquivos)) {
     assert.ok(fs.existsSync(path.join(RAIZ, caminho)), `faltando: ${caminho}`);
@@ -105,22 +105,22 @@ test('3. todos os arquivos referenciados existem', () => {
 test('4. a LAC está em validação no registro e no serviço; documentos e perguntas também em validação', () => {
   const registro = lerJson('services', 'registry.json').servicos[0];
   assert.equal(registro.statusValidacao, 'em_validacao');
-  assert.equal(lerJson('services', 'lac', 'service.json').statusValidacao, 'em_validacao');
-  assert.equal(lerJson('services', 'lac', 'documentos.json').statusValidacao, 'em_validacao');
-  assert.equal(lerJson('services', 'lac', 'perguntas-frequentes.json').statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json').statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json').statusValidacao, 'em_validacao');
   // O conjunto de fontes está em validação: as fontes têm identidade e procedência validadas, mas nada foi publicado.
-  assert.equal(lerJson('services', 'lac', 'fontes.json').statusValidacao, 'em_validacao');
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').statusValidacao, 'em_validacao');
 });
 
 test('5. a LAC não está publicada', () => {
   assert.equal(lerJson('services', 'registry.json').servicos[0].publicado, false);
-  assert.equal(lerJson('services', 'lac', 'service.json').publicado, false);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').publicado, false);
 });
 
 test('6. há 21 perguntas, 28 documentos e 8 fontes cadastrados', () => {
-  assert.equal(lerJson('services', 'lac', 'documentos.json').documentos.length, 28);
-  assert.equal(lerJson('services', 'lac', 'perguntas-frequentes.json').perguntas.length, 21);
-  assert.equal(lerJson('services', 'lac', 'fontes.json').fontes.length, 8);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'documentos.json').documentos.length, 28);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'perguntas-frequentes.json').perguntas.length, 21);
+  assert.equal(lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').fontes.length, 8);
 });
 
 test('a base real passa na validação', () => {
@@ -130,7 +130,7 @@ test('a base real passa na validação', () => {
 });
 
 test('campos sem fonte ou validação suficiente continuam PENDENTE', () => {
-  const servico = lerJson('services', 'lac', 'service.json');
+  const servico = lerJson('services', 'lac', 'versoes', 'v1', 'service.json');
   assert.equal(servico.unidadeResponsavel, 'PENDENTE');
   assert.equal(servico.responsavelValidacao, null);
   assert.equal(servico.dataRevisao, null);
@@ -139,8 +139,8 @@ test('campos sem fonte ou validação suficiente continuam PENDENTE', () => {
   for (const campo of ['unidadeResponsavel', 'responsavelValidacao', 'dataRevisao', 'canalAtendimento', 'sistemaInicio', 'documentos', 'perguntasFrequentes']) {
     assert.ok(servico.pendencias.includes(campo), campo);
   }
-  assert.match(lerJson('services', 'lac', 'fontes.json').pendencia, /^PENDENTE/);
-  assert.doesNotMatch(fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'roteiro.md'), 'utf8'), /https?:\/\//);
+  assert.match(lerJson('services', 'lac', 'versoes', 'v1', 'fontes.json').pendencia, /^PENDENTE/);
+  assert.doesNotMatch(fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'versoes', 'v1', 'roteiro.md'), 'utf8'), /https?:\/\//);
 });
 
 test('os esquemas listam os mesmos status e tipos usados no validador', () => {
@@ -157,7 +157,7 @@ test('os esquemas listam os mesmos status e tipos usados no validador', () => {
 test('7. falha quando serviço não validado é marcado como publicado', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/registry.json', (r) => { r.servicos[0].publicado = true; });
-    editarJson('services/lac/service.json', (s) => { s.publicado = true; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.publicado = true; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /não pode estar publicado/.test(e)), erros.join('\n'));
   });
@@ -165,9 +165,9 @@ test('7. falha quando serviço não validado é marcado como publicado', () => {
 
 test('8. falha quando um arquivo referenciado não existe', () => {
   comCopia(({ dir }) => {
-    fs.rmSync(path.join(dir, 'services', 'lac', 'documentos.json'));
+    fs.rmSync(path.join(dir, 'services', 'lac', 'versoes', 'v1', 'documentos.json'));
     const { erros } = validarServicos(dir);
-    assert.ok(erros.some((e) => /arquivo não encontrado: services\/lac\/documentos\.json/.test(e)), erros.join('\n'));
+    assert.ok(erros.some((e) => /arquivo não encontrado: services\/lac\/versoes\/v1\/documentos\.json/.test(e)), erros.join('\n'));
   });
 });
 
@@ -189,7 +189,7 @@ test('falha com status fora de rascunho, em_validacao e validado', () => {
 
 test('falha com JSON inválido', () => {
   comCopia(({ dir }) => {
-    fs.writeFileSync(path.join(dir, 'services', 'lac', 'fontes.json'), '{ não é json');
+    fs.writeFileSync(path.join(dir, 'services', 'lac', 'versoes', 'v1', 'fontes.json'), '{ não é json');
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /JSON inválido/.test(e)), erros.join('\n'));
   });
@@ -197,7 +197,7 @@ test('falha com JSON inválido', () => {
 
 test('falha quando o id do arquivo difere do id do registro', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.serviceId = 'outro'; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.serviceId = 'outro'; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /serviceId "outro" difere/.test(e)), erros.join('\n'));
   });
@@ -205,7 +205,7 @@ test('falha quando o id do arquivo difere do id do registro', () => {
 
 test('falha quando documentos não é uma lista', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/documentos.json', (d) => { d.documentos = {}; });
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => { d.documentos = {}; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /"documentos" deve ser uma lista/.test(e)), erros.join('\n'));
   });
@@ -214,7 +214,7 @@ test('falha quando documentos não é uma lista', () => {
 test('falha quando conteúdo oficial está preenchido em rascunho (suposição)', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/registry.json', (r) => { r.servicos[0].statusValidacao = 'rascunho'; });
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.statusValidacao = 'rascunho';
       s.descricao = 'Texto inventado';
       s.etapas = ['Etapa inventada'];
@@ -230,7 +230,7 @@ test('falha quando conteúdo oficial está preenchido em rascunho (suposição)'
 test('falha quando o roteiro de um serviço em rascunho tem seção preenchida', () => {
   comCopia(({ dir, editarJson }) => {
     editarJson('services/registry.json', (r) => { r.servicos[0].statusValidacao = 'rascunho'; });
-    editarJson('services/lac/service.json', (s) => { s.statusValidacao = 'rascunho'; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.statusValidacao = 'rascunho'; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.some((e) => /seção "Etapas" deve conter somente PENDENTE/.test(e)), erros.join('\n'));
   });
@@ -238,7 +238,7 @@ test('falha quando o roteiro de um serviço em rascunho tem seção preenchida',
 
 test('falha quando o caminho do arquivo complementar sai da pasta services', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/service.json', (s) => { s.arquivos.fontes = 'services/lac/../../fontes.json'; });
+    editarJson('services/lac/versoes/v1/service.json', (s) => { s.arquivos.fontes = 'services/lac/../../fontes.json'; });
     const { erros } = validarServicos(dir);
     assert.ok(erros.length > 0);
   });
@@ -317,14 +317,14 @@ test('analisarUrl normaliza e não acessa a rede', () => {
 
 test('fonte em arquivo temporário referenciada pelo serviço é aceita; referência inexistente falha', () => {
   comCopia(({ dir, editarJson }) => {
-    editarJson('services/lac/fontes.json', (f) => {
+    editarJson('services/lac/versoes/v1/fontes.json', (f) => {
       f.fontes.push(fonteValida({ statusValidacao: 'rascunho', dataConsulta: null }));
     });
-    editarJson('services/lac/service.json', (s) => {
+    editarJson('services/lac/versoes/v1/service.json', (s) => {
       s.links.push('fonte-teste-1');
     });
     assert.deepEqual(validarServicos(dir).erros, []);
-    editarJson('services/lac/documentos.json', (d) => {
+    editarJson('services/lac/versoes/v1/documentos.json', (d) => {
       d.documentos = [{ id: 'd1', nome: 'x', fonteId: 'inexistente', statusValidacao: 'rascunho' }];
     });
     const { erros } = validarServicos(dir);

@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { validarVersao } from '../services/admin/versao.js';
+import { ARQUIVOS_DA_VERSAO, NOME_DO_MANIFESTO, caminhosDaVersao, pastaDaVersao } from '../services/versao-atual.js';
 
 export const STATUS_VALIDOS = ['rascunho', 'em_validacao', 'validado'];
 export const TIPOS_FONTE = [
@@ -861,6 +863,71 @@ function validarAssuntoDoServico(entrada, servico, rotulo, catalogo) {
   return erros;
 }
 
+/**
+ * Confere a versão atual de um serviço: registro (versaoAtualId, versaoPublicadaId), manifesto versao.json, arquivos
+ * da pasta da versão, ausência de arquivos soltos fora da versão e coerência da publicação.
+ * Os status atuais (rascunho / em_validacao / validado) não são alterados por estas regras.
+ */
+function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
+  if (pasta === null) {
+    erros.push(`${rotulo}: versaoAtualId inválido ${JSON.stringify(entrada.versaoAtualId)} (esperado "${id}-v<número>")`);
+    return;
+  }
+  const publicada = entrada.versaoPublicadaId;
+  if (publicada !== null && (typeof publicada !== 'string' || publicada === '')) {
+    erros.push(`${rotulo}: versaoPublicadaId deve ser null ou o id de uma versão publicada`);
+  }
+
+  const manifesto = lerJson(raiz, `${pasta}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão`);
+  if (manifesto) {
+    erros.push(...validarVersao(manifesto).map((e) => `${rotulo} versão: ${e}`));
+    if (manifesto.id !== entrada.versaoAtualId) erros.push(`${rotulo}: id do manifesto ("${manifesto.id}") difere de versaoAtualId`);
+    if (manifesto.servicoId !== id) erros.push(`${rotulo}: servicoId do manifesto ("${manifesto.servicoId}") difere do serviço`);
+    const numeroDaPasta = Number(pasta.slice(pasta.lastIndexOf('/v') + 2));
+    if (manifesto.numero !== numeroDaPasta) erros.push(`${rotulo}: numero do manifesto (${manifesto.numero}) difere da pasta da versão`);
+
+    // Caminhos do manifesto: exatamente os seis arquivos da versão, dentro da pasta, e todos existentes.
+    const esperados = caminhosDaVersao(pasta);
+    const declarados = ehObjeto(manifesto.arquivos) ? manifesto.arquivos : {};
+    for (const chave of Object.keys(declarados)) {
+      if (!(chave in esperados)) erros.push(`${rotulo} versão: arquivos.${chave} não faz parte da versão`);
+    }
+    for (const [chave, caminho] of Object.entries(esperados)) {
+      if (declarados[chave] !== caminho) {
+        erros.push(`${rotulo} versão: arquivos.${chave} deve ser ${caminho}`);
+        continue;
+      }
+      const absoluto = resolverDentro(raiz, caminho);
+      if (!absoluto || !fs.existsSync(absoluto)) erros.push(`${rotulo} versão: arquivo não encontrado: ${caminho}`);
+    }
+
+    // Publicação: somente versão em estado publicado pode ser a publicada.
+    if (publicada !== null && (publicada !== entrada.versaoAtualId || manifesto.estado !== 'publicado')) {
+      erros.push(`${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`);
+    }
+    if (manifesto.estado === 'publicado' && publicada !== entrada.versaoAtualId) {
+      erros.push(`${rotulo}: versão em estado publicado exige versaoPublicadaId igual a versaoAtualId`);
+    }
+  }
+  if (typeof entrada.publicado === 'boolean' && entrada.publicado !== (publicada !== null)) {
+    erros.push(`${rotulo}: "publicado" deve coincidir com a existência de versaoPublicadaId`);
+  }
+
+  // Nada solto fora da versão: a pasta do serviço só contém "versoes", e "versoes" só a pasta da versão registrada.
+  const pastaServico = resolverDentro(raiz, `services/${id}`);
+  if (pastaServico && fs.existsSync(pastaServico)) {
+    for (const nome of fs.readdirSync(pastaServico)) {
+      if (nome !== 'versoes') erros.push(`${rotulo}: arquivo fora da pasta da versão: services/${id}/${nome}`);
+    }
+  }
+  const pastaVersoes = resolverDentro(raiz, `services/${id}/versoes`);
+  if (pastaVersoes && fs.existsSync(pastaVersoes)) {
+    for (const nome of fs.readdirSync(pastaVersoes)) {
+      if (`services/${id}/versoes/${nome}` !== pasta) erros.push(`${rotulo}: pasta de versão não registrada: services/${id}/versoes/${nome}`);
+    }
+  }
+}
+
 export function validarServicos(raiz) {
   const erros = [];
   const registro = lerJson(raiz, 'services/registry.json', erros, 'registry');
@@ -911,8 +978,13 @@ export function validarServicos(raiz) {
     } else if (entrada.publicado && entrada.statusValidacao !== 'validado') {
       erros.push(`${rotulo}: serviço ${entrada.statusValidacao} não pode estar publicado`);
     }
-    if (entrada.arquivo !== `services/${id}/service.json`) {
-      erros.push(`${rotulo}: "arquivo" deve ser services/${id}/service.json`);
+    const pastaVersao = pastaDaVersao(id, entrada.versaoAtualId);
+    const prefixoDaVersao = `${pastaVersao ?? `services/${id}/versoes`}/`;
+    validarVersaoDoRegistro(raiz, entrada, id, rotulo, pastaVersao, erros);
+    if (pastaVersao !== null && entrada.arquivo !== `${pastaVersao}/${ARQUIVOS_DA_VERSAO.service}`) {
+      erros.push(`${rotulo}: "arquivo" deve ser ${pastaVersao}/${ARQUIVOS_DA_VERSAO.service}`);
+    } else if (pastaVersao === null && typeof entrada.arquivo !== 'string') {
+      erros.push(`${rotulo}: "arquivo" deve ser o service.json da versão atual`);
     }
 
     const servico = lerJson(raiz, entrada.arquivo, erros, rotulo);
@@ -953,8 +1025,8 @@ export function validarServicos(raiz) {
       if (typeof caminho !== 'string' || caminho === '') {
         erros.push(`${rotulo}: arquivos.${chave} não informado`);
         arquivos[chave] = undefined;
-      } else if (!caminho.startsWith(`services/${id}/`)) {
-        erros.push(`${rotulo}: arquivos.${chave} deve estar em services/${id}/`);
+      } else if (!caminho.startsWith(prefixoDaVersao)) {
+        erros.push(`${rotulo}: arquivos.${chave} deve estar em ${prefixoDaVersao}`);
       }
     }
 
@@ -1011,8 +1083,8 @@ export function validarServicos(raiz) {
     }
     // Conteúdo do assistente (opcional): blocos separados por ambiente.
     if (arquivos.conteudoAssistente !== undefined) {
-      if (typeof arquivos.conteudoAssistente !== 'string' || !arquivos.conteudoAssistente.startsWith(`services/${id}/`)) {
-        erros.push(`${rotulo}: arquivos.conteudoAssistente deve estar em services/${id}/`);
+      if (typeof arquivos.conteudoAssistente !== 'string' || !arquivos.conteudoAssistente.startsWith(prefixoDaVersao)) {
+        erros.push(`${rotulo}: arquivos.conteudoAssistente deve estar em ${prefixoDaVersao}`);
       } else {
         const conteudo = lerJson(raiz, arquivos.conteudoAssistente, erros, `${rotulo} conteudoAssistente`);
         if (conteudo) {

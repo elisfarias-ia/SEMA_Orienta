@@ -71,17 +71,21 @@ services/
 │   ├── registry.schema.json
 │   └── service.schema.json
 └── lac/
-    ├── service.json
-    ├── roteiro.md
-    ├── documentos.json
-    ├── perguntas-frequentes.json
-    └── fontes.json
+    └── versoes/
+        └── v1/
+            ├── versao.json
+            ├── service.json
+            ├── roteiro.md
+            ├── documentos.json
+            ├── perguntas-frequentes.json
+            ├── fontes.json
+            └── conteudo-assistente.json
 ```
 
 ### Como a base é organizada
 
-- **Registro central:** `registry.json` lista os serviços (identificador, caminho do `service.json`, status e publicação).
-- **Arquivos por serviço:** cada serviço tem pasta própria, com dados, roteiro, documentos, perguntas frequentes e fontes em arquivos separados.
+- **Registro central:** `registry.json` lista os serviços (identificador, `assuntoId`, `versaoAtualId`, `versaoPublicadaId`, caminho do `service.json` da versão atual, status e publicação).
+- **Arquivos por serviço e por versão (Passo 7C2):** cada serviço tem pasta própria e o conteúdo fica na pasta da versão, `services/<id>/versoes/v<número>/`, em arquivos modulares separados (dados, roteiro, documentos, perguntas frequentes, fontes e conteúdo do assistente), mais o manifesto `versao.json`. O conteúdo não é reunido em um único JSON, e nada fica solto na raiz de `services/<id>/`. A LAC tem só a versão 1 (`lac-v1`), em **rascunho**, migrada sem alteração material, sem hash, sem envio, sem decisão e sem versão publicada (`versaoPublicadaId: null`). O validador confere versão atual existente, `servicoId`, id e número coerentes, caminhos dentro da pasta da versão, arquivos existentes, ausência de arquivos soltos ou de pastas de versão não registradas e que `versaoPublicadaId` só aponte para versão em estado publicado. O assistente em teste local (`services/assistant-endpoint.js`) localiza a versão atual pelo registro e pelo manifesto (`services/versao-atual.js`), sem caminho fixo da LAC. Os status atuais de serviço, fontes, documentos e perguntas não mudaram.
 - **Relação por `fonteId`:** documentos e perguntas apontam para uma fonte de `fontes.json` pelo `fonteId`; `links` e `legislacao` do `service.json` listam identificadores de fontes.
 - **Tipos de links oficiais:** `legislacao`, `pagina_oficial`, `manual`, `formulario`, `sistema`, `canal_atendimento` e `outro`.
 - **HTTPS:** toda URL cadastrada deve usar `https://` e não pode se repetir.

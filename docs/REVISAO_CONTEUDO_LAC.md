@@ -1,7 +1,7 @@
 # Revisão técnica da base da LAC — conteúdo em validação
 
 **Data:** 09/11/2026
-**Escopo:** `services/lac/` (serviço, roteiro, documentos, perguntas frequentes e fontes), esquema e validador.
+**Escopo:** `services/lac/versoes/v1/` (versão 1; os arquivos ficavam em `services/lac/` antes do Passo 7C2) (serviço, roteiro, documentos, perguntas frequentes e fontes), esquema e validador.
 
 > Esta é uma revisão técnica e documental. Ela **não confirma a vigência de nenhuma norma**, **não representa aprovação jurídica ou validação da área competente** e **não aprova nenhum conteúdo para atendimento ao cidadão**. Nenhum status foi alterado e nada foi publicado.
 
