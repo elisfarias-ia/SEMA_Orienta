@@ -133,6 +133,8 @@ O checklist de documentos (`services/lac/documentos.json`) reúne 28 itens trans
 
 As perguntas frequentes (`services/lac/perguntas-frequentes.json`) reúnem 21 perguntas transcritas do FAQ de 2022, em resumo fiel e linguagem de fonte histórica. Todas permanecem em validação, não publicadas e sem resposta publicável (`respostaPublicavel: null`); cada uma traz os bloqueios que impedem a publicação. Informações variáveis (prazos, validade, taxas), procedimentos do sistema, normas a confirmar e contatos estão bloqueados. Contatos citados no FAQ não são armazenados. As observações a até h do FAQ serão analisadas na revisão geral, e nenhum conteúdo do FAQ está disponível para respostas do assistente.
 
+A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](docs/REVISAO_CONTEUDO_LAC.md).
+
 ## Estado atual
 
 - Marco 0 — pacote de contexto concluído.

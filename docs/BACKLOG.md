@@ -47,7 +47,8 @@ Concluído:
 - [x] impedir a publicação automática de fontes apenas por estarem validadas;
 - [x] cadastrar descrição, público, condições e roteiro de solicitação no SIGA (15 etapas) como conteúdo em validação, com fontes por `fonteId`, sem publicação;
 - [x] transcrever os 28 itens do checklist de documentos do TR nº 176 (em validação, não publicados, `obrigatorio: null`, `revisaoAtualidade: pendente`, com alertas específicos);
-- [x] transcrever 21 perguntas do FAQ de 2022 (18 numeradas e as perguntas i, j e k das observações) em linguagem de fonte histórica, em validação, não publicadas, com `respostaPublicavel: null`, bloqueios controlados e sem contatos armazenados.
+- [x] transcrever 21 perguntas do FAQ de 2022 (18 numeradas e as perguntas i, j e k das observações) em linguagem de fonte histórica, em validação, não publicadas, com `respostaPublicavel: null`, bloqueios controlados e sem contatos armazenados;
+- [x] realizar a revisão técnica consolidada da base da LAC (`docs/REVISAO_CONTEUDO_LAC.md`), sem alterar status, sem publicar e sem validar o conteúdo materialmente.
 
 > Nota: a validação realizada nesta etapa é experimental e abrange identidade, procedência e metadados das fontes. Não representa aprovação jurídica, confirmação de atualização integral ou autorização de publicação.
 
