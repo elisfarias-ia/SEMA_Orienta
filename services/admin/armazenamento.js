@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { serializarCanonico } from './hash.js';
 
-export const EXTENSOES = Object.freeze({ json: '.json', jsonl: '.jsonl' });
+export const EXTENSOES = Object.freeze({ json: '.json', jsonl: '.jsonl', md: '.md' });
 export const TAMANHO_MAXIMO = 5 * 1024 * 1024;
 
 const PADRAO_SEGMENTO = /^[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9_-]$|^[A-Za-z0-9]$/;
@@ -116,7 +116,7 @@ export function criarArmazenamento({ raiz, sistema = fs } = {}) {
     }
   }
 
-  function lerTexto(r) {
+  function lerConteudo(r) {
     if (r.tamanho > TAMANHO_MAXIMO) return falha('arquivo_grande_demais');
     try {
       return { ok: true, texto: sistema.readFileSync(r.destino, 'utf8') };
@@ -166,12 +166,39 @@ export function criarArmazenamento({ raiz, sistema = fs } = {}) {
   return {
     raiz: base,
 
+    /** Lê um arquivo de texto .md (por exemplo, o roteiro de um serviço). */
+    lerTexto(relativo) {
+      const r = resolver(relativo, EXTENSOES.md, { criarDiretorios: false });
+      if (!r.ok) return r;
+      if (!r.existe) return falha('nao_encontrado');
+      return lerConteudo(r);
+    },
+
+    /**
+     * Grava um arquivo .md de forma atômica, depois de validar o texto com a função do chamador. Formato determinístico:
+     * UTF-8, sem espaços no fim e com uma única quebra de linha final. Recusa byte nulo e retorno de carro.
+     */
+    gravarTexto(relativo, texto, validar) {
+      const semValidador = exigirValidador(validar);
+      if (semValidador) return semValidador;
+      if (typeof texto !== 'string' || texto.includes('\0') || texto.includes('\r')) return falha('dados_invalidos');
+      const r = resolver(relativo, EXTENSOES.md, { criarDiretorios: false });
+      if (!r.ok) return r;
+      const conteudo = `${texto.replace(/\s+$/, '')}\n`;
+      if (Buffer.byteLength(conteudo, 'utf8') > TAMANHO_MAXIMO) return falha('arquivo_grande_demais');
+      const invalido = conferir(validar, texto);
+      if (invalido) return invalido;
+      const g = resolver(relativo, EXTENSOES.md, { criarDiretorios: true });
+      if (!g.ok) return g;
+      return gravarAtomico(g.destino, conteudo);
+    },
+
     /** Lê um arquivo .json. */
     lerJson(relativo) {
       const r = resolver(relativo, EXTENSOES.json, { criarDiretorios: false });
       if (!r.ok) return r;
       if (!r.existe) return falha('nao_encontrado');
-      const t = lerTexto(r);
+      const t = lerConteudo(r);
       if (!t.ok) return t;
       try {
         return { ok: true, dados: JSON.parse(t.texto) };
@@ -206,7 +233,7 @@ export function criarArmazenamento({ raiz, sistema = fs } = {}) {
       const r = resolver(relativo, EXTENSOES.jsonl, { criarDiretorios: false });
       if (!r.ok) return r;
       if (!r.existe) return { ok: true, registros: [] };
-      const t = lerTexto(r);
+      const t = lerConteudo(r);
       if (!t.ok) return t;
       return analisarJsonl(t.texto);
     },
@@ -232,7 +259,7 @@ export function criarArmazenamento({ raiz, sistema = fs } = {}) {
 
       let anterior = '';
       if (r.existe) {
-        const t = lerTexto(r);
+        const t = lerConteudo(r);
         if (!t.ok) return t;
         const a = analisarJsonl(t.texto);
         if (!a.ok) return a;

@@ -10,25 +10,39 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Fluxo de estados e hash | `services/admin/fluxo.js`, `hash.js` | Funções puras. |
 | Versões e decisões | `services/admin/versao.js`, `decisoes.js` | Funções puras, sem dados reais. |
 | Armazenamento local | `services/admin/armazenamento.js` | Leitura e gravação seguras; só a leitura é usada pelo endpoint. |
-| Endpoint administrativo de leitura | `services/admin/admin-endpoint.js` | Somente no `npm run dev`; sem escrita, sem interface. |
+| Endpoint administrativo local | `services/admin/admin-endpoint.js` | Somente no `npm run dev`: leitura e cadastro de assunto e serviço; sem interface. |
+| Cadastro e transação | `services/admin/cadastro.js`, `transacao.js` | Montagem pura do assunto e do esqueleto do serviço; gravação tudo ou nada. |
 
 Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC está na versão 1 (`services/lac/versoes/v1/`, em rascunho), migrada de forma estrutural, sem alteração material, sem hash, sem envio e sem decisões.
 
-## Endpoint administrativo local (somente leitura)
+## Endpoint administrativo local
 
 Existe apenas no servidor de desenvolvimento (`npm run dev`): o plugin usa `apply: 'serve'` e não há gancho de preview, então **o build e o preview não o têm**. Não há interface administrativa ainda.
 
-| Rota (todas `GET`, sem query e sem corpo) | Exige token | O que devolve |
+| Rota | Exige token | O que faz |
 |---|---|---|
-| `/__admin/sessao` | não | O token da sessão, criado na primeira chamada. |
-| `/__admin/catalogo` | sim | Assuntos e serviços, com versão atual e versão publicada. |
-| `/__admin/servicos/<id>/versao-atual` | sim | Manifesto e arquivos modulares da versão atual (id de serviço cadastrado). |
+| `GET /__admin/sessao` | não | O token da sessão, criado na primeira chamada. |
+| `GET /__admin/catalogo` | sim | Assuntos e serviços, com versão atual e versão publicada. |
+| `GET /__admin/servicos/<id>/versao-atual` | sim | Manifesto e arquivos modulares da versão atual (id de serviço cadastrado). |
+| `POST /__admin/assuntos` | sim | Cadastra um assunto (corpo: `id`, `nome`, `descricao`). |
+| `POST /__admin/servicos` | sim | Cadastra um serviço (corpo: `id`, `assuntoId`, `nome`, `termosEquivalentes` e `sigla` opcional). |
 
 - **Token:** gerado com `node:crypto` (32 bytes aleatórios), mantido só em memória do servidor de desenvolvimento, enviado no cabeçalho `X-Admin-Token` e comparado de forma segura. Não é gravado, não vai para cookie, `localStorage` nem variável de ambiente, e nunca é registrado em log. Reiniciar o servidor invalida o token.
 - **Origem:** só conexão local (`127.0.0.1` ou `::1`), `Host` local na porta do servidor, `Origin` (se enviada) igual ao host da requisição e requisição não cruzada entre sites. Sem CORS.
-- **Requisição:** só `GET`; query string, corpo, rotas desconhecidas, travessia de caminho e ids inválidos ou não cadastrados são recusados. Os erros são códigos genéricos, sem caminho, token ou conteúdo.
-- **Somente leitura:** não grava, edita, exclui nem registra decisões, e **não lê `data/admin-private/`**. Requisições simultâneas não alteram nada persistente. A resposta tem limite de 2 MB, e os arquivos lidos têm os limites do armazenamento.
+- **Requisição:** as rotas de leitura aceitam só `GET`, sem corpo; as de cadastro, só `POST`. Query string, rotas desconhecidas, travessia de caminho e ids inválidos ou não cadastrados são recusados. Os erros são códigos genéricos, sem caminho, token ou conteúdo.
+- **Leitura:** não altera nada e **não lê `data/admin-private/`**. A resposta tem limite de 2 MB, e os arquivos lidos têm os limites do armazenamento.
+- **Escrita:** só as duas rotas de cadastro gravam, e somente dentro de `services/`. Não há edição, exclusão, decisão nem publicação.
 - **O token não é autenticação de pessoas.** Ele só impede que outro site aberto no navegador use o endpoint; quem tem acesso à máquina continua tendo acesso.
+
+### Cadastro de assunto e serviço (Passo 7E1)
+
+As duas rotas de cadastro exigem token, origem local, `Content-Type: application/json`, corpo de até 32 KB, JSON válido e somente os campos permitidos (qualquer outro, como `publicado`, `estado` ou `hashConteudo`, é recusado com 422).
+
+- **Assunto:** `id` no padrão do projeto, `nome` e `descricao` obrigatórios; id ou nome (sem distinguir acento e caixa) já existentes recebem 409. Nasce com `ativo: true`, e as datas são geradas pelo servidor.
+- **Serviço:** exige assunto existente e ativo, id e nome inéditos e nenhuma pasta com o mesmo nome. Nasce sempre como **versão 1, em rascunho, `publicado: false`**, com `versaoAtualId: <id>-v1` e `versaoPublicadaId: null`, sem hash, decisão, responsável ou autorização. A estrutura modular é criada em `services/<id>/versoes/v1/` (manifesto, `service.json`, roteiro, documentos, perguntas, fontes e conteúdo do assistente), com listas vazias e `PENDENTE`; o roteiro tem só as seções obrigatórias, todas `PENDENTE`. **Nenhum conteúdo ambiental é inventado.** Sem sigla informada, o campo fica `PENDENTE`.
+- **Tudo ou nada:** a alteração é ensaiada numa cópia temporária e conferida pelo validador da base; depois é gravada com escrita atômica (o registro por último) e conferida de novo. Se qualquer gravação ou a conferência falhar, tudo é desfeito: arquivos novos e pastas criadas são removidos e o que já existia volta byte a byte. Nunca sobrescreve assunto, serviço ou pasta existente.
+- **Concorrência:** uma gravação por vez; se outra estiver em andamento, a nova recebe 409 (`operacao_em_andamento`), sem perder dados.
+- **Sem registro de dados:** o corpo, o token e os dados enviados não vão para log, e os erros não repetem o que foi enviado.
 
 ## Armazenamento local
 

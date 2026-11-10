@@ -16,6 +16,8 @@ export const NOMES_INTERNOS = ['/__assistente', '__assistente', 'teste_local', '
 export const NOMES_ADMINISTRATIVOS = [
   '/__admin', '__admin/', 'x-admin-token', 'admin-endpoint', 'criarManipuladorAdmin', 'criarPluginAdminDev', 'services/admin',
   'admin-private', 'armazenamento.js', 'versao-atual', 'versoes/v1', 'hashConteudo',
+  '/__admin/assuntos', 'executarTransacao', 'montarEsqueletoServico', 'montarAssunto', 'validarCorpoAssunto', 'validarCorpoServico',
+  'cadastrarAssunto', 'cadastrarServico', 'sema-orienta-ensaio',
 ];
 
 /** Lista os arquivos de um diretório, recursivamente. */

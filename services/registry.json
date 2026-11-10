@@ -1,14 +1,14 @@
 {
-  "versaoEstrutura": 1,
   "servicos": [
     {
-      "id": "lac",
-      "assuntoId": "licenciamento-ambiental",
-      "versaoAtualId": "lac-v1",
-      "versaoPublicadaId": null,
       "arquivo": "services/lac/versoes/v1/service.json",
+      "assuntoId": "licenciamento-ambiental",
+      "id": "lac",
+      "publicado": false,
       "statusValidacao": "em_validacao",
-      "publicado": false
+      "versaoAtualId": "lac-v1",
+      "versaoPublicadaId": null
     }
-  ]
+  ],
+  "versaoEstrutura": 1
 }

@@ -356,9 +356,9 @@ test('S22. leitura: arquivo ausente, JSON inválido e arquivo grande; erros não
 
 // ---------- Somente acréscimos, higiene, repositório ----------
 
-test('S23. a interface oferece só ler, gravar JSON, listar e acrescentar: sem edição nem exclusão de histórico', () => {
+test('S23. a interface oferece só ler, gravar (JSON e texto), listar e acrescentar: sem edição nem exclusão de histórico', () => {
   comRaiz(({ arm }) => {
-    assert.deepEqual(Object.keys(arm).sort(), ['acrescentarJsonl', 'gravarJson', 'lerJson', 'listarJsonl', 'raiz']);
+    assert.deepEqual(Object.keys(arm).sort(), ['acrescentarJsonl', 'gravarJson', 'gravarTexto', 'lerJson', 'lerTexto', 'listarJsonl', 'raiz']);
   });
   const codigo = lerTexto('services', 'admin', 'armazenamento.js');
   assert.doesNotMatch(codigo, /appendFile|writeFileSync|rmSync|rmdir|truncate|copyFile|chmod/);

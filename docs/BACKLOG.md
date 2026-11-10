@@ -93,7 +93,11 @@ Concluído (Passo 7D — endpoint administrativo local de leitura):
 
 - [x] rotas `GET /__admin/sessao`, `/__admin/catalogo` e `/__admin/servicos/<id>/versao-atual`, só no `npm run dev`, com token em memória, validação de origem, erros genéricos e sem escrita (`services/admin/admin-endpoint.js`); `check-dist` ampliado; isolamento testado.
 
-Pendente (ainda não iniciado): escrita administrativa (versões e decisões) e interface administrativa. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
+Concluído (Passo 7E1 — cadastro administrativo de assunto e serviço):
+
+- [x] `POST /__admin/assuntos` e `POST /__admin/servicos` (somente no `npm run dev`), com validação do corpo, versão 1 em rascunho com estrutura modular e tudo `PENDENTE`, gravação tudo ou nada com desfazer, uma gravação por vez e testes só em cópias temporárias. Nenhum assunto ou serviço real foi cadastrado.
+
+Pendente (ainda não iniciado): edição de conteúdo, decisões, publicação e interface administrativa. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
 

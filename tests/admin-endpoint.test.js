@@ -287,7 +287,7 @@ test('AD10. recusa query string e corpo, sem repetir o que foi enviado', async (
 test('AD11. rotas desconhecidas, travessia e ids inválidos ou não cadastrados recebem 404 genérico (401 sem token)', async () => {
   const { m, token } = await comToken();
   const urls = [
-    '/__admin', '/__admin/', '/__admin/outra', '/__admin/catalogo/', '/__admin/catalogo/x', '/__admin/sessao/x', '/__admin/servicos', '/__admin/servicos/',
+    '/__admin', '/__admin/', '/__admin/outra', '/__admin/catalogo/', '/__admin/catalogo/x', '/__admin/sessao/x', '/__admin/servicos/', '/__admin/assuntos/',
     '/__admin/servicos/lac', '/__admin/servicos/lac/', '/__admin/servicos/lac/versao-atual/', '/__admin/servicos/lac/versao-atual/x', '/__admin/servicos/lac/versoes',
     '/__admin/servicos/../versao-atual', '/__admin/servicos/lac/../versao-atual', '/__admin/servicos/%2e%2e/versao-atual', '/__admin/servicos/lac%2f..%2fx/versao-atual',
     '/__admin/servicos/..%2f..%2fetc/versao-atual', '/__admin/servicos/LAC/versao-atual', '/__admin/servicos/lac_1/versao-atual', '/__admin/servicos/1lac/versao-atual',
@@ -486,13 +486,17 @@ test('AD20. o plugin só vale no servidor de desenvolvimento: sem build, sem pre
   assert.equal(typeof registrados[0], 'function');
 });
 
-test('AD21. o código é somente leitura e usa node:crypto: sem escrita, cookie, localStorage, ambiente nem caminho fixo da LAC', () => {
+test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: sem escrita direta, cookie, localStorage, ambiente nem caminho fixo da LAC', () => {
   const codigo = lerTexto('services', 'admin', 'admin-endpoint.js');
-  assert.doesNotMatch(codigo, /writeFile|appendFile|rename|mkdir|unlink|rmSync|copyFile|truncate|createWriteStream|\.gravar|acrescentar/);
-  assert.doesNotMatch(codigo, /localStorage|sessionStorage|document\.cookie|Set-Cookie|process\.env|Date\.now|new Date\(|fetch\(|node:http|node:net/);
+  // As gravações do cadastro passam por executarTransacao (e, dentro dele, pelo armazenamento); o endpoint só cria e remove a cópia temporária do ensaio.
+  assert.doesNotMatch(codigo, /writeFile|appendFile|renameSync|unlinkSync|copyFile|truncate|createWriteStream|gravarJson|gravarTexto|acrescentarJsonl/);
+  assert.match(codigo, /executarTransacao/);
+  assert.doesNotMatch(codigo, /localStorage|sessionStorage|document\.cookie|Set-Cookie|process\.env|Date\.now|fetch\(|node:http|node:net/);
+  assert.equal((codigo.match(/new Date\(\)/g) ?? []).length, 1, 'o relógio padrão é o único uso de Date e é injetável');
   assert.doesNotMatch(codigo, /services\/lac|'lac'|"lac"|conteudo-assistente\.json|fontes\.json|documentos\.json/);
   assert.match(codigo, /crypto\.randomBytes\(32\)/);
   assert.match(codigo, /crypto\.timingSafeEqual/);
-  const imports = [...codigo.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../versao-atual.js', './armazenamento.js', 'node:crypto', 'node:fs', 'node:path']);
+  assert.doesNotMatch(codigo, /console\./);
+  const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });

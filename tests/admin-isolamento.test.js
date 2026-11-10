@@ -70,7 +70,7 @@ test('I6. o modo público do assistente continua com zero blocos; o teste local 
 });
 
 test('I7. a conferência do dist/ passou a procurar nomes administrativos, o catálogo e a versão atual', () => {
-  for (const nome of ['/__admin', 'x-admin-token', 'admin-endpoint', 'criarManipuladorAdmin', 'admin-private', 'services/admin', 'versao-atual']) {
+  for (const nome of ['/__admin', 'x-admin-token', 'admin-endpoint', 'criarManipuladorAdmin', 'admin-private', 'services/admin', 'versao-atual', '/__admin/assuntos', 'executarTransacao', 'montarEsqueletoServico', 'validarCorpoAssunto', 'validarCorpoServico', 'cadastrarServico']) {
     assert.ok(NOMES_ADMINISTRATIVOS.includes(nome), nome);
   }
   const textos = termosProibidos(RAIZ).map((t) => t.texto);
@@ -83,7 +83,8 @@ test('I8. dist/ não tem rotas, token, catálogo, versão nem conteúdo administ
   assert.deepEqual(conferirDist(RAIZ), []);
   const assunto = lerJson('services', 'assuntos.json').assuntos[0];
   const proibidos = [/__admin/, /x-admin-token/i, /sessao/i, /catalogo/i, /versao-atual/, /admin-endpoint/, /admin-private/, /armazenamento/i, /lac-v1/, /versoes\/v1/, /hashConteudo/,
-    /licenciamento-ambiental/, new RegExp(assunto.nome), /timingSafeEqual|randomBytes/, /Cross-Origin-Resource-Policy/, /\b[0-9a-f]{64}\b/];
+    /licenciamento-ambiental/, new RegExp(assunto.nome), /timingSafeEqual|randomBytes/, /Cross-Origin-Resource-Policy/, /\b[0-9a-f]{64}\b/,
+    /executarTransacao|montarEsqueletoServico|montarAssunto|validarCorpo(Assunto|Servico)|cadastrar(Assunto|Servico)|termosEquivalentes|versaoAtualId|versaoPublicadaId|sema-orienta-ensaio/];
   for (const arquivo of listar(path.join(RAIZ, 'dist'))) {
     const texto = fs.readFileSync(arquivo, 'utf8');
     for (const p of proibidos) assert.doesNotMatch(texto, p, `${path.relative(RAIZ, arquivo)} ${p}`);

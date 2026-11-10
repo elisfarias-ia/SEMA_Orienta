@@ -1,13 +1,13 @@
 {
-  "versaoEstrutura": 1,
   "assuntos": [
     {
-      "id": "licenciamento-ambiental",
-      "nome": "Licenciamento Ambiental",
-      "descricao": "Área da SEMA que trata das licenças e autorizações ambientais de atividades e empreendimentos. Reúne os serviços de licenciamento, como a Licença por Adesão e Compromisso (LAC).",
       "ativo": true,
+      "atualizadoEm": "2026-11-09",
       "criadoEm": "2026-11-09",
-      "atualizadoEm": "2026-11-09"
+      "descricao": "Área da SEMA que trata das licenças e autorizações ambientais de atividades e empreendimentos. Reúne os serviços de licenciamento, como a Licença por Adesão e Compromisso (LAC).",
+      "id": "licenciamento-ambiental",
+      "nome": "Licenciamento Ambiental"
     }
-  ]
+  ],
+  "versaoEstrutura": 1
 }

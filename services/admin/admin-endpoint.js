@@ -1,24 +1,38 @@
-// Endpoint administrativo LOCAL, SOMENTE DE LEITURA (Marco 7, Passo 7D). Existe apenas no servidor de desenvolvimento
-// do Vite (`npm run dev`): o plugin usa apply: 'serve' e não há gancho de preview, então o build e o preview não o têm.
+// Endpoint administrativo LOCAL (Marco 7, Passos 7D e 7E1). Existe apenas no servidor de desenvolvimento do Vite
+// (`npm run dev`): o plugin usa apply: 'serve' e não há gancho de preview, então o build e o preview não o têm.
 //
-// Rotas (todas GET, sem query e sem corpo):
+// Rotas de leitura (GET, sem query e sem corpo):
 //   /__admin/sessao                       -> entrega o token da sessão (criado na primeira chamada, só em memória)
 //   /__admin/catalogo                     -> assuntos e serviços, com versão atual e publicada (exige token)
 //   /__admin/servicos/<id>/versao-atual   -> manifesto e arquivos modulares da versão atual (exige token)
+// Rotas de cadastro (POST, JSON de até 32 KB, exigem token):
+//   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
+//   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
 //
 // Este módulo NÃO tem autenticação de pessoas: o token só impede que outro site aberto no navegador use o endpoint.
-// Não grava, edita, exclui nem registra decisões; não lê dados privados (data/admin-private/); não usa cookies,
-// armazenamento do navegador, variáveis de ambiente nem registro em log. Erros são códigos genéricos, sem caminho, token ou conteúdo.
+// Não decide, não valida conteúdo, não publica e não exclui nada. Não lê dados privados (data/admin-private/); não usa
+// cookies, armazenamento do navegador, variáveis de ambiente nem registro em log. Erros são códigos genéricos, sem
+// caminho, token ou conteúdo. Toda gravação passa por transacao.js (tudo ou nada, com desfazer) e por uma trava que
+// recusa gravações simultâneas com 409.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { criarArmazenamento } from './armazenamento.js';
-import { localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
+import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
+import { executarTransacao } from './transacao.js';
+import { LIMITE_CORPO, montarAssunto, montarEsqueletoServico, normalizarNome, validarCorpoAssunto, validarCorpoServico } from './cadastro.js';
+import { validarVersao } from './versao.js';
+import {
+  validarAssuntos, validarConteudoAssistente, validarDocumentos, validarFontes, validarPerguntas, validarServicos,
+} from '../../scripts/validate-services.js';
 
 export const PREFIXO_ADMIN = '/__admin';
 export const ROTA_SESSAO = '/__admin/sessao';
 export const ROTA_CATALOGO = '/__admin/catalogo';
+export const ROTA_ASSUNTOS = '/__admin/assuntos';
+export const ROTA_SERVICOS = '/__admin/servicos';
 export const CABECALHO_TOKEN = 'x-admin-token';
 export const LIMITE_RESPOSTA = 2 * 1024 * 1024;
 export const LIMITE_TEXTO = 1024 * 1024;
@@ -28,10 +42,17 @@ const PADRAO_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(?::(\d{1,5}))?$/i;
 const PADRAO_ROTA_VERSAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/versao-atual$/;
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
+const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
 const SEC_FETCH_PERMITIDOS = new Set(['same-origin', 'none']);
 
 const geradorPadrao = () => crypto.randomBytes(32).toString('hex');
 const sobPrefixo = (caminho) => caminho === PREFIXO_ADMIN || caminho.startsWith(`${PREFIXO_ADMIN}/`);
+
+/** Data local AAAA-MM-DD a partir de um Date (o relógio é injetável nos testes). */
+function dataLocal(d) {
+  const dois = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+}
 
 /** Host da requisição, se for local e na porta em que o servidor escuta; senão null. */
 function hostLocal(req) {
@@ -71,13 +92,49 @@ function lerRoteiro(raiz, relativo) {
   return fs.readFileSync(atual, 'utf8');
 }
 
+/** Lê o corpo da requisição. Acima do limite, o excedente é descartado (não guardado) e o resultado indica `excedeu`. */
+async function lerCorpo(req, limite) {
+  const partes = [];
+  let total = 0;
+  let excedeu = false;
+  for await (const pedaco of req) {
+    const bytes = Buffer.isBuffer(pedaco) ? pedaco : Buffer.from(pedaco);
+    total += bytes.length;
+    if (total > limite) excedeu = true;
+    else partes.push(bytes);
+  }
+  return excedeu ? { excedeu: true } : { excedeu: false, texto: Buffer.concat(partes).toString('utf8') };
+}
+
+/** Validador do conteúdo de cada arquivo novo do serviço (a árvore inteira ainda é conferida pelo validador da base). */
+function validadorDoArquivo(caminho, idServico) {
+  const nome = caminho.slice(caminho.lastIndexOf('/') + 1);
+  if (nome === NOME_DO_MANIFESTO) return (d) => validarVersao(d);
+  if (nome === ARQUIVOS_DA_VERSAO.documentos) return (d) => validarDocumentos(d, { idServico });
+  if (nome === ARQUIVOS_DA_VERSAO.perguntasFrequentes) return (d) => validarPerguntas(d, { idServico });
+  if (nome === ARQUIVOS_DA_VERSAO.fontes) return (d) => validarFontes(d);
+  if (nome === ARQUIVOS_DA_VERSAO.conteudoAssistente) return (d) => validarConteudoAssistente(d, { idServico });
+  return () => [];
+}
+
 /**
  * Cria o manipulador (middleware). O token vive apenas nesta closure (memória do servidor de desenvolvimento).
- * `gerarToken` e `limiteResposta` existem para os testes; o padrão usa node:crypto e 2 MB.
+ * Opções para os testes: `gerarToken`, `limiteResposta`, `agora` (relógio), `sistema` (módulo de arquivos usado nas gravações
+ * reais), `diretorioTemporario`, `antesDeGravar` (gancho assíncrono dentro da trava) e `verificarFinal`.
  */
-export function criarManipuladorAdmin({ raiz, gerarToken = geradorPadrao, limiteResposta = LIMITE_RESPOSTA } = {}) {
+export function criarManipuladorAdmin({
+  raiz,
+  gerarToken = geradorPadrao,
+  limiteResposta = LIMITE_RESPOSTA,
+  agora = () => new Date(),
+  sistema = fs,
+  diretorioTemporario = os.tmpdir(),
+  antesDeGravar,
+  verificarFinal = (r) => validarServicos(r).erros,
+} = {}) {
   let token = null;
-  const armazenamento = criarArmazenamento({ raiz });
+  let escrevendo = false;
+  const armazenamento = criarArmazenamento({ raiz, sistema });
 
   const tokenValido = (recebido) => {
     if (token === null || typeof recebido !== 'string' || !PADRAO_TOKEN.test(recebido)) return false;
@@ -91,6 +148,18 @@ export function criarManipuladorAdmin({ raiz, gerarToken = geradorPadrao, limite
     if (!r.ok) throw new Error('leitura');
     return r.dados;
   };
+
+  /** Nome do serviço, lido do service.json da versão atual (ou null). */
+  function nomeDoServico(id) {
+    const versao = localizarVersaoAtual(raiz, id);
+    if (!versao.ok) return null;
+    try {
+      const dados = lerJson(versao.arquivos.service);
+      return typeof dados.nome === 'string' ? dados.nome : null;
+    } catch {
+      return null;
+    }
+  }
 
   function montarCatalogo() {
     const assuntos = lerJson('services/assuntos.json').assuntos;
@@ -133,6 +202,71 @@ export function criarManipuladorAdmin({ raiz, gerarToken = geradorPadrao, limite
     };
   }
 
+  /**
+   * Aplica a alteração em duas etapas: 1) ensaio completo numa cópia temporária de services/, conferido pelo validador da
+   * base; 2) gravação real, tudo ou nada, conferida de novo pelo validador. Falha em qualquer ponto desfaz tudo.
+   */
+  function aplicar(passos) {
+    const tmp = fs.mkdtempSync(path.join(diretorioTemporario, 'sema-orienta-ensaio-'));
+    try {
+      fs.cpSync(path.join(raiz, 'services'), path.join(tmp, 'services'), { recursive: true });
+      const ensaio = executarTransacao({ raiz: tmp, passos, verificar: () => validarServicos(tmp).erros });
+      if (!ensaio.ok) return { ok: false, erro: 'dados_invalidos' };
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+    return executarTransacao({ raiz, sistema, passos, verificar: () => verificarFinal(raiz) });
+  }
+
+  const resultadoDaTransacao = (r) => {
+    if (r.ok) return null;
+    if (r.erro === 'dados_invalidos') return { status: 422, corpo: { erro: 'dados_invalidos' } };
+    if (r.erro === 'ja_existe') return { status: 409, corpo: { erro: 'ja_existe' } };
+    return { status: 500, corpo: { erro: 'indisponivel' } };
+  };
+
+  function cadastrarAssunto(dados) {
+    const doc = lerJson('services/assuntos.json');
+    if (doc.assuntos.some((a) => a.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
+    const nome = normalizarNome(dados.nome);
+    if (doc.assuntos.some((a) => normalizarNome(a.nome) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
+    const assunto = montarAssunto(dados, dataLocal(agora()));
+    const novo = { ...doc, assuntos: [...doc.assuntos, assunto] };
+    const r = aplicar([{ caminho: 'services/assuntos.json', tipo: 'json', conteudo: novo, validar: (d) => validarAssuntos(d).erros }]);
+    return resultadoDaTransacao(r) ?? { status: 201, corpo: { assunto } };
+  }
+
+  function cadastrarServico(dados) {
+    const assunto = lerJson('services/assuntos.json').assuntos.find((a) => a.id === dados.assuntoId);
+    if (!assunto || assunto.ativo !== true) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['assuntoId'] } };
+    const registro = lerJson('services/registry.json');
+    if (registro.servicos.some((s) => s.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
+    let pastaExiste = true;
+    try {
+      sistema.lstatSync(path.join(raiz, 'services', dados.id));
+    } catch (e) {
+      pastaExiste = !(e && e.code === 'ENOENT');
+    }
+    if (pastaExiste) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
+    const nome = normalizarNome(dados.nome);
+    if (registro.servicos.some((s) => normalizarNome(nomeDoServico(s.id)) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
+
+    const esqueleto = montarEsqueletoServico(dados, assunto, dataLocal(agora()));
+    const passos = [
+      ...esqueleto.arquivos.map((a) => ({ caminho: a.caminho, tipo: a.tipo, conteudo: a.conteudo, novo: true, validar: validadorDoArquivo(a.caminho, dados.id) })),
+      // O registro é gravado por último: é ele que torna o serviço visível.
+      { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro, servicos: [...registro.servicos, esqueleto.entradaRegistro] }, validar: () => [] },
+    ];
+    const r = aplicar(passos);
+    const falha = resultadoDaTransacao(r);
+    if (falha) return falha;
+    const e = esqueleto.entradaRegistro;
+    return {
+      status: 201,
+      corpo: { servico: { id: e.id, assuntoId: e.assuntoId, nome: dados.nome, sigla: dados.sigla, versaoAtualId: e.versaoAtualId, versaoPublicadaId: null, estado: 'rascunho', publicado: false } },
+    };
+  }
+
   return async function manipuladorAdmin(req, res, next) {
     const url = typeof req.url === 'string' ? req.url : '';
     const indice = url.indexOf('?');
@@ -155,9 +289,12 @@ export function criarManipuladorAdmin({ raiz, gerarToken = geradorPadrao, limite
     };
 
     if (!origemPermitida(req)) return responder(403, { erro: 'acesso_somente_local' });
-    if (req.method !== 'GET') return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: 'GET' });
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS;
+    const metodoEsperado = rotaDeCadastro ? 'POST' : 'GET';
+    if (req.method !== metodoEsperado) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodoEsperado });
     const tamanho = req.headers['content-length'];
-    if (indice !== -1 || (tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined) {
+    if (indice !== -1) return responder(400, { erro: 'requisicao_invalida' });
+    if (!rotaDeCadastro && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
       return responder(400, { erro: 'requisicao_invalida' });
     }
 
@@ -171,6 +308,37 @@ export function criarManipuladorAdmin({ raiz, gerarToken = geradorPadrao, limite
         return responderJson({ token });
       }
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
+
+      if (rotaDeCadastro) {
+        if (typeof req.headers['content-type'] !== 'string' || !PADRAO_TIPO_JSON.test(req.headers['content-type'])) {
+          return responder(415, { erro: 'tipo_nao_suportado' });
+        }
+        if (tamanho !== undefined && !/^\d{1,10}$/.test(tamanho)) return responder(400, { erro: 'requisicao_invalida' });
+        if (tamanho !== undefined && Number(tamanho) > LIMITE_CORPO) return responder(413, { erro: 'corpo_grande_demais' }, { Connection: 'close' });
+        const lido = await lerCorpo(req, LIMITE_CORPO);
+        if (lido.excedeu) return responder(413, { erro: 'corpo_grande_demais' }, { Connection: 'close' });
+        let corpo;
+        try {
+          corpo = JSON.parse(lido.texto);
+        } catch {
+          return responder(400, { erro: 'requisicao_invalida' });
+        }
+        const validacao = caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
+        if (!validacao.ok) return responder(422, { erro: 'dados_invalidos', campos: validacao.campos });
+
+        // Uma gravação por vez: se outra estiver em andamento, esta é recusada (nada é enfileirado nem perdido).
+        if (escrevendo) return responder(409, { erro: 'operacao_em_andamento' });
+        escrevendo = true;
+        let resultado;
+        try {
+          if (antesDeGravar) await antesDeGravar();
+          resultado = caminho === ROTA_ASSUNTOS ? cadastrarAssunto(validacao.dados) : cadastrarServico(validacao.dados);
+        } finally {
+          escrevendo = false;
+        }
+        return responder(resultado.status, resultado.corpo);
+      }
+
       if (caminho === ROTA_CATALOGO) return responderJson(montarCatalogo());
       const m = PADRAO_ROTA_VERSAO.exec(caminho);
       if (m) {
