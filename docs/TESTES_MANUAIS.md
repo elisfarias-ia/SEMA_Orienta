@@ -75,7 +75,7 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 
 ### Execução — tela "Gestão de conteúdo" (Passo 7E2)
 
-**Status: validação manual parcial realizada pela usuária em 10/11/2026** (ver "Registro" abaixo). Foram aprovados apenas os testes que não dependem de gravar: MA-01, MA-03, MA-04, MA-05, MA-10, MA-11, MA-15 e MA-16. Os demais permanecem **não executados**, em especial os que dependem de clicar em "Confirmar cadastro", executar `POST`, criar assunto ou serviço ou verificar a atualização do catálogo após a gravação (MA-06 a MA-09).
+**Status: validação manual parcial realizada pela usuária em 10/11/2026** (ver "Registro" abaixo). Aprovados: MA-01, MA-03, MA-04, MA-05, MA-10, MA-11, MA-15 e MA-16 (sem gravação) e MA-06 e MA-07 (cadastro de teste confirmado pela interface, comprovado pelos fatos do segundo registro). Permanecem **não executados**: MA-02, MA-08, MA-09, MA-12, MA-13 e MA-14.
 
 - **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/`.
 - **Dimensão móvel:** 390 × 844 px.
@@ -88,8 +88,8 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 | MA-03 | Abrir a página do cidadão | Nenhum link ou menção à administração | aprovado |
 | MA-04 | Enviar os formulários vazios ou com dados inválidos | Mensagens curtas junto de cada campo, foco no primeiro campo com erro, nada é gravado | aprovado |
 | MA-05 | "Novo assunto" com dados fictícios, "Revisar cadastro", depois "Voltar" (e também Esc) | Painel de confirmação com o resumo; nada é gravado; o foco volta ao botão de origem | aprovado |
-| MA-06 | Repetir e usar "Confirmar cadastro" | Mensagem de sucesso com foco, formulário limpo, assunto no catálogo (desfazer depois) | não executado |
-| MA-07 | "Novo serviço": escolher o assunto, preencher, termos um por linha, revisar e confirmar | Resumo correto; serviço aparece em "Rascunho" e "Não publicada", sem conteúdo (desfazer depois) | não executado |
+| MA-06 | Repetir e usar "Confirmar cadastro" | Mensagem de sucesso com foco, formulário limpo, assunto no catálogo (desfazer depois) | aprovado |
+| MA-07 | "Novo serviço": escolher o assunto, preencher, termos um por linha, revisar e confirmar | Resumo correto; serviço aparece em "Rascunho" e "Não publicada", sem conteúdo (desfazer depois) | aprovado |
 | MA-08 | Repetir um identificador ou nome já existente | Mensagem curta de duplicidade; nada é alterado | não executado |
 | MA-09 | Clicar duas vezes seguidas em "Confirmar cadastro" | Um único cadastro; botões desabilitados durante a gravação | não executado |
 | MA-10 | Navegar só pelo teclado (Tab, Shift+Tab, Enter, Esc) | Ordem de foco coerente, foco visível, diálogo sem escape do foco, leitor de tela anuncia o status | aprovado |
@@ -106,4 +106,18 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 - **Executado por:** usuária do projeto.
 - **Evidência:** captura de tela fornecida pela usuária.
 - **Aprovados:** carregamento da interface administrativa; aviso "Ambiente administrativo local — sem autenticação"; catálogo com "Licenciamento Ambiental" e a LAC (MA-01); interface do cidadão sem referência à administração (MA-03); validação dos campos com foco no primeiro erro (MA-04); abertura do painel de confirmação, botão "Voltar" com retorno correto do foco (MA-05); navegação por teclado e Esc (MA-10); layout em 390 × 844 px sem rolagem horizontal (MA-11); token não visível (MA-15); ausência de editar, excluir, validar e publicar (MA-16).
-- **Não executados:** MA-02 (redirecionamento de `/admin`), MA-06 a MA-09 (confirmar cadastro, `POST`, criação de assunto ou serviço, duplicidade e clique duplo, e atualização do catálogo após gravar), MA-12 (reduzir movimento), MA-13 (`build` e `preview`) e MA-14 (servidor parado).
+- **Não executados nesse primeiro registro:** MA-02 (redirecionamento de `/admin`), MA-06 a MA-09 (confirmar cadastro e `POST`), MA-12 (reduzir movimento), MA-13 (`build` e `preview`) e MA-14 (servidor parado). MA-06 e MA-07 foram comprovados depois, pelo segundo registro; MA-02, MA-08, MA-09, MA-12, MA-13 e MA-14 continuam não executados.
+
+**Registro do cadastro de teste pela interface (Passo 7E2)**
+
+- **Data:** 10/11/2026.
+- **Executado por:** usuária do projeto, na tela "Gestão de conteúdo" (`npm run dev`).
+- **Fatos comprovados:**
+  - a usuária confirmou pela interface o cadastro de um assunto de teste e de um serviço de teste;
+  - os `POST` foram executados com sucesso (assunto e serviço criados);
+  - o catálogo foi atualizado com os dois novos itens;
+  - a versão 1 completa do serviço foi criada, em rascunho e não publicada: manifesto com `estado: rascunho`, sem hash, sem envio e sem decisão; registro com `versaoPublicadaId: null` e `publicado: false`; os sete arquivos da versão com conteúdo vazio ou `PENDENTE`;
+  - a base permaneceu válida (`npm run validate:services` sem erros, com o serviço de teste incluído);
+  - os dados de teste foram removidos depois da verificação (restauração de `services/assuntos.json` e `services/registry.json` pelo Git e remoção da pasta do serviço de teste), e o catálogo voltou a ter somente "Licenciamento Ambiental" e a LAC.
+- **Aprovados por esses fatos:** MA-06 (assunto cadastrado e presente no catálogo) e MA-07 (serviço cadastrado em rascunho, não publicado e sem conteúdo). Não houve registro separado do foco na mensagem de sucesso, da limpeza do formulário e do texto do resumo do painel de confirmação.
+- **Continuam não executados:** MA-08 (duplicidade de identificador ou nome) e MA-09 (clique duplo em "Confirmar cadastro"), pois nada nos fatos acima os comprova.
