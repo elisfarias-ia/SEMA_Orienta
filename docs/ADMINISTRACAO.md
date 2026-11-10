@@ -12,6 +12,7 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Armazenamento local | `services/admin/armazenamento.js` | Leitura e gravação seguras; só a leitura é usada pelo endpoint. |
 | Endpoint administrativo local | `services/admin/admin-endpoint.js` | Somente no `npm run dev`: leitura e cadastro de assunto e serviço; sem interface. |
 | Cadastro e transação | `services/admin/cadastro.js`, `transacao.js` | Montagem pura do assunto e do esqueleto do serviço; gravação tudo ou nada. |
+| Tela "Gestão de conteúdo" | `admin/` (`index.html`, `styles.css`, `admin.js`, `admin-logic.js`) | Somente no `npm run dev`, em `http://localhost:5173/admin/`; só cadastra assunto e serviço. |
 
 Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC está na versão 1 (`services/lac/versoes/v1/`, em rascunho), migrada de forma estrutural, sem alteração material, sem hash, sem envio e sem decisões.
 
@@ -43,6 +44,16 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 - **Tudo ou nada:** a alteração é ensaiada numa cópia temporária e conferida pelo validador da base; depois é gravada com escrita atômica (o registro por último) e conferida de novo. Se qualquer gravação ou a conferência falhar, tudo é desfeito: arquivos novos e pastas criadas são removidos e o que já existia volta byte a byte. Nunca sobrescreve assunto, serviço ou pasta existente.
 - **Concorrência:** uma gravação por vez; se outra estiver em andamento, a nova recebe 409 (`operacao_em_andamento`), sem perder dados.
 - **Sem registro de dados:** o corpo, o token e os dados enviados não vão para log, e os erros não repetem o que foi enviado.
+
+## Tela "Gestão de conteúdo" (Passo 7E2)
+
+- **Acesso:** somente no `npm run dev`, em `http://localhost:5173/admin/` (`/admin` redireciona para `/admin/`). A pasta `admin/` não entra no build nem no preview, e não há link para ela na interface do cidadão. A tela mostra o aviso "Ambiente administrativo local — sem autenticação".
+- **O que mostra:** o catálogo (assuntos e, em cada um, os serviços com versão atual, estado e se há versão publicada ou "não publicada") e dois formulários, "Novo assunto" e "Novo serviço".
+- **Como cadastra:** o formulário valida os dados e abre uma confirmação com o resumo e os botões "Voltar" e "Confirmar cadastro". Só depois de confirmar é feita a gravação. Com sucesso, o formulário é limpo, o catálogo é atualizado e o foco vai para a mensagem de confirmação.
+- **Sessão e token:** o token é obtido em `/__admin/sessao`, fica só numa variável em memória e é enviado em `X-Admin-Token`; nunca aparece na tela. Enquanto a sessão ou o catálogo não estiverem disponíveis, e durante uma gravação, os botões de envio ficam desabilitados (sem envio duplicado).
+- **Segurança do código:** só `textContent` e APIs seguras do DOM; sem `innerHTML`, `localStorage`, `sessionStorage`, cookies ou log. Os erros do endpoint viram mensagens curtas em português, sem mostrar a resposta bruta.
+- **O que não faz:** não edita nem exclui, não valida, não registra decisão e não publica. Não altera a LAC.
+- **Atenção em testes manuais:** confirmar um cadastro grava arquivos reais em `services/`. Use dados fictícios e desfaça depois (restaure `services/assuntos.json` e `services/registry.json` com o Git e remova a pasta do serviço criada).
 
 ## Armazenamento local
 

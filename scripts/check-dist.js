@@ -18,6 +18,9 @@ export const NOMES_ADMINISTRATIVOS = [
   'admin-private', 'armazenamento.js', 'versao-atual', 'versoes/v1', 'hashConteudo',
   '/__admin/assuntos', 'executarTransacao', 'montarEsqueletoServico', 'montarAssunto', 'validarCorpoAssunto', 'validarCorpoServico',
   'cadastrarAssunto', 'cadastrarServico', 'sema-orienta-ensaio',
+  // Tela "Gestão de conteúdo" (pasta admin/): textos, formulários e código.
+  'Gestão de conteúdo', 'Ambiente administrativo local', 'admin-logic', 'criarClienteAdmin', 'Confirmar cadastro', 'Revisar cadastro',
+  'form-assunto', 'form-servico', 'servico-termos', 'assunto-enviar', 'confirmacao-resumo',
 ];
 
 /** Lista os arquivos de um diretório, recursivamente. */
@@ -71,6 +74,11 @@ export function conferirDist(raiz) {
   const termos = termosProibidos(raiz);
   const encontrados = [];
   for (const arquivo of listar(dist)) {
+    // A pasta admin/ e seus arquivos nunca podem estar no build.
+    const relativo = path.relative(dist, arquivo).split(path.sep);
+    if (relativo.includes('admin') || relativo.some((parte) => /^admin[-.]/.test(parte))) {
+      encontrados.push({ arquivo: path.relative(raiz, arquivo), origem: 'arquivo administrativo', texto: relativo.join('/') });
+    }
     const conteudo = fs.readFileSync(arquivo, 'utf8');
     for (const { origem, texto } of termos) {
       if (conteudo.includes(texto)) encontrados.push({ arquivo: path.relative(raiz, arquivo), origem, texto: texto.slice(0, 60) });

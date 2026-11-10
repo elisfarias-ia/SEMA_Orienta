@@ -72,3 +72,38 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 | M6-11 | Navegação só por Tab | Foco visível em campo, botões e links das fontes | aprovado |
 | M6-12 | `npm run build` e `npm run preview` | Sem faixa; resposta apenas "A base de informações da LAC está em configuração…" | aprovado — `npm run preview` em `localhost:4173`; faixa e conteúdo de teste ausentes; pergunta respondida só com a mensagem segura de indisponibilidade (validação da usuária em 09/11/2026) |
 | M6-13 | Recarregar a página | Conversa não é mantida (nada gravado no navegador) | não executado |
+
+### Execução — tela "Gestão de conteúdo" (Passo 7E2)
+
+**Status: validação manual parcial realizada pela usuária em 10/11/2026** (ver "Registro" abaixo). Foram aprovados apenas os testes que não dependem de gravar: MA-01, MA-03, MA-04, MA-05, MA-10, MA-11, MA-15 e MA-16. Os demais permanecem **não executados**, em especial os que dependem de clicar em "Confirmar cadastro", executar `POST`, criar assunto ou serviço ou verificar a atualização do catálogo após a gravação (MA-06 a MA-09).
+
+- **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/`.
+- **Dimensão móvel:** 390 × 844 px.
+- **Atenção:** confirmar um cadastro grava arquivos reais em `services/`. Use somente dados fictícios e, ao terminar, desfaça: restaure `services/assuntos.json` e `services/registry.json` com o Git e remova a pasta do serviço criado.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| MA-01 | Abrir `http://localhost:5173/admin/` | Título "SEMA Orienta — Gestão de conteúdo", aviso "Ambiente administrativo local — sem autenticação" e catálogo com "Licenciamento Ambiental" e a LAC (versão atual, estado e "Não publicada") | aprovado |
+| MA-02 | Abrir `/admin` (sem barra final) | Redireciona para `/admin/` | não executado |
+| MA-03 | Abrir a página do cidadão | Nenhum link ou menção à administração | aprovado |
+| MA-04 | Enviar os formulários vazios ou com dados inválidos | Mensagens curtas junto de cada campo, foco no primeiro campo com erro, nada é gravado | aprovado |
+| MA-05 | "Novo assunto" com dados fictícios, "Revisar cadastro", depois "Voltar" (e também Esc) | Painel de confirmação com o resumo; nada é gravado; o foco volta ao botão de origem | aprovado |
+| MA-06 | Repetir e usar "Confirmar cadastro" | Mensagem de sucesso com foco, formulário limpo, assunto no catálogo (desfazer depois) | não executado |
+| MA-07 | "Novo serviço": escolher o assunto, preencher, termos um por linha, revisar e confirmar | Resumo correto; serviço aparece em "Rascunho" e "Não publicada", sem conteúdo (desfazer depois) | não executado |
+| MA-08 | Repetir um identificador ou nome já existente | Mensagem curta de duplicidade; nada é alterado | não executado |
+| MA-09 | Clicar duas vezes seguidas em "Confirmar cadastro" | Um único cadastro; botões desabilitados durante a gravação | não executado |
+| MA-10 | Navegar só pelo teclado (Tab, Shift+Tab, Enter, Esc) | Ordem de foco coerente, foco visível, diálogo sem escape do foco, leitor de tela anuncia o status | aprovado |
+| MA-11 | Largura de 390 × 844 px | Sem rolagem horizontal; campos, botões e diálogo utilizáveis | aprovado |
+| MA-12 | Ativar "reduzir movimento" no sistema | Sem transições ou animações | não executado |
+| MA-13 | `npm run build` e `npm run preview` | `/admin/` não existe no preview e o `dist/` não contém a tela | não executado |
+| MA-14 | Parar o servidor e recarregar a tela já aberta (ou abrir com o servidor parado) | Mensagem de falha de comunicação; botões de envio desabilitados | não executado |
+| MA-15 | Procurar o token de sessão na tela (textos, painel de confirmação, mensagens) | O token não aparece em nenhum lugar visível | aprovado |
+| MA-16 | Procurar ações de editar, excluir, validar ou publicar | Não existem; a tela só cadastra assunto e serviço | aprovado |
+
+**Registro da validação manual (Passo 7E2)**
+
+- **Data:** 10/11/2026.
+- **Executado por:** usuária do projeto.
+- **Evidência:** captura de tela fornecida pela usuária.
+- **Aprovados:** carregamento da interface administrativa; aviso "Ambiente administrativo local — sem autenticação"; catálogo com "Licenciamento Ambiental" e a LAC (MA-01); interface do cidadão sem referência à administração (MA-03); validação dos campos com foco no primeiro erro (MA-04); abertura do painel de confirmação, botão "Voltar" com retorno correto do foco (MA-05); navegação por teclado e Esc (MA-10); layout em 390 × 844 px sem rolagem horizontal (MA-11); token não visível (MA-15); ausência de editar, excluir, validar e publicar (MA-16).
+- **Não executados:** MA-02 (redirecionamento de `/admin`), MA-06 a MA-09 (confirmar cadastro, `POST`, criação de assunto ou serviço, duplicidade e clique duplo, e atualização do catálogo após gravar), MA-12 (reduzir movimento), MA-13 (`build` e `preview`) e MA-14 (servidor parado).

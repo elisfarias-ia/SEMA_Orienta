@@ -31,7 +31,7 @@ test('I2. a interface pública não usa cookies, localStorage nem sessionStorage
 
 test('I3. todos os plugins do Vite valem só no servidor de desenvolvimento; não há gancho de preview nem de build', () => {
   const nomes = config.plugins.map((p) => p.name).sort();
-  assert.deepEqual(nomes, ['sema-orienta-admin-dev', 'sema-orienta-assistente-dev']);
+  assert.deepEqual(nomes, ['sema-orienta-admin-dev', 'sema-orienta-admin-redirecionamento', 'sema-orienta-assistente-dev']);
   for (const p of config.plugins) {
     assert.equal(p.apply, 'serve', p.name);
     for (const gancho of ['configurePreviewServer', 'transform', 'load', 'resolveId', 'generateBundle', 'renderChunk', 'transformIndexHtml', 'buildStart']) {
@@ -48,7 +48,7 @@ test('I4. não há dependências novas, nem scripts novos, e a pasta administrat
   assert.equal(pacote.dependencies, undefined);
   assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'preview', 'test', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
-  assert.equal(fs.existsSync(path.join(RAIZ, 'admin')), false);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.ok(lerTexto('.gitignore').split(/\r?\n/).map((l) => l.trim()).includes('data/admin-private/'));
 });

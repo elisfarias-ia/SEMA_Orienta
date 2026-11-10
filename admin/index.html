@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SEMA Orienta — Gestão de conteúdo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="pular" href="#principal">Ir para o conteúdo</a>
+
+    <header class="cabecalho">
+      <div class="cabecalho__interno">
+        <span class="cabecalho__icone" aria-hidden="true">🌿</span>
+        <div>
+          <h1>SEMA Orienta — Gestão de conteúdo</h1>
+          <p class="cabecalho__sub">Cadastro de assuntos e serviços ambientais.</p>
+        </div>
+      </div>
+    </header>
+
+    <p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
+
+    <main id="principal" class="pagina" tabindex="-1">
+      <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
+
+      <section class="cartao" aria-labelledby="titulo-catalogo">
+        <h2 id="titulo-catalogo">Catálogo</h2>
+        <p class="ajuda">Assuntos e serviços cadastrados. Todo serviço novo nasce como versão 1, em rascunho, sem conteúdo e não publicado.</p>
+        <div id="catalogo" aria-busy="true">
+          <p class="vazio">Carregando o catálogo…</p>
+        </div>
+      </section>
+
+      <section class="cartao" aria-labelledby="titulo-assunto">
+        <h2 id="titulo-assunto">Novo assunto</h2>
+        <form id="form-assunto" novalidate>
+          <div class="campo">
+            <label for="assunto-id">Identificador</label>
+            <input id="assunto-id" name="id" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="assunto-id-ajuda assunto-id-erro" />
+            <p id="assunto-id-ajuda" class="ajuda">Letras minúsculas sem acento, números e hífen; começa por uma letra.</p>
+            <p id="assunto-id-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="assunto-nome">Nome</label>
+            <input id="assunto-nome" name="nome" type="text" maxlength="120" autocomplete="off" aria-describedby="assunto-nome-erro" />
+            <p id="assunto-nome-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="assunto-descricao">Descrição</label>
+            <textarea id="assunto-descricao" name="descricao" rows="3" maxlength="1000" aria-describedby="assunto-descricao-erro"></textarea>
+            <p id="assunto-descricao-erro" class="erro" hidden></p>
+          </div>
+          <button type="submit" class="botao" id="assunto-enviar" disabled>Revisar cadastro</button>
+        </form>
+      </section>
+
+      <section class="cartao" aria-labelledby="titulo-servico">
+        <h2 id="titulo-servico">Novo serviço</h2>
+        <form id="form-servico" novalidate>
+          <div class="campo">
+            <label for="servico-assunto">Assunto</label>
+            <select id="servico-assunto" name="assuntoId" aria-describedby="servico-assunto-erro">
+              <option value="">Carregando assuntos…</option>
+            </select>
+            <p id="servico-assunto-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="servico-id">Identificador</label>
+            <input id="servico-id" name="id" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="servico-id-ajuda servico-id-erro" />
+            <p id="servico-id-ajuda" class="ajuda">Letras minúsculas sem acento, números e hífen; começa por uma letra.</p>
+            <p id="servico-id-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="servico-nome">Nome</label>
+            <input id="servico-nome" name="nome" type="text" maxlength="120" autocomplete="off" aria-describedby="servico-nome-erro" />
+            <p id="servico-nome-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="servico-sigla">Sigla <span class="opcional">(opcional)</span></label>
+            <input id="servico-sigla" name="sigla" type="text" maxlength="20" autocomplete="off" aria-describedby="servico-sigla-erro" />
+            <p id="servico-sigla-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="servico-termos">Termos equivalentes</label>
+            <textarea id="servico-termos" name="termosEquivalentes" rows="4" aria-describedby="servico-termos-ajuda servico-termos-erro"></textarea>
+            <p id="servico-termos-ajuda" class="ajuda">Um termo por linha: nomes e expressões pelos quais o cidadão pode procurar o serviço.</p>
+            <p id="servico-termos-erro" class="erro" hidden></p>
+          </div>
+          <button type="submit" class="botao" id="servico-enviar" disabled>Revisar cadastro</button>
+        </form>
+      </section>
+    </main>
+
+    <dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">
+      <h2 id="confirmacao-titulo">Confirmar cadastro</h2>
+      <p id="confirmacao-descricao" class="ajuda">Confira os dados abaixo. Depois de confirmado, o cadastro é gravado como rascunho.</p>
+      <dl id="confirmacao-resumo" class="resumo"></dl>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="confirmacao-voltar">Voltar</button>
+        <button type="button" class="botao" id="confirmacao-confirmar">Confirmar cadastro</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="./admin.js"></script>
+  </body>
+</html>

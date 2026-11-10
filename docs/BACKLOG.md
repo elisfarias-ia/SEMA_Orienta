@@ -97,7 +97,11 @@ Concluído (Passo 7E1 — cadastro administrativo de assunto e serviço):
 
 - [x] `POST /__admin/assuntos` e `POST /__admin/servicos` (somente no `npm run dev`), com validação do corpo, versão 1 em rascunho com estrutura modular e tudo `PENDENTE`, gravação tudo ou nada com desfazer, uma gravação por vez e testes só em cópias temporárias. Nenhum assunto ou serviço real foi cadastrado.
 
-Pendente (ainda não iniciado): edição de conteúdo, decisões, publicação e interface administrativa. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
+Concluído (Passo 7E2 — tela "Gestão de conteúdo"):
+
+- [x] tela administrativa local (`admin/`) para ver o catálogo e cadastrar assunto e serviço, com confirmação antes de gravar, token só em memória, bloqueio de envio duplicado, acessibilidade e responsividade; fora do build e sem link no público. Validação manual parcial pela usuária em 10/11/2026 (carregamento, aviso, catálogo, validação dos campos, painel de confirmação e "Voltar", teclado e Esc, 390 × 844 px, token não visível e ausência de editar, excluir, validar e publicar). **A gravação pela tela (confirmar cadastro, `POST`) e a atualização do catálogo após gravar não foram testadas manualmente** (`docs/TESTES_MANUAIS.md`).
+
+Pendente (ainda não iniciado): edição de conteúdo, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
 
