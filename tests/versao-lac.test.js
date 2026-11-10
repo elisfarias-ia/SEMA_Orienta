@@ -347,7 +347,7 @@ test('L22. os esquemas do registro documentam a versão atual e a publicada, com
 test('L23. nenhuma decisão, endpoint ou interface administrativa foi criada e o armazenamento privado não existe', () => {
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.equal(fs.existsSync(path.join(RAIZ, 'admin')), false);
-  for (const arquivo of ['src/main.js', 'src/chat.js', 'src/assistant.js', 'vite.config.js']) {
+  for (const arquivo of ['src/main.js', 'src/chat.js', 'src/assistant.js']) {
     assert.doesNotMatch(lerTexto(arquivo), /services\/admin|armazenamento|versao-atual|admin\//, arquivo);
   }
 });

@@ -89,7 +89,11 @@ Concluído (Passo 7C2 — migração estrutural da LAC para a versão 1):
 
 - [x] mover os seis arquivos da LAC para `services/lac/versoes/v1/`, criar o manifesto `versao.json` (`lac-v1`, rascunho, sem hash, envio ou decisão), registrar `versaoAtualId` e `versaoPublicadaId: null`, validar a versão atual e fazer o endpoint do assistente localizar a versão pelo registro e pelo manifesto. Conteúdo preservado (conferido por hash); sem alteração material.
 
-Pendente (ainda não iniciado): uso do armazenamento local, endpoint e interface administrativos, isolamento do `dist/`. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
+Concluído (Passo 7D — endpoint administrativo local de leitura):
+
+- [x] rotas `GET /__admin/sessao`, `/__admin/catalogo` e `/__admin/servicos/<id>/versao-atual`, só no `npm run dev`, com token em memória, validação de origem, erros genéricos e sem escrita (`services/admin/admin-endpoint.js`); `check-dist` ampliado; isolamento testado.
+
+Pendente (ainda não iniciado): escrita administrativa (versões e decisões) e interface administrativa. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
 
