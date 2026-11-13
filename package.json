@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "node --test \"tests/*.test.js\"",
     "validate:services": "node scripts/validate-services.js",
+    "mcp": "node scripts/mcp/iniciar.js",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },

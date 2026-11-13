@@ -75,13 +75,17 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 - Interface sem `innerHTML`, `localStorage`, `sessionStorage` nem cookies; textos montados com `textContent`.
 - Nunca usar `git push --force`.
 
+## Comunicação (permanente)
+
+- O assistente de código e seus agentes respondem e produzem relatórios exclusivamente em português do Brasil.
+
 ## Regras de trabalho com o assistente de código
 
 1. Um passo por vez, com escopo declarado; não misturar passos nem implementar o seguinte sem pedido.
 2. Antes de começar, conferir `git status`, branch e sincronização; se houver alterações pendentes de outro passo, parar e informar.
 3. Ler só o que o passo exige; não varrer o repositório sem necessidade.
 4. Não executar testes ou build além do pedido e nunca afirmar resultado sem executar. Relatar falhas com a saída real.
-5. Não fazer `git add`, commit ou push sem pedido expresso. Ao publicar, preparar só os arquivos do passo, rodar `git diff --cached --check`, conferir ausência de segredos e dados pessoais e arquivos indevidos (`dist/`, `node_modules/`, `.env`, `data/`, e em `.claude/` tudo o que não seja skill, agente ou `settings.json` revisado) e confirmar `main = origin/main`.
+5. Não fazer `git add`, commit ou push sem pedido expresso. Ao publicar, preparar só os arquivos do passo, rodar `git diff --cached --check`, conferir ausência de segredos e dados pessoais e arquivos indevidos (`dist/`, `node_modules/`, `.env`, `data/`, e em `.claude/` tudo o que não seja skill, agente ou `settings.json` revisado; o `.mcp.json` da raiz, revisado, sem segredos, sem `env` e com caminho relativo, pode ser versionado) e confirmar `main = origin/main`.
 6. Commits com mensagem objetiva em português (`feat:`, `docs:`, `fix:`) e o trailer de coautoria exigido pela ferramenta.
 7. Dados reais da base só mudam com autorização; testes nunca gravam na base real. Se um teste manual criar dados, restaurar pelo Git antes de seguir.
 8. Não registrar teste manual como aprovado sem evidência da execução. Separar o que foi conferido pela usuária do que só os testes automatizados cobrem.
@@ -91,6 +95,7 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 ## Recursos do assistente de código no repositório
 
 - Skills (`.claude/skills/`), agentes (`.claude/agents/`) e `.claude/settings.json` revisados podem ser versionados, como qualquer arquivo do projeto, em passo próprio e com revisão.
+- O `.mcp.json` na raiz, revisado, pode ser versionado: sem segredos, sem `env`, sem dados pessoais e com caminho relativo.
 - Configurações locais (`.claude/launch.json`, `.claude/settings.local.json`), caches, tokens, segredos e arquivos pessoais continuam proibidos no Git.
 - Não usar `git add -f` como fluxo normal: se algo que deveria ser versionado aparecer como ignorado, corrigir o `.gitignore`.
 

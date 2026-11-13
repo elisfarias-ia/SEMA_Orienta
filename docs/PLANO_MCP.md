@@ -1,6 +1,6 @@
-# Plano do servidor MCP local (Passo 2B)
+# Plano do servidor MCP local (planejado no Passo 2B; implementado no Passo 2C1, com correções da auditoria)
 
-Status: **plano aprovado para implementação no Passo 2C, com condições**. Nada foi implementado. Todos os requisitos estão como **NÃO TESTADO**.
+Status: **Passo 2C1 implementado; aguardando revisão e chamada real (2C2)**.
 
 Origem: consolidação de duas revisões independentes, ambas somente leitura, executadas em paralelo nesta sessão (13/11/2026):
 
@@ -132,6 +132,7 @@ A configuração do cliente (`.mcp.json` na raiz) será versionada no Passo 2C, 
   - `documentos`, `perguntas` e `blocosAssistente`, cada um `{ total, publicados }`;
   - `camposPendentes` (total);
   - `validacao { ok, totalErros }` e, quando houver, códigos sanitizados de uma lista fechada. **Nunca** mensagens internas, entradas, caminhos ou erros brutos. Para ver os detalhes, rodar `npm run validate:services`.
+- **Verificação parcial:** `validacao` cobre só parte das regras (ver seção 12). `ok: true` **não** significa que a base passa na validação completa. `resumir_base` **não substitui** `npm run validate:services`, que continua sendo a conferência oficial da base.
 - Erros: `parametro_invalido`, `base_indisponivel`.
 
 ## 5. Proibições
@@ -261,3 +262,24 @@ Decididas pela usuária (13/11/2026):
 - Se o Windows desta máquina permite criar links simbólicos de arquivo sem privilégio. Junções não exigem.
 - O conteúdo completo de `documentos.json`, `perguntas-frequentes.json` e `conteudo-assistente.json`, de `transacao.js` e `decisoes.js`, e o restante de `tests/`.
 - Nenhum teste, build ou `check-dist` foi executado neste passo.
+
+Registro do Passo 2C1: o `.mcp.json` usa `${CLAUDE_PROJECT_DIR:-.}` no caminho do servidor porque a documentação do Claude Code não define o diretório de trabalho de servidores stdio.
+
+## 12. Correções do Passo 2C1 após a auditoria
+
+- **I1 — `resumir_base`:** deixou de chamar `validarServicos(raiz)`, que lia com o `fs` real (sem `lstat`, sem limite, seguindo links e caminhos declarados). Agora todas as leituras passam pela leitura segura (`scripts/mcp/leitura-segura.js`), só nos arquivos esperados pelo registro. A validação usa apenas validadores puros sobre objetos já lidos (`validarAssuntos`, `validarFontes`, `validarDocumentos`, `validarPerguntas`, `validarConteudoAssistente`), mais a coerência de `statusValidacao` e `publicado` entre registro e `service.json`. Por isso `totalErros` cobre menos regras que `npm run validate:services` (não confere roteiro, regras do `service.json` nem o manifesto pelo validador de versão). Se qualquer leitura falhar (ausente, link, fora de `services/`, grande demais ou JSON inválido), a resposta é sempre `validacao { ok: null, totalErros: null, codigos: ["validacao_indisponivel"] }`.
+- **Risco transitivo aceito:** `scripts/validate-services.js` continua importado pelas constantes e validadores puros e carrega, ao ser importado, `services/admin/versao.js` (funções puras, sem disco). Nenhuma função desse módulo é chamada pelo MCP.
+- **I2 — `scripts/check-dist.js`:** nova lista `NOMES_MCP` (`scripts/mcp`, `sema-orienta-base`, os quatro nomes de ferramenta, `criarServidorMcp`, `mcp/iniciar.js`, `mcp/servidor.js`) e recusa de qualquer arquivo do `dist/` dentro de uma pasta `mcp`. Teste com `dist/` fictício em pasta temporária (`conferirDist` recebe a raiz); o check-dist não foi executado contra o `dist/` real neste passo.
+- **I3 — teste S9:** nome e asserções restritos ao que o espião cobre (os acessos da leitura segura, único ponto do MCP que importa `node:fs`).
+- **Limite central de 256 KB:** medido uma única vez, em `ferramentas.chamar`, sobre o `result` completo de `tools/call` (`content` com o texto JSON, `structuredContent` e `isError`). Acima do limite, o `result` é trocado pelo erro `resposta_grande_demais`. O corte de textos em 2.000 caracteres continua.
+- **Ponto de entrada:** `scripts/mcp/servidor.js` virou módulo puro e importável (exporta `criarServidorMcp`, sem ligar stdin, sem tratadores globais e sem encerrar o processo). O novo `scripts/mcp/iniciar.js` liga stdin/stdout/stderr, registra `uncaughtException`/`unhandledRejection` (código fixo e saída 1) e encerra com 0 no fim do stdin. `.mcp.json` e `npm run mcp` apontam para `iniciar.js`.
+- **NÃO TESTADOS no Windows (EPERM ao criar link simbólico de arquivo sem privilégio):** S7 (`fontes.json` → `.env` fictício), S7 (`fontes.json` → `data/admin-private/x.json`) e S8 (`registry.json` → arquivo fora de `services/`). As junções (S5 e S6) foram testadas. O S14 só simula o link com `lstat` falso e não substitui esses três casos.
+
+## 13. Limitações conhecidas e melhorias futuras
+
+Recomendações da reauditoria do Passo 2C1, registradas sem ampliar o escopo. Nenhuma é achado importante de segurança.
+
+1. **S15 e S7 sem cobertura do `resumir_base` com link de arquivo:** o comentário do S15 cita "junção", mas o teste cobre só o manifesto adulterado. Melhoria futura: ajustar o comentário e acrescentar ao S7 a asserção de `validacao_indisponivel` no `resumir_base`. Ela só terá valor quando o S7 puder rodar.
+2. **`validacao.ok` parcial:** `ok: true` pode coexistir com falha em `npm run validate:services` (seção 4.5). Melhoria futura: explicar isso na descrição da ferramenta ou renomear o campo para `validacaoParcial`.
+3. **Envelope fora do limite:** o limite de 256 KB vale para o `result`. O envoltório JSON-RPC (`jsonrpc` e `id`, que pode ter até cerca de 64 KB, limitado pelo tamanho da linha) fica fora dele. O excesso tem limite e foi aceito.
+4. **Código de erro trocado:** em `scripts/mcp/protocolo.js`, quando uma ferramenta devolve um `resultado` inválido, o protocolo responde `-32602`. O código adequado seria `-32603`. Melhoria futura: trocar o código e cobrir com teste.

@@ -28,6 +28,12 @@ export const NOMES_ADMINISTRATIVOS = [
   '/__admin/saude', 'verificarSaude', 'carregarSaude', 'normalizarSaude', 'formatarDataHoraBr', 'saude-verificar', 'Saúde do sistema', 'Verificar novamente',
 ];
 
+// Servidor MCP local (scripts/mcp/): caminho, nome do servidor, ferramentas e pontos de entrada nunca podem estar no build.
+export const NOMES_MCP = [
+  'scripts/mcp', 'sema-orienta-base', 'listar_assuntos', 'listar_servicos', 'consultar_fontes', 'resumir_base', 'criarServidorMcp',
+  'mcp/iniciar.js', 'mcp/servidor.js',
+];
+
 /** Lista os arquivos de um diretório, recursivamente. */
 function listar(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -68,6 +74,7 @@ export function termosProibidos(raiz) {
   termos.push({ origem: 'faixa de teste', texto: FAIXA_TESTE_LOCAL });
   for (const nome of NOMES_INTERNOS) termos.push({ origem: 'nome interno', texto: nome });
   for (const nome of NOMES_ADMINISTRATIVOS) termos.push({ origem: 'nome administrativo', texto: nome });
+  for (const nome of NOMES_MCP) termos.push({ origem: 'nome do servidor MCP', texto: nome });
   termos.push(...termosAdministrativos(raiz));
   return termos;
 }
@@ -83,6 +90,10 @@ export function conferirDist(raiz) {
     const relativo = path.relative(dist, arquivo).split(path.sep);
     if (relativo.includes('admin') || relativo.some((parte) => /^admin[-.]/.test(parte))) {
       encontrados.push({ arquivo: path.relative(raiz, arquivo), origem: 'arquivo administrativo', texto: relativo.join('/') });
+    }
+    // Nenhum arquivo dentro de uma pasta "mcp" pode estar no build.
+    if (relativo.slice(0, -1).includes('mcp')) {
+      encontrados.push({ arquivo: path.relative(raiz, arquivo), origem: 'arquivo do servidor MCP', texto: relativo.join('/') });
     }
     const conteudo = fs.readFileSync(arquivo, 'utf8');
     for (const { origem, texto } of termos) {
