@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { hashConteudo } from '../services/admin/hash.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -332,7 +333,7 @@ test('AD14. a versão atual traz o manifesto e os arquivos modulares, idênticos
   const { m, token } = await comToken();
   const r = await chamar(m, { url: ROTA_LAC, token });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.corpo).sort(), ['conteudoAssistente', 'documentos', 'fontes', 'manifesto', 'perguntasFrequentes', 'roteiro', 'service', 'servicoId', 'versaoId']);
+  assert.deepEqual(Object.keys(r.corpo).sort(), ['conteudoAssistente', 'documentos', 'fontes', 'manifesto', 'perguntasFrequentes', 'revisaoFontes', 'roteiro', 'service', 'servicoId', 'versaoId']);
   assert.equal(r.corpo.servicoId, 'lac');
   assert.equal(r.corpo.versaoId, 'lac-v1');
   assert.deepEqual(r.corpo.manifesto, lerJson(...V1, 'versao.json'));
@@ -341,6 +342,8 @@ test('AD14. a versão atual traz o manifesto e os arquivos modulares, idênticos
   assert.deepEqual(r.corpo.documentos, lerJson(...V1, 'documentos.json'));
   assert.deepEqual(r.corpo.perguntasFrequentes, lerJson(...V1, 'perguntas-frequentes.json'));
   assert.deepEqual(r.corpo.fontes, lerJson(...V1, 'fontes.json'));
+  assert.equal(r.corpo.revisaoFontes, hashConteudo(lerJson(...V1, 'fontes.json')), 'revisão = SHA-256 do conteúdo de fontes.json');
+  assert.match(r.corpo.revisaoFontes, /^[0-9a-f]{64}$/);
   assert.deepEqual(r.corpo.conteudoAssistente, lerJson(...V1, 'conteudo-assistente.json'));
   assert.equal(r.corpo.roteiro, lerTexto(...V1, 'roteiro.md'));
   assert.ok(r.textoBruto.length < LIMITE_RESPOSTA);
@@ -498,5 +501,5 @@ test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: se
   assert.match(codigo, /crypto\.timingSafeEqual/);
   assert.doesNotMatch(codigo, /console\./);
   const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro.js', './hash.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });

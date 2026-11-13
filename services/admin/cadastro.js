@@ -7,6 +7,7 @@
 
 import { criarVersao } from './versao.js';
 import { caminhosDaVersao } from '../versao-atual.js';
+import { analisarUrl, dataValida, TIPOS_FONTE } from '../../scripts/validate-services.js';
 
 export const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 export const LIMITE_CORPO = 32 * 1024;
@@ -162,5 +163,95 @@ export function montarEsqueletoServico({ id, assuntoId, nome, sigla, termosEquiv
       { caminho: caminhos.fontes, tipo: 'json', conteudo: { ...cabecalho(id, 'nenhuma fonte cadastrada.'), fontes: [] } },
       { caminho: caminhos.conteudoAssistente, tipo: 'json', conteudo: { ...cabecalho(id, 'nenhum bloco cadastrado.'), blocos: [] } },
     ],
+  };
+}
+
+// ---------- Fontes (Passo 7E3A) ----------
+
+export const CAMPOS_FONTE = Object.freeze(['revisao', 'id', 'titulo', 'tipo', 'orgaoResponsavel', 'url', 'descricao', 'origemOficial', 'dataPublicacao', 'dispositivoRelevante']);
+const LIMITE_TITULO = 200;
+const LIMITE_ORGAO = 120;
+const LIMITE_URL = 500;
+const LIMITE_DISPOSITIVO = 200;
+const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
+const PARAMETRO_SECRETO = /^(token|access_token|api[_-]?key|key|senha|password|passwd|secret|auth|authorization|sessao|session)$/i;
+
+/** URL aceitável: https, sem usuário e senha, sem parâmetro de credencial, sem e-mail nem telefone. Retorna a URL aparada ou null. */
+function urlAceitavel(valor) {
+  if (typeof valor !== 'string' || CONTROLE.test(valor)) return null;
+  const t = valor.trim();
+  if (t === '' || t.length > LIMITE_URL || /\s/.test(t) || PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) return null;
+  if (!analisarUrl(t).ok) return null;
+  const u = new URL(t);
+  if (u.username !== '' || u.password !== '') return null;
+  for (const nome of u.searchParams.keys()) if (PARAMETRO_SECRETO.test(nome)) return null;
+  return t;
+}
+
+/** URL normalizada (a mesma regra do validador da base), para detectar repetição. */
+export const urlNormalizada = (url) => {
+  const r = analisarUrl(url);
+  return r.ok ? r.normalizada : null;
+};
+
+/**
+ * Valida o corpo do cadastro de fonte: revisao (hash de fontes.json lido antes), id, titulo, tipo, orgaoResponsavel, url,
+ * descricao, origemOficial, e dataPublicacao e dispositivoRelevante opcionais. Status, publicação, data de consulta e
+ * vigência NUNCA vêm do cliente: qualquer outro campo é recusado. Retorna { ok, dados } ou { ok: false, campos }.
+ */
+export function validarCorpoFonte(corpo) {
+  if (!ehObjeto(corpo)) return { ok: false, campos: ['corpo'] };
+  const campos = [];
+  if (camposExtras(corpo, CAMPOS_FONTE)) campos.push('extras');
+  if (typeof corpo.revisao !== 'string' || !PADRAO_REVISAO.test(corpo.revisao)) campos.push('revisao');
+  if (!idAceitavel(corpo.id)) campos.push('id');
+  const titulo = textoLivre(corpo.titulo, LIMITE_TITULO);
+  if (titulo === null) campos.push('titulo');
+  if (typeof corpo.tipo !== 'string' || !TIPOS_FONTE.includes(corpo.tipo)) campos.push('tipo');
+  const orgao = textoLivre(corpo.orgaoResponsavel, LIMITE_ORGAO);
+  if (orgao === null) campos.push('orgaoResponsavel');
+  const url = urlAceitavel(corpo.url);
+  if (url === null) campos.push('url');
+  const descricao = textoLivre(corpo.descricao, LIMITE_DESCRICAO);
+  if (descricao === null) campos.push('descricao');
+  if (typeof corpo.origemOficial !== 'boolean') campos.push('origemOficial');
+
+  let dataPublicacao = null;
+  if (corpo.dataPublicacao !== undefined && corpo.dataPublicacao !== null && corpo.dataPublicacao !== '') {
+    if (typeof corpo.dataPublicacao !== 'string' || !dataValida(corpo.dataPublicacao)) campos.push('dataPublicacao');
+    else dataPublicacao = corpo.dataPublicacao;
+  }
+  let dispositivoRelevante = null;
+  if (corpo.dispositivoRelevante !== undefined && corpo.dispositivoRelevante !== null && corpo.dispositivoRelevante !== '') {
+    dispositivoRelevante = textoLivre(corpo.dispositivoRelevante, LIMITE_DISPOSITIVO);
+    if (dispositivoRelevante === null) campos.push('dispositivoRelevante');
+  }
+  if (campos.length) return { ok: false, campos };
+  return {
+    ok: true,
+    dados: { revisao: corpo.revisao, id: corpo.id, titulo, tipo: corpo.tipo, orgaoResponsavel: orgao, url, descricao, origemOficial: corpo.origemOficial, dataPublicacao, dispositivoRelevante },
+  };
+}
+
+/**
+ * Nova fonte: nunca validada nem publicada. Status, publicação, data de consulta (a data do servidor) e vigência são
+ * definidos aqui: legislação nasce com vigência "a_confirmar"; os demais tipos, "nao_se_aplica". Origem oficial só
+ * identifica a procedência; não significa que o conteúdo foi validado.
+ */
+export function montarFonte(dados, dataConsulta) {
+  return {
+    id: dados.id,
+    titulo: dados.titulo,
+    tipo: dados.tipo,
+    orgaoResponsavel: dados.orgaoResponsavel,
+    url: dados.url,
+    descricao: dados.descricao,
+    origemOficial: dados.origemOficial,
+    statusValidacao: 'rascunho',
+    publicado: false,
+    dataPublicacao: dados.dataPublicacao,
+    dataConsulta,
+    dispositivoRelevante: dados.dispositivoRelevante,
+    vigencia: { situacao: dados.tipo === 'legislacao' ? 'a_confirmar' : 'nao_se_aplica', normasRelacionadas: [], observacao: null },
   };
 }

@@ -21,6 +21,9 @@ export const NOMES_ADMINISTRATIVOS = [
   // Tela "Gestão de conteúdo" (pasta admin/): textos, formulários e código.
   'Gestão de conteúdo', 'Ambiente administrativo local', 'admin-logic', 'criarClienteAdmin', 'Confirmar cadastro', 'Revisar cadastro',
   'form-assunto', 'form-servico', 'servico-termos', 'assunto-enviar', 'confirmacao-resumo',
+  // Seção "Fontes do serviço" e o cadastro de fontes (rota, revisão, funções e textos).
+  'form-fonte', 'fonte-enviar', 'fontes-servico', 'Fontes do serviço', 'Nova fonte', 'Origem oficial identifica', 'revisaoFontes', 'validarCorpoFonte', 'montarFonte',
+  'urlNormalizada', 'cadastrarFonte', 'validarFormFonte', 'corpoDaFonte', 'resumoDaFonte', 'carregarFontes',
 ];
 
 /** Lista os arquivos de um diretório, recursivamente. */

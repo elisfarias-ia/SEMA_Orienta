@@ -27,6 +27,7 @@ Existe apenas no servidor de desenvolvimento (`npm run dev`): o plugin usa `appl
 | `GET /__admin/servicos/<id>/versao-atual` | sim | Manifesto e arquivos modulares da versão atual (id de serviço cadastrado). |
 | `POST /__admin/assuntos` | sim | Cadastra um assunto (corpo: `id`, `nome`, `descricao`). |
 | `POST /__admin/servicos` | sim | Cadastra um serviço (corpo: `id`, `assuntoId`, `nome`, `termosEquivalentes` e `sigla` opcional). |
+| `POST /__admin/servicos/<id>/fontes` | sim | Cadastra uma fonte na versão atual do serviço, só se estiver em rascunho (corpo: `revisao` e os campos da fonte). |
 
 - **Token:** gerado com `node:crypto` (32 bytes aleatórios), mantido só em memória do servidor de desenvolvimento, enviado no cabeçalho `X-Admin-Token` e comparado de forma segura. Não é gravado, não vai para cookie, `localStorage` nem variável de ambiente, e nunca é registrado em log. Reiniciar o servidor invalida o token.
 - **Origem:** só conexão local (`127.0.0.1` ou `::1`), `Host` local na porta do servidor, `Origin` (se enviada) igual ao host da requisição e requisição não cruzada entre sites. Sem CORS.
@@ -54,6 +55,17 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 - **Segurança do código:** só `textContent` e APIs seguras do DOM; sem `innerHTML`, `localStorage`, `sessionStorage`, cookies ou log. Os erros do endpoint viram mensagens curtas em português, sem mostrar a resposta bruta.
 - **O que não faz:** não edita nem exclui, não valida, não registra decisão e não publica. Não altera a LAC.
 - **Atenção em testes manuais:** confirmar um cadastro grava arquivos reais em `services/`. Use dados fictícios e desfaça depois (restaure `services/assuntos.json` e `services/registry.json` com o Git e remova a pasta do serviço criada).
+
+### Cadastro de fontes por serviço (Passo 7E3A)
+
+- **Revisão otimista:** `GET /__admin/servicos/<id>/versao-atual` passou a devolver `revisaoFontes`, o SHA-256 do conteúdo das fontes da versão atual (sem caminhos internos). O `POST` exige essa revisão no campo `revisao`; se ela não for a atual, a resposta é 409 (`revisao_divergente`) e nenhum arquivo muda. Assim, uma segunda pessoa (ou aba) nunca sobrescreve a gravação da primeira.
+- **Quando é aceito:** só para serviço cadastrado e com a versão atual em `rascunho` (qualquer outro estado devolve 409, `versao_nao_editavel`). Exige token, origem local, `Content-Type: application/json` e corpo de até 32 KB, e reaproveita a trava de escrita (409 se houver outra gravação em andamento).
+- **Campos recebidos:** `id`, `titulo`, `tipo` (`legislacao`, `pagina_oficial`, `manual`, `formulario`, `sistema`, `canal_atendimento` ou `outro`), `orgaoResponsavel`, `url`, `descricao`, `origemOficial` (booleano) e, opcionais, `dataPublicacao` (AAAA-MM-DD) e `dispositivoRelevante`. Qualquer outro campo (status, publicação, vigência, data de consulta) é recusado com 422.
+- **Definido pelo servidor:** `statusValidacao: rascunho`, `publicado: false`, `dataConsulta` (a data do servidor), `vigencia` (legislação: `a_confirmar`; demais tipos: `nao_se_aplica`), `normasRelacionadas: []` e `observacao: null`. **A fonte nunca nasce validada nem publicada.** Origem oficial identifica a procedência; não significa que o conteúdo foi validado.
+- **Regras:** a URL deve ser `https`, sem usuário e senha nem parâmetro de credencial (como `token` ou `senha`), e não pode repetir a de outra fonte (comparação normalizada, a mesma do validador da base); o `id` também não pode se repetir. Título, órgão e descrição são obrigatórios. E-mail e telefone são recusados. As fontes existentes não são alteradas.
+- **Gravação:** a mesma transação do cadastro (ensaio em cópia temporária, escrita atômica, conferência pelo validador e desfazer integral em caso de falha). Atenção: ao gravar, o arquivo de fontes é reescrito no formato determinístico (chaves em ordem alfabética), então o primeiro cadastro real numa base com arquivo formatado à mão gera um diff de formatação.
+- **Tela:** a seção "Fontes do serviço" permite escolher um serviço, ver as fontes (título, tipo, órgão, situação de validação e "não publicada") e cadastrar uma nova, com resumo e confirmação antes de gravar. Depois do sucesso, a versão e a lista são recarregadas. Sem edição, exclusão, validação ou publicação de fontes.
+- **Atenção em testes manuais:** confirmar o cadastro de uma fonte altera o arquivo de fontes real do serviço escolhido. Para desfazer, restaure esse arquivo com o Git.
 
 ## Armazenamento local
 

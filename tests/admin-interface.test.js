@@ -388,19 +388,20 @@ test('AI17. rótulos associados, ids únicos, descrições existentes, status ao
   const ids = [...HTML.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(ids).size, ids.length, 'ids únicos');
   const controles = [...HTML.matchAll(/<(input|select|textarea)\b[^>]*\sid="([^"]+)"[^>]*>/g)].map((m) => m[2]);
-  assert.deepEqual(controles.sort(), ['assunto-descricao', 'assunto-id', 'assunto-nome', 'servico-assunto', 'servico-id', 'servico-nome', 'servico-sigla', 'servico-termos']);
+  assert.deepEqual(controles.sort(), ['assunto-descricao', 'assunto-id', 'assunto-nome', 'fonte-data', 'fonte-descricao', 'fonte-dispositivo', 'fonte-id', 'fonte-oficial', 'fonte-orgao', 'fonte-tipo', 'fonte-titulo', 'fonte-url', 'fontes-servico', 'servico-assunto', 'servico-id', 'servico-nome', 'servico-sigla', 'servico-termos']);
   for (const id of controles) assert.match(HTML, new RegExp(`<label for="${id}">`), `label de ${id}`);
   for (const m of HTML.matchAll(/aria-(?:describedby|labelledby)="([^"]+)"/g)) {
     for (const ref of m[1].split(' ')) assert.ok(ids.includes(ref), `aria referencia ${ref}`);
   }
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
-  for (const id of controles) assert.match(HTML, new RegExp(`id="${id}-erro"[^>]*hidden`), `erro de ${id}`);
+  for (const id of controles.filter((c) => c !== 'fontes-servico')) assert.match(HTML, new RegExp(`id="${id}-erro"[^>]*hidden`), `erro de ${id}`);
   assert.match(HTML, /<dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">/);
   assert.match(HTML, />Voltar<\/button>/);
   assert.match(HTML, />Confirmar cadastro<\/button>/);
-  assert.equal((HTML.match(/<button\b/g) ?? []).length, 4);
+  assert.equal((HTML.match(/<button\b/g) ?? []).length, 5);
   for (const m of HTML.matchAll(/<button\b([^>]*)>/g)) assert.match(m[1], /type="(submit|button)"/);
-  assert.equal((HTML.match(/<form\b[^>]*novalidate/g) ?? []).length, 2);
+  assert.equal((HTML.match(/<form\b[^>]*novalidate/g) ?? []).length, 3);
+  assert.match(HTML, /id="fonte-enviar" disabled/);
   assert.match(HTML, /id="assunto-enviar" disabled/);
   assert.match(HTML, /id="servico-enviar" disabled/);
   assert.match(HTML, /<main id="principal"/);

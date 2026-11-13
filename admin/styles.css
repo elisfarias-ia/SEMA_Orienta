@@ -360,3 +360,47 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* Fontes do serviço */
+.subtitulo {
+  margin: 1.1rem 0 0.6rem;
+}
+.caixa {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.caixa label {
+  margin: 0;
+}
+input[type='checkbox'] {
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--verde-700);
+}
+.fontes {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.fonte {
+  padding: 0.6rem 0.75rem;
+  background: var(--verde-50);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.fonte__titulo {
+  margin: 0;
+  font-weight: 700;
+}
+.fonte__linha {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  color: var(--texto-suave);
+}

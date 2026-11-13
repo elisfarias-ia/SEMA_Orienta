@@ -8,6 +8,7 @@
 // Rotas de cadastro (POST, JSON de até 32 KB, exigem token):
 //   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
+//   /__admin/servicos/<id>/fontes         -> cadastra uma fonte (só em versão em rascunho; revisão otimista do arquivo de fontes)
 //
 // Este módulo NÃO tem autenticação de pessoas: o token só impede que outro site aberto no navegador use o endpoint.
 // Não decide, não valida conteúdo, não publica e não exclui nada. Não lê dados privados (data/admin-private/); não usa
@@ -22,7 +23,11 @@ import path from 'node:path';
 import { criarArmazenamento } from './armazenamento.js';
 import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
 import { executarTransacao } from './transacao.js';
-import { LIMITE_CORPO, montarAssunto, montarEsqueletoServico, normalizarNome, validarCorpoAssunto, validarCorpoServico } from './cadastro.js';
+import {
+  LIMITE_CORPO, montarAssunto, montarEsqueletoServico, montarFonte, normalizarNome, urlNormalizada, validarCorpoAssunto, validarCorpoFonte,
+  validarCorpoServico,
+} from './cadastro.js';
+import { hashConteudo } from './hash.js';
 import { validarVersao } from './versao.js';
 import {
   validarAssuntos, validarConteudoAssistente, validarDocumentos, validarFontes, validarPerguntas, validarServicos,
@@ -40,6 +45,7 @@ export const LIMITE_TEXTO = 1024 * 1024;
 const ORIGENS_LOCAIS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const PADRAO_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(?::(\d{1,5}))?$/i;
 const PADRAO_ROTA_VERSAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/versao-atual$/;
+const PADRAO_ROTA_FONTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes$/;
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
@@ -189,6 +195,7 @@ export function criarManipuladorAdmin({
     if (!cadastrados.includes(id)) return null;
     const versao = localizarVersaoAtual(raiz, id);
     if (!versao.ok) throw new Error('versao');
+    const fontes = lerJson(versao.arquivos.fontes);
     return {
       servicoId: id,
       versaoId: versao.versaoId,
@@ -197,7 +204,9 @@ export function criarManipuladorAdmin({
       roteiro: lerRoteiro(raiz, versao.arquivos.roteiro),
       documentos: lerJson(versao.arquivos.documentos),
       perguntasFrequentes: lerJson(versao.arquivos.perguntasFrequentes),
-      fontes: lerJson(versao.arquivos.fontes),
+      fontes,
+      // Revisão (SHA-256 do conteúdo) do arquivo de fontes: o cadastro de fontes exige que o cliente a devolva.
+      revisaoFontes: hashConteudo(fontes),
       conteudoAssistente: lerJson(versao.arquivos.conteudoAssistente),
     };
   }
@@ -267,6 +276,25 @@ export function criarManipuladorAdmin({
     };
   }
 
+  /**
+   * Cadastra uma fonte no arquivo de fontes da versão atual do serviço. Só em versão em rascunho e com a revisão informada
+   * igual à atual (revisão otimista). A fonte nasce em rascunho, não publicada, e as existentes não são alteradas.
+   */
+  function cadastrarFonte(servicoId, dados) {
+    const versao = localizarVersaoAtual(raiz, servicoId);
+    if (!versao.ok) throw new Error('versao');
+    if (lerJson(`${versao.pasta}/${NOME_DO_MANIFESTO}`).estado !== 'rascunho') return { status: 409, corpo: { erro: 'versao_nao_editavel' } };
+    const doc = lerJson(versao.arquivos.fontes);
+    if (hashConteudo(doc) !== dados.revisao) return { status: 409, corpo: { erro: 'revisao_divergente' } };
+    if (doc.fontes.some((f) => f.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
+    const normalizada = urlNormalizada(dados.url);
+    if (doc.fontes.some((f) => urlNormalizada(f.url) === normalizada)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
+    const fonte = montarFonte(dados, dataLocal(agora()));
+    const novo = { ...doc, fontes: [...doc.fontes, fonte] };
+    const r = aplicar([{ caminho: versao.arquivos.fontes, tipo: 'json', conteudo: novo, validar: (d) => validarFontes(d) }]);
+    return resultadoDaTransacao(r) ?? { status: 201, corpo: { fonte, revisao: hashConteudo(novo) } };
+  }
+
   return async function manipuladorAdmin(req, res, next) {
     const url = typeof req.url === 'string' ? req.url : '';
     const indice = url.indexOf('?');
@@ -289,7 +317,8 @@ export function criarManipuladorAdmin({
     };
 
     if (!origemPermitida(req)) return responder(403, { erro: 'acesso_somente_local' });
-    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS;
+    const rotaDeFontes = PADRAO_ROTA_FONTES.exec(caminho);
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || rotaDeFontes !== null;
     const metodoEsperado = rotaDeCadastro ? 'POST' : 'GET';
     if (req.method !== metodoEsperado) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodoEsperado });
     const tamanho = req.headers['content-length'];
@@ -310,6 +339,9 @@ export function criarManipuladorAdmin({
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
       if (rotaDeCadastro) {
+        if (rotaDeFontes !== null && !lerJson('services/registry.json').servicos.some((s) => s.id === rotaDeFontes[1])) {
+          return responder(404, { erro: 'nao_encontrado' });
+        }
         if (typeof req.headers['content-type'] !== 'string' || !PADRAO_TIPO_JSON.test(req.headers['content-type'])) {
           return responder(415, { erro: 'tipo_nao_suportado' });
         }
@@ -323,7 +355,7 @@ export function criarManipuladorAdmin({
         } catch {
           return responder(400, { erro: 'requisicao_invalida' });
         }
-        const validacao = caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
+        const validacao = rotaDeFontes !== null ? validarCorpoFonte(corpo) : caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
         if (!validacao.ok) return responder(422, { erro: 'dados_invalidos', campos: validacao.campos });
 
         // Uma gravação por vez: se outra estiver em andamento, esta é recusada (nada é enfileirado nem perdido).
@@ -332,7 +364,9 @@ export function criarManipuladorAdmin({
         let resultado;
         try {
           if (antesDeGravar) await antesDeGravar();
-          resultado = caminho === ROTA_ASSUNTOS ? cadastrarAssunto(validacao.dados) : cadastrarServico(validacao.dados);
+          resultado = rotaDeFontes !== null
+            ? cadastrarFonte(rotaDeFontes[1], validacao.dados)
+            : caminho === ROTA_ASSUNTOS ? cadastrarAssunto(validacao.dados) : cadastrarServico(validacao.dados);
         } finally {
           escrevendo = false;
         }

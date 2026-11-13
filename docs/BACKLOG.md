@@ -101,7 +101,11 @@ Concluído (Passo 7E2 — tela "Gestão de conteúdo"):
 
 - [x] tela administrativa local (`admin/`) para ver o catálogo e cadastrar assunto e serviço, com confirmação antes de gravar, token só em memória, bloqueio de envio duplicado, acessibilidade e responsividade; fora do build e sem link no público. Validação manual parcial pela usuária em 10/11/2026 (carregamento, aviso, catálogo, validação dos campos, painel de confirmação e "Voltar", teclado e Esc, 390 × 844 px, token não visível e ausência de editar, excluir, validar e publicar). O cadastro real de um assunto e de um serviço pela tela também foi testado pela usuária em 10/11/2026: o catálogo foi atualizado, a versão 1 foi criada em rascunho e não publicada, e os dados do teste foram removidos depois da conferência. Duplicidade, clique duplo e os demais testes pendentes (MA-02, MA-08, MA-09, MA-12, MA-13 e MA-14) continuam não executados (`docs/TESTES_MANUAIS.md`).
 
-Pendente (ainda não iniciado): edição de conteúdo, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
+Concluído (Passo 7E3A — cadastro de fontes por serviço):
+
+- [x] `POST /__admin/servicos/<id>/fontes` (só no `npm run dev`) com revisão otimista, versão em rascunho obrigatória, fonte sempre em rascunho e não publicada, vigência definida pelo servidor, gravação tudo ou nada, e a seção "Fontes do serviço" na tela administrativa. Validação manual parcial pela usuária em 11/11/2026 (listagem, formulário, validações, confirmação, teclado, responsividade e data DD-MM-AAAA). **O cadastro real de uma fonte (`POST`) não foi testado manualmente** e nenhuma fonte real foi criada (`docs/TESTES_MANUAIS.md`, MF-05 a MF-09 e MF-12 não executados).
+
+Pendente (ainda não iniciado): edição do conteúdo geral, documentos e perguntas, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
 

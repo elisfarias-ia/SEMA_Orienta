@@ -91,6 +91,84 @@
           <button type="submit" class="botao" id="servico-enviar" disabled>Revisar cadastro</button>
         </form>
       </section>
+
+      <section class="cartao" aria-labelledby="titulo-fontes">
+        <h2 id="titulo-fontes">Fontes do serviço</h2>
+        <p class="ajuda">Fontes oficiais que sustentam o conteúdo de um serviço. Toda fonte nova nasce em rascunho e não publicada; este cadastro não valida nem publica fontes.</p>
+        <div class="campo">
+          <label for="fontes-servico">Serviço</label>
+          <select id="fontes-servico" name="servicoId" aria-describedby="fontes-situacao">
+            <option value="">Carregando serviços…</option>
+          </select>
+        </div>
+        <p id="fontes-situacao" class="ajuda" aria-live="polite">Escolha um serviço para ver as fontes.</p>
+        <div id="fontes-lista" aria-busy="false"></div>
+
+        <h3 class="subtitulo">Nova fonte</h3>
+        <form id="form-fonte" novalidate>
+          <div class="campo">
+            <label for="fonte-id">Identificador</label>
+            <input id="fonte-id" name="id" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="fonte-id-ajuda fonte-id-erro" />
+            <p id="fonte-id-ajuda" class="ajuda">Letras minúsculas sem acento, números e hífen; começa por uma letra.</p>
+            <p id="fonte-id-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-titulo">Título</label>
+            <input id="fonte-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="fonte-titulo-erro" />
+            <p id="fonte-titulo-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-tipo">Tipo</label>
+            <select id="fonte-tipo" name="tipo" aria-describedby="fonte-tipo-erro">
+              <option value="">Escolha o tipo</option>
+              <option value="legislacao">Legislação</option>
+              <option value="pagina_oficial">Página oficial</option>
+              <option value="manual">Manual</option>
+              <option value="formulario">Formulário</option>
+              <option value="sistema">Sistema</option>
+              <option value="canal_atendimento">Canal de atendimento</option>
+              <option value="outro">Outro</option>
+            </select>
+            <p id="fonte-tipo-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-orgao">Órgão responsável</label>
+            <input id="fonte-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="fonte-orgao-erro" />
+            <p id="fonte-orgao-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-url">URL</label>
+            <input id="fonte-url" name="url" type="text" inputmode="url" maxlength="500" autocomplete="off" spellcheck="false" aria-describedby="fonte-url-ajuda fonte-url-erro" />
+            <p id="fonte-url-ajuda" class="ajuda">Endereço completo, começando por https://.</p>
+            <p id="fonte-url-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-descricao">Descrição</label>
+            <textarea id="fonte-descricao" name="descricao" rows="3" maxlength="1000" aria-describedby="fonte-descricao-erro"></textarea>
+            <p id="fonte-descricao-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo campo--caixa">
+            <div class="caixa">
+              <input id="fonte-oficial" name="origemOficial" type="checkbox" aria-describedby="fonte-oficial-ajuda fonte-oficial-erro" />
+              <label for="fonte-oficial">Origem oficial</label>
+            </div>
+            <p id="fonte-oficial-ajuda" class="ajuda">Origem oficial identifica a procedência, mas não significa que o conteúdo foi validado.</p>
+            <p id="fonte-oficial-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-data">Data de publicação <span class="opcional">(opcional)</span></label>
+            <input id="fonte-data" name="dataPublicacao" type="text" inputmode="numeric" maxlength="10" autocomplete="off" aria-describedby="fonte-data-ajuda fonte-data-erro" />
+            <p id="fonte-data-ajuda" class="ajuda">Formato DD-MM-AAAA.</p>
+            <p id="fonte-data-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="fonte-dispositivo">Dispositivo relevante <span class="opcional">(opcional)</span></label>
+            <input id="fonte-dispositivo" name="dispositivoRelevante" type="text" maxlength="200" autocomplete="off" aria-describedby="fonte-dispositivo-erro" />
+            <p id="fonte-dispositivo-erro" class="erro" hidden></p>
+          </div>
+          <button type="submit" class="botao" id="fonte-enviar" disabled>Revisar cadastro</button>
+        </form>
+      </section>
     </main>
 
     <dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">

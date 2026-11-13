@@ -121,3 +121,35 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
   - os dados de teste foram removidos depois da verificação (restauração de `services/assuntos.json` e `services/registry.json` pelo Git e remoção da pasta do serviço de teste), e o catálogo voltou a ter somente "Licenciamento Ambiental" e a LAC.
 - **Aprovados por esses fatos:** MA-06 (assunto cadastrado e presente no catálogo) e MA-07 (serviço cadastrado em rascunho, não publicado e sem conteúdo). Não houve registro separado do foco na mensagem de sucesso, da limpeza do formulário e do texto do resumo do painel de confirmação.
 - **Continuam não executados:** MA-08 (duplicidade de identificador ou nome) e MA-09 (clique duplo em "Confirmar cadastro"), pois nada nos fatos acima os comprova.
+
+### Execução — fontes do serviço (Passo 7E3A)
+
+**Status: validação manual parcial realizada pela usuária em 11/11/2026** (ver "Registro" abaixo). Aprovados: MF-01, MF-02, MF-03, MF-04, MF-10, MF-11 e MF-13. Permanecem **não executados** os testes que dependem de confirmar o cadastro (`POST`) ou de cenários não verificados: MF-05 a MF-09 e MF-12. **Nenhuma fonte real foi criada.**
+
+- **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/`, seção "Fontes do serviço".
+- **Dimensão móvel:** 390 × 844 px.
+- **Atenção:** confirmar o cadastro de uma fonte altera o arquivo de fontes real do serviço escolhido (por exemplo, o da LAC). Use dados fictícios e, ao terminar, restaure o arquivo com o Git: `git restore services/lac/versoes/v1/fontes.json`.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| MF-01 | Abrir a tela e escolher a LAC em "Serviço" | Lista as oito fontes (título, tipo, órgão, validação e "Não publicada") e mostra "Versão atual: lac-v1. Estado: Rascunho. É possível cadastrar fontes." | aprovado |
+| MF-02 | Conferir o campo "Origem oficial" | Mostra ao lado: "Origem oficial identifica a procedência, mas não significa que o conteúdo foi validado." | aprovado |
+| MF-03 | Enviar o formulário vazio ou com URL `http://`, com usuário e senha ou com data inválida | Mensagens junto de cada campo, foco no primeiro erro, nada é gravado | aprovado |
+| MF-04 | Preencher uma fonte fictícia válida e "Revisar cadastro", depois "Voltar" (e Esc) | Painel com o resumo (inclusive a explicação da origem oficial); nada é gravado; o foco volta ao botão | aprovado |
+| MF-05 | Repetir e usar "Confirmar cadastro" (altera o arquivo real; desfazer depois) | Mensagem de sucesso com foco, formulário limpo e a nova fonte na lista como "Rascunho" e "Não publicada" | não executado |
+| MF-06 | Repetir o mesmo identificador ou a mesma URL | Mensagem curta de duplicidade; nada é alterado | não executado |
+| MF-07 | Abrir a tela em duas abas, cadastrar uma fonte numa e tentar outra na segunda, sem recarregar | A segunda recebe "As fontes deste serviço mudaram…", a lista é recarregada e nada é sobrescrito | não executado |
+| MF-08 | Clicar duas vezes seguidas em "Confirmar cadastro" | Um único cadastro | não executado |
+| MF-09 | Escolher um serviço cuja versão atual não esteja em rascunho | Lista visível, aviso de cadastro bloqueado e botão desabilitado | não executado |
+| MF-10 | Navegar só pelo teclado na seção | Ordem de foco coerente, foco visível, painel de confirmação acessível | aprovado |
+| MF-11 | Largura de 390 × 844 px | Sem rolagem horizontal; campos, lista e painel utilizáveis | aprovado |
+| MF-12 | `npm run build` e `npm run preview` | A seção, a rota e a tela não existem no preview nem no `dist/` | não executado |
+| MF-13 | Digitar a data de publicação em DD-MM-AAAA (e uma data inexistente, como 31-02-2026) | A ajuda e os erros mencionam DD-MM-AAAA; a data válida é aceita e exibida nesse formato no resumo; a inexistente é rejeitada | aprovado |
+
+**Registro da validação manual (Passo 7E3A)**
+
+- **Data:** 11/11/2026.
+- **Executado por:** usuária do projeto, na seção "Fontes do serviço" da tela "Gestão de conteúdo" (`npm run dev`).
+- **Aprovados:** listagem das fontes da LAC (MF-01); formulário e a explicação da origem oficial (MF-02); validações dos campos (MF-03); painel de confirmação e botão "Voltar" (MF-04); navegação por teclado (MF-10); responsividade em 390 × 844 px (MF-11); data de publicação em DD-MM-AAAA (MF-13).
+- **Não executados:** MF-05 (confirmar o cadastro e `POST`), MF-06 (duplicidade), MF-07 (duas abas e revisão), MF-08 (clique duplo), MF-09 (serviço fora de rascunho) e MF-12 (`build` e `preview`). Nenhum cadastro foi confirmado, então a criação real de fonte, a atualização da lista após gravar e a revisão otimista em uso real **não foram testadas manualmente** (estão cobertas só pelos testes automatizados, com dados fictícios em cópias temporárias).
+- **Dados:** nenhuma fonte real foi criada; as oito fontes da LAC permaneceram inalteradas.

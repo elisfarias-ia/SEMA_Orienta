@@ -128,6 +128,134 @@ export function corpoDoServico({ id, assuntoId, nome, sigla, termosEquivalentes 
   return corpo;
 }
 
+// ---------- Fontes do serviço (Passo 7E3A) ----------
+
+export const TIPOS_FONTE = Object.freeze(['legislacao', 'pagina_oficial', 'manual', 'formulario', 'sistema', 'canal_atendimento', 'outro']);
+export const ROTULOS_TIPO_FONTE = Object.freeze({
+  legislacao: 'Legislação', pagina_oficial: 'Página oficial', manual: 'Manual', formulario: 'Formulário', sistema: 'Sistema', canal_atendimento: 'Canal de atendimento', outro: 'Outro',
+});
+export const rotuloTipoFonte = (tipo) => (ehTexto(tipo) && Object.hasOwn(ROTULOS_TIPO_FONTE, tipo) ? ROTULOS_TIPO_FONTE[tipo] : 'Tipo desconhecido');
+export const AJUDA_ORIGEM_OFICIAL = 'Origem oficial identifica a procedência, mas não significa que o conteúdo foi validado.';
+export const LIMITES_FONTE = Object.freeze({ id: 60, titulo: 200, orgaoResponsavel: 120, url: 500, descricao: 1000, dispositivoRelevante: 200 });
+const PARAMETRO_SECRETO = /^(token|access_token|api[_-]?key|key|senha|password|passwd|secret|auth|authorization|sessao|session)$/i;
+
+/** Data AAAA-MM-DD existente no calendário (sem usar relógio). */
+function dataIsoValida(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  if (!m) return false;
+  const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (mes < 1 || mes > 12 || dia < 1) return false;
+  const bissexto = (ano % 4 === 0 && ano % 100 !== 0) || ano % 400 === 0;
+  const dias = [31, bissexto ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mes - 1];
+  return dia <= dias;
+}
+
+/** "DD-MM-AAAA" (existente no calendário) -> "AAAA-MM-DD"; null se o formato ou a data forem inválidos. */
+export function converterDataBrParaIso(texto) {
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(typeof texto === 'string' ? texto : '');
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  return dataIsoValida(iso) ? iso : null;
+}
+
+/** "AAAA-MM-DD" -> "DD-MM-AAAA" para exibição; devolve o texto original se não estiver nesse formato. */
+export function formatarDataBr(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof iso === 'string' ? iso : '');
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : iso;
+}
+
+/** URL aceitável para uma fonte: https, sem usuário e senha, sem parâmetro de credencial, sem e-mail nem telefone. */
+function validarUrlDaFonte(valor, erros) {
+  if (!ehTexto(valor) || valor.trim() === '') {
+    erros.url = 'Preencha a URL da fonte.';
+    return null;
+  }
+  const t = valor.trim();
+  let url;
+  try {
+    url = new URL(t);
+  } catch {
+    erros.url = 'A URL não é válida. Use o endereço completo, começando por https://.';
+    return null;
+  }
+  if (t.length > LIMITES_FONTE.url || /\s/.test(t) || CONTROLE.test(t)) erros.url = `A URL deve ter no máximo ${LIMITES_FONTE.url} caracteres, sem espaços.`;
+  else if (url.protocol !== 'https:') erros.url = 'A URL deve começar por https://.';
+  else if (url.username !== '' || url.password !== '') erros.url = 'A URL não pode conter usuário e senha.';
+  else if ([...url.searchParams.keys()].some((nome) => PARAMETRO_SECRETO.test(nome))) erros.url = 'A URL não pode conter parâmetros de credencial (como token, chave ou senha).';
+  else if (PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) erros.url = 'Não informe e-mail nem telefone na URL.';
+  else return t;
+  return null;
+}
+
+/** Valida o formulário "Nova fonte". `valores.origemOficial` é booleano (caixa de seleção). Retorna { ok, dados, erros }. */
+export function validarFormFonte(valores) {
+  const v = ehObjeto(valores) ? valores : {};
+  const erros = {};
+  const id = validarId(v.id, erros, 'id');
+  const titulo = textoLivre(v.titulo, LIMITES_FONTE.titulo, 'o título', erros, 'titulo');
+  if (!ehTexto(v.tipo) || !TIPOS_FONTE.includes(v.tipo)) erros.tipo = 'Escolha o tipo da fonte.';
+  const orgaoResponsavel = textoLivre(v.orgaoResponsavel, LIMITES_FONTE.orgaoResponsavel, 'o órgão responsável', erros, 'orgaoResponsavel');
+  const url = validarUrlDaFonte(v.url, erros);
+  const descricao = textoLivre(v.descricao, LIMITES_FONTE.descricao, 'a descrição', erros, 'descricao');
+  const origemOficial = v.origemOficial === true;
+
+  // A tela usa DD-MM-AAAA; antes do envio a data é convertida para o formato interno AAAA-MM-DD.
+  let dataPublicacao = null;
+  if (ehTexto(v.dataPublicacao) && v.dataPublicacao.trim() !== '') {
+    dataPublicacao = converterDataBrParaIso(v.dataPublicacao.trim());
+    if (dataPublicacao === null) erros.dataPublicacao = 'Use uma data válida no formato DD-MM-AAAA, ou deixe em branco.';
+  }
+  let dispositivoRelevante = null;
+  if (ehTexto(v.dispositivoRelevante) && v.dispositivoRelevante.trim() !== '') {
+    dispositivoRelevante = textoLivre(v.dispositivoRelevante, LIMITES_FONTE.dispositivoRelevante, 'o dispositivo relevante', erros, 'dispositivoRelevante');
+  }
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, dados: { id, titulo, tipo: v.tipo, orgaoResponsavel, url, descricao, origemOficial, dataPublicacao, dispositivoRelevante } };
+}
+
+/** Corpo enviado: os campos permitidos mais a revisão das fontes lida antes (os opcionais só quando informados). */
+export function corpoDaFonte(dados, revisao) {
+  const corpo = {
+    revisao, id: dados.id, titulo: dados.titulo, tipo: dados.tipo, orgaoResponsavel: dados.orgaoResponsavel, url: dados.url, descricao: dados.descricao, origemOficial: dados.origemOficial === true,
+  };
+  if (dados.dataPublicacao) corpo.dataPublicacao = dados.dataPublicacao;
+  if (dados.dispositivoRelevante) corpo.dispositivoRelevante = dados.dispositivoRelevante;
+  return corpo;
+}
+
+export function resumoDaFonte(dados, servico) {
+  return [
+    { rotulo: 'Serviço', valor: servico ? `${servico.nome} (${servico.id})` : 'não identificado' },
+    { rotulo: 'Identificador', valor: dados.id },
+    { rotulo: 'Título', valor: dados.titulo },
+    { rotulo: 'Tipo', valor: rotuloTipoFonte(dados.tipo) },
+    { rotulo: 'Órgão responsável', valor: dados.orgaoResponsavel },
+    { rotulo: 'URL', valor: dados.url },
+    { rotulo: 'Descrição', valor: dados.descricao },
+    { rotulo: 'Origem oficial', valor: dados.origemOficial ? `Sim. ${AJUDA_ORIGEM_OFICIAL}` : 'Não' },
+    { rotulo: 'Data de publicação', valor: dados.dataPublicacao ? formatarDataBr(dados.dataPublicacao) : 'não informada' },
+    { rotulo: 'Dispositivo relevante', valor: dados.dispositivoRelevante ?? 'não informado' },
+    { rotulo: 'Situação inicial', valor: `Rascunho e não publicada; a data de consulta e a vigência são definidas pelo sistema${dados.tipo === 'legislacao' ? ' (legislação: vigência a confirmar)' : ''}` },
+  ];
+}
+
+/** Rótulo da situação de validação da fonte ("validado" na base significa só procedência e metadados conferidos). */
+export function rotuloSituacaoFonte(statusValidacao) {
+  if (statusValidacao === 'rascunho') return 'Rascunho';
+  if (statusValidacao === 'em_validacao') return 'Em validação';
+  if (statusValidacao === 'validado') return 'Procedência validada';
+  return 'Situação indisponível';
+}
+
+/** Lista de exibição das fontes de um serviço (somente campos públicos, nunca a resposta bruta). */
+export function resumirFontes(documento) {
+  const lista = ehObjeto(documento) && Array.isArray(documento.fontes) ? documento.fontes : [];
+  return lista.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => ({
+    id: f.id, titulo: ehTexto(f.titulo) ? f.titulo : f.id, tipo: rotuloTipoFonte(f.tipo), orgao: ehTexto(f.orgaoResponsavel) ? f.orgaoResponsavel : '—',
+    situacao: rotuloSituacaoFonte(f.statusValidacao), publicacao: f.publicado === true ? 'Publicada' : 'Não publicada',
+  }));
+}
+
 /** Linhas do resumo mostrado antes da gravação (nunca inclui o token). */
 export function resumoDoAssunto(dados) {
   return [
@@ -191,11 +319,14 @@ export function catalogoValido(c) {
 
 const ROTULO_DO_CAMPO = Object.freeze({
   id: 'identificador', nome: 'nome', descricao: 'descrição', assuntoId: 'assunto', sigla: 'sigla', termosEquivalentes: 'termos equivalentes',
+  titulo: 'título', tipo: 'tipo', orgaoResponsavel: 'órgão responsável', url: 'URL', origemOficial: 'origem oficial', dataPublicacao: 'data de publicação',
+  dispositivoRelevante: 'dispositivo relevante', revisao: 'revisão das fontes',
 });
 export const MENSAGENS = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se o servidor de desenvolvimento está ativo e recarregue a página.',
   sessao: 'A sessão administrativa não está disponível. Recarregue a página para iniciar uma nova sessão.',
   catalogo: 'Não foi possível carregar o catálogo. Recarregue a página e tente novamente.',
+  fontes: 'Não foi possível carregar as fontes deste serviço. Tente novamente.',
   emAndamento: 'Uma gravação já está em andamento. Aguarde a conclusão.',
   generica: 'Não foi possível concluir a operação. Nada foi alterado.',
 });
@@ -208,6 +339,9 @@ export function mensagemDeErro(status, corpo) {
   if (status === 403) return 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.';
   if (status === 409) {
     if (erro === 'operacao_em_andamento') return 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.';
+    if (erro === 'revisao_divergente') return 'As fontes deste serviço mudaram desde que a lista foi aberta. A lista foi recarregada; confira e tente de novo.';
+    if (erro === 'versao_nao_editavel') return 'A versão atual deste serviço não está em rascunho; não é possível cadastrar fontes.';
+    if (campo === 'url') return 'Já existe uma fonte com esta URL.';
     if (campo === 'nome') return 'Já existe um item com este nome. Escolha outro nome.';
     return 'Já existe um item com este identificador. Escolha outro identificador.';
   }
@@ -286,9 +420,28 @@ export function criarClienteAdmin({ fetchImpl }) {
       return { ok: true, catalogo, estados };
     },
 
-    /** Cadastra um assunto ou um serviço. Retorna { ok, item } ou { ok: false, mensagem }. */
-    async cadastrar(tipo, corpo) {
-      const rota = tipo === 'assunto' ? ROTAS.assuntos : tipo === 'servico' ? ROTAS.servicos : null;
+    /** Lê a versão atual de um serviço: estado, revisão das fontes e a lista de fontes (só campos de exibição). */
+    async carregarFontes(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!ehTexto(servicoId) || !PADRAO_ID.test(servicoId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/versao-atual`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const c = r.corpo;
+      const valido = r.ok && ehObjeto(c) && ehObjeto(c.manifesto) && ehTexto(c.manifesto.estado) && ehTexto(c.versaoId)
+        && ehTexto(c.revisaoFontes) && /^[0-9a-f]{64}$/.test(c.revisaoFontes) && ehObjeto(c.fontes) && Array.isArray(c.fontes.fontes);
+      if (!valido) return { ok: false, mensagem: r.status === 401 ? mensagemDeErro(401, r.corpo) : MENSAGENS.fontes };
+      return { ok: true, versaoId: c.versaoId, estado: c.manifesto.estado, revisao: c.revisaoFontes, fontes: resumirFontes(c.fontes) };
+    },
+
+    /**
+     * Cadastra um assunto, um serviço ou uma fonte (nesse caso, `contexto.servicoId` indica o serviço).
+     * Retorna { ok, item } ou { ok: false, mensagem }.
+     */
+    async cadastrar(tipo, corpo, contexto = {}) {
+      let rota = null;
+      if (tipo === 'assunto') rota = ROTAS.assuntos;
+      else if (tipo === 'servico') rota = ROTAS.servicos;
+      else if (tipo === 'fonte' && ehTexto(contexto.servicoId) && PADRAO_ID.test(contexto.servicoId)) rota = `${ROTAS.servicos}/${encodeURIComponent(contexto.servicoId)}/fontes`;
       if (rota === null) return { ok: false, mensagem: MENSAGENS.generica };
       if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
       if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
@@ -297,10 +450,14 @@ export function criarClienteAdmin({ fetchImpl }) {
         const r = await chamar('POST', rota, corpo);
         if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
         if (r.status === 201 && ehObjeto(r.corpo)) {
-          const item = tipo === 'assunto' ? r.corpo.assunto : r.corpo.servico;
-          if (ehObjeto(item) && ehTexto(item.id) && ehTexto(item.nome)) return { ok: true, item: { id: item.id, nome: item.nome } };
+          const item = tipo === 'assunto' ? r.corpo.assunto : tipo === 'servico' ? r.corpo.servico : r.corpo.fonte;
+          const nome = tipo === 'fonte' && ehObjeto(item) ? item.titulo : ehObjeto(item) ? item.nome : null;
+          if (ehObjeto(item) && ehTexto(item.id) && ehTexto(nome)) return { ok: true, item: { id: item.id, nome } };
         }
-        return { ok: false, mensagem: mensagemDeErro(r.status, r.corpo) };
+        // Só para a tela recarregar a lista de fontes: o código vem de uma lista fixa, nunca da resposta bruta.
+        const codigo = ehObjeto(r.corpo) ? r.corpo.erro : null;
+        const recarregar = tipo === 'fonte' && r.status === 409 && (codigo === 'revisao_divergente' || codigo === 'versao_nao_editavel');
+        return recarregar ? { ok: false, mensagem: mensagemDeErro(r.status, r.corpo), recarregar: true } : { ok: false, mensagem: mensagemDeErro(r.status, r.corpo) };
       } finally {
         gravando = false;
       }
