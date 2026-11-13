@@ -5,16 +5,19 @@ import { criarPluginAdminDev } from './services/admin/admin-endpoint.js';
 
 const raiz = fileURLToPath(new URL('.', import.meta.url));
 
-// A tela de gestão de conteúdo (pasta admin/) só existe no servidor de desenvolvimento: `/admin` leva a `/admin/`.
+// A administração (pasta admin/: gestão de conteúdo e saúde do sistema) só existe no servidor de desenvolvimento:
+// `/admin` leva a `/admin/` e `/admin/saude` leva a `/admin/saude/`.
 // O build usa apenas o index.html da raiz, então admin/ não entra no dist/, e o preview serve só o dist/.
+const REDIRECIONAMENTOS = { '/admin': '/admin/', '/admin/saude': '/admin/saude/' };
 const redirecionarAdmin = {
   name: 'sema-orienta-admin-redirecionamento',
   apply: 'serve',
   configureServer(servidor) {
     servidor.middlewares.use((req, res, proximo) => {
-      if (req.url === '/admin') {
+      const destino = REDIRECIONAMENTOS[req.url];
+      if (destino !== undefined) {
         res.statusCode = 302;
-        res.setHeader('Location', '/admin/');
+        res.setHeader('Location', destino);
         res.end();
         return;
       }

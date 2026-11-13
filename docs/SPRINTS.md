@@ -11,12 +11,14 @@ Planejamento em ciclos curtos, com objetivo, backlog, critérios de aceite e Def
 
 ### Backlog da Sprint
 
-| ID | Passo | Entrega |
-|---|---|---|
-| 8A | `CLAUDE.md`, metodologia e templates Git | Regras permanentes, técnicas com situação e evidências, modelos de issue e de pull request |
-| 8B | Endpoint e tela de saúde | Estado operacional do sistema, visível só no ambiente local de desenvolvimento |
-| 8C | Playwright dos fluxos críticos | Testes de ponta a ponta do chat público, da administração local e da ausência da administração no build |
-| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint |
+| ID | Passo | Entrega | Situação |
+|---|---|---|---|
+| 8A | `CLAUDE.md`, metodologia e templates Git | Regras permanentes, técnicas com situação e evidências, modelos de issue e de pull request | — |
+| 8B | Endpoint e tela de saúde | Estado operacional do sistema, visível só no ambiente local de desenvolvimento | **Concluído** (13/11/2026) |
+| 8C | Playwright dos fluxos críticos | Testes de ponta a ponta do chat público, da administração local e da ausência da administração no build | Pendente |
+| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint | Pendente |
+
+**Situação da Sprint:** aberta. O 8B foi concluído; a bateria completa, o build e o `check-dist` ficam para o fechamento da Sprint, depois do Playwright (8C).
 
 ### Critérios de aceite
 
@@ -25,7 +27,7 @@ Planejamento em ciclos curtos, com objetivo, backlog, critérios de aceite e Def
   - `docs/METODOLOGIA_DESENVOLVIMENTO.md` classifica cada técnica como comprovada, parcialmente comprovada ou não demonstrada, só com evidência existente, e lista os próximos passos.
   - Há modelos mínimos de issue e de pull request em `.github/`.
   - Nenhum arquivo de aplicação, dependência ou dado foi alterado.
-- **8B:**
+- **8B (concluído):**
   - O endpoint de saúde é somente leitura, existe só no servidor de desenvolvimento e aceita só conexão local, com as mesmas proteções dos demais endpoints administrativos.
   - Informa o estado operacional (por exemplo, a base válida e as contagens de serviços, versões e fontes) sem expor caminhos, token, conteúdo da base ou dados pessoais, e com erros genéricos.
   - A tela de saúde mostra o estado em linguagem clara, é acessível por teclado, responsiva e não aparece no `dist/`.

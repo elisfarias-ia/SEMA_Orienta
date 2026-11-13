@@ -48,7 +48,7 @@ test('I4. não há dependências novas, nem scripts novos, e a pasta administrat
   assert.equal(pacote.dependencies, undefined);
   assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'preview', 'test', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
-  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'styles.css']);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'saude', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.ok(lerTexto('.gitignore').split(/\r?\n/).map((l) => l.trim()).includes('data/admin-private/'));
 });

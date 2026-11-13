@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SEMA Orienta — Saúde do sistema</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <a class="pular" href="#principal">Ir para o conteúdo</a>
+
+    <header class="cabecalho">
+      <div class="cabecalho__interno">
+        <span class="cabecalho__icone" aria-hidden="true">🌿</span>
+        <div>
+          <h1>SEMA Orienta — Saúde do sistema</h1>
+          <p class="cabecalho__sub">Estado real do ambiente administrativo local.</p>
+        </div>
+      </div>
+      <nav class="navegacao" aria-label="Seções da administração">
+        <a class="navegacao__link" href="../">Gestão de conteúdo</a>
+        <a class="navegacao__link navegacao__link--atual" href="./" aria-current="page">Saúde do sistema</a>
+      </nav>
+    </header>
+
+    <p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
+
+    <main id="principal" class="pagina pagina--compacta" tabindex="-1">
+      <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
+
+      <section class="cartao" aria-labelledby="titulo-saude">
+        <h2 id="titulo-saude">Componentes</h2>
+        <p class="ajuda">Mostra o que está funcionando de verdade. O que ainda não existe aparece como "Não implementado", sem fingir funcionamento.</p>
+        <p id="saude-resumo" class="saude__resumo" aria-live="polite">Aguardando a primeira verificação.</p>
+        <div class="saude__acoes">
+          <button type="button" class="botao" id="saude-verificar" disabled>Verificar novamente</button>
+          <p id="saude-quando" class="ajuda" aria-live="polite">Ainda não verificado.</p>
+        </div>
+        <div id="saude-lista" aria-busy="false"></div>
+        <p class="saude__rodape"><a class="botao botao--secundario" href="../">Voltar para Gestão de conteúdo</a></p>
+      </section>
+    </main>
+
+    <script type="module" src="./saude.js"></script>
+  </body>
+</html>

@@ -11,6 +11,7 @@ export const ROTAS = Object.freeze({
   catalogo: '/__admin/catalogo',
   assuntos: '/__admin/assuntos',
   servicos: '/__admin/servicos',
+  saude: '/__admin/saude',
 });
 export const CABECALHO_TOKEN = 'X-Admin-Token';
 
@@ -274,6 +275,54 @@ export function resumoDoServico(dados, assuntos = []) {
   ];
 }
 
+// ---------- Saúde do sistema (Passo 8B) ----------
+
+export const CAPACIDADES_SAUDE = Object.freeze({ implementado: 'Implementado', nao_implementado: 'Não implementado', nao_se_aplica: 'Não se aplica' });
+export const ESTADOS_SAUDE = Object.freeze({ operacional: 'Operacional', degradado: 'Degradado', indisponivel: 'Indisponível', nao_verificado: 'Não verificado' });
+export const NOMES_DOS_COMPONENTES = Object.freeze({
+  aplicacao_administrativa: 'Aplicação administrativa',
+  base_assuntos: 'Base de assuntos',
+  base_servicos_versoes: 'Serviços e versões',
+  base_referencias: 'Referências da base',
+  armazenamento: 'Armazenamento',
+  conteudo_publicado: 'Conteúdo publicado',
+  processamento_fontes: 'Processamento de fontes',
+  banco_de_dados: 'Banco de dados',
+  ia_externa: 'IA externa',
+  mcp: 'MCP',
+});
+const PADRAO_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
+/**
+ * Formata um instante ISO como DD-MM-AAAA HH:mm:ss no horário local. `criarData` (uma função que cria a data
+ * a partir do texto) é injetada para manter este arquivo sem relógio. Retorna 'data indisponível' se o texto não for um instante ISO válido.
+ */
+export function formatarDataHoraBr(iso, criarData) {
+  if (!ehTexto(iso) || !PADRAO_ISO.test(iso) || typeof criarData !== 'function') return 'data indisponível';
+  const d = criarData(iso);
+  if (!d || Number.isNaN(d.getTime())) return 'data indisponível';
+  const dois = (n) => String(n).padStart(2, '0');
+  return `${dois(d.getDate())}-${dois(d.getMonth() + 1)}-${d.getFullYear()} ${dois(d.getHours())}:${dois(d.getMinutes())}:${dois(d.getSeconds())}`;
+}
+
+/** Normaliza a resposta de saúde: só componentes conhecidos, com capacidade e estado válidos; nada além disso é usado. */
+export function normalizarSaude(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.geradoEm) || !PADRAO_ISO.test(corpo.geradoEm) || !Array.isArray(corpo.componentes)) return null;
+  const componentes = [];
+  for (const c of corpo.componentes) {
+    if (!ehObjeto(c) || !Object.hasOwn(NOMES_DOS_COMPONENTES, c.componente) || !Object.hasOwn(CAPACIDADES_SAUDE, c.capacidade) || !Object.hasOwn(ESTADOS_SAUDE, c.estado)) continue;
+    if (!ehTexto(c.verificadoEm) || !PADRAO_ISO.test(c.verificadoEm) || !ehTexto(c.mensagem)) continue;
+    componentes.push({ id: c.componente, nome: NOMES_DOS_COMPONENTES[c.componente], capacidade: c.capacidade, estado: c.estado, verificadoEm: c.verificadoEm, mensagem: c.mensagem.slice(0, 200) });
+  }
+  return componentes.length > 0 ? { geradoEm: corpo.geradoEm, componentes } : null;
+}
+
+/** Resumo em uma frase: quantos componentes em cada estado. */
+export function resumoDaSaude(componentes) {
+  const n = (estado) => componentes.filter((c) => c.estado === estado).length;
+  return `Operacionais: ${n('operacional')}. Degradados: ${n('degradado')}. Indisponíveis: ${n('indisponivel')}. Não verificados: ${n('nao_verificado')}.`;
+}
+
 // ---------- Catálogo ----------
 
 export const ROTULOS_ESTADO = Object.freeze({
@@ -326,6 +375,7 @@ export const MENSAGENS = Object.freeze({
   sessao: 'A sessão administrativa não está disponível. Recarregue a página para iniciar uma nova sessão.',
   catalogo: 'Não foi possível carregar o catálogo. Recarregue a página e tente novamente.',
   fontes: 'Não foi possível carregar as fontes deste serviço. Tente novamente.',
+  saude: 'Não foi possível verificar a saúde do sistema. Tente novamente.',
   emAndamento: 'Uma gravação já está em andamento. Aguarde a conclusão.',
   generica: 'Não foi possível concluir a operação. Nada foi alterado.',
 });
@@ -417,6 +467,16 @@ export function criarClienteAdmin({ fetchImpl }) {
         estados[s.id] = v.ok && ehObjeto(v.corpo) && ehObjeto(v.corpo.manifesto) && ehTexto(v.corpo.manifesto.estado) ? v.corpo.manifesto.estado : null;
       }));
       return { ok: true, catalogo, estados };
+    },
+
+    /** Verifica a saúde do sistema (GET /__admin/saude). Retorna { ok, saude } ou { ok: false, mensagem }. */
+    async carregarSaude() {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      const r = await chamar('GET', ROTAS.saude);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const saude = r.ok ? normalizarSaude(r.corpo) : null;
+      if (saude === null) return { ok: false, mensagem: r.status === 401 ? mensagemDeErro(401, r.corpo) : MENSAGENS.saude };
+      return { ok: true, saude };
     },
 
     /** Lê a versão atual de um serviço: estado, revisão das fontes e a lista de fontes (só campos de exibição). */
