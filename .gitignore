@@ -24,3 +24,12 @@ desktop.ini
 # Playwright
 playwright-report/
 test-results/
+
+# Claude Code: só recursos revisados do projeto são versionados (skills, agentes e settings.json)
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/settings.json
+.claude/launch.json
+.claude/settings.local.json
+.claude/skills/skill-pds-sema/

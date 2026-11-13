@@ -81,12 +81,18 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 2. Antes de começar, conferir `git status`, branch e sincronização; se houver alterações pendentes de outro passo, parar e informar.
 3. Ler só o que o passo exige; não varrer o repositório sem necessidade.
 4. Não executar testes ou build além do pedido e nunca afirmar resultado sem executar. Relatar falhas com a saída real.
-5. Não fazer `git add`, commit ou push sem pedido expresso. Ao publicar, preparar só os arquivos do passo, rodar `git diff --cached --check`, conferir ausência de segredos e dados pessoais e arquivos indevidos (`dist/`, `node_modules/`, `.claude/`, `.env`, `data/`) e confirmar `main = origin/main`.
+5. Não fazer `git add`, commit ou push sem pedido expresso. Ao publicar, preparar só os arquivos do passo, rodar `git diff --cached --check`, conferir ausência de segredos e dados pessoais e arquivos indevidos (`dist/`, `node_modules/`, `.env`, `data/`, e em `.claude/` tudo o que não seja skill, agente ou `settings.json` revisado) e confirmar `main = origin/main`.
 6. Commits com mensagem objetiva em português (`feat:`, `docs:`, `fix:`) e o trailer de coautoria exigido pela ferramenta.
 7. Dados reais da base só mudam com autorização; testes nunca gravam na base real. Se um teste manual criar dados, restaurar pelo Git antes de seguir.
 8. Não registrar teste manual como aprovado sem evidência da execução. Separar o que foi conferido pela usuária do que só os testes automatizados cobrem.
 9. Servidor local: iniciar só se pedido, sem `--host`, e encerrar apenas o processo do Vite deste repositório.
 10. Mudança no que o chat público mostra, em dependências ou em dados exige pedido explícito.
+
+## Recursos do assistente de código no repositório
+
+- Skills (`.claude/skills/`), agentes (`.claude/agents/`) e `.claude/settings.json` revisados podem ser versionados, como qualquer arquivo do projeto, em passo próprio e com revisão.
+- Configurações locais (`.claude/launch.json`, `.claude/settings.local.json`), caches, tokens, segredos e arquivos pessoais continuam proibidos no Git.
+- Não usar `git add -f` como fluxo normal: se algo que deveria ser versionado aparecer como ignorado, corrigir o `.gitignore`.
 
 ## Documentação
 
