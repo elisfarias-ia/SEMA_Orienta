@@ -5,6 +5,7 @@
 //   /__admin/sessao                       -> entrega o token da sessão (criado na primeira chamada, só em memória)
 //   /__admin/catalogo                     -> assuntos e serviços, com versão atual e publicada (exige token)
 //   /__admin/servicos/<id>/versao-atual   -> manifesto e arquivos modulares da versão atual (exige token)
+//   /__admin/saude                        -> saúde do sistema: capacidade e estado de cada componente (exige token)
 // Rotas de cadastro (POST, JSON de até 32 KB, exigem token):
 //   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
@@ -28,6 +29,7 @@ import {
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
+import { verificarSaude } from './saude.js';
 import { validarVersao } from './versao.js';
 import {
   validarAssuntos, validarConteudoAssistente, validarDocumentos, validarFontes, validarPerguntas, validarServicos,
@@ -36,6 +38,7 @@ import {
 export const PREFIXO_ADMIN = '/__admin';
 export const ROTA_SESSAO = '/__admin/sessao';
 export const ROTA_CATALOGO = '/__admin/catalogo';
+export const ROTA_SAUDE = '/__admin/saude';
 export const ROTA_ASSUNTOS = '/__admin/assuntos';
 export const ROTA_SERVICOS = '/__admin/servicos';
 export const CABECALHO_TOKEN = 'x-admin-token';
@@ -372,6 +375,7 @@ export function criarManipuladorAdmin({
       }
 
       if (caminho === ROTA_CATALOGO) return responderJson(montarCatalogo());
+      if (caminho === ROTA_SAUDE) return responderJson(verificarSaude({ raiz, sistema, agora, diretorioTemporario }));
       const m = PADRAO_ROTA_VERSAO.exec(caminho);
       if (m) {
         const versao = montarVersaoAtual(m[1]);

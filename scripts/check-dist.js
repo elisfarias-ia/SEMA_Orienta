@@ -24,6 +24,8 @@ export const NOMES_ADMINISTRATIVOS = [
   // Seção "Fontes do serviço" e o cadastro de fontes (rota, revisão, funções e textos).
   'form-fonte', 'fonte-enviar', 'fontes-servico', 'Fontes do serviço', 'Nova fonte', 'Origem oficial identifica', 'revisaoFontes', 'validarCorpoFonte', 'montarFonte',
   'urlNormalizada', 'cadastrarFonte', 'validarFormFonte', 'corpoDaFonte', 'resumoDaFonte', 'carregarFontes',
+  // Saúde do sistema: rota, verificações e textos.
+  '/__admin/saude', 'verificarSaude', 'carregarSaude', 'normalizarSaude', 'formatarDataHoraBr', 'saude-verificar', 'Saúde do sistema', 'Verificar novamente',
 ];
 
 /** Lista os arquivos de um diretório, recursivamente. */

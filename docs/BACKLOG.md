@@ -111,6 +111,15 @@ Concluído (Passo 7E3B — simplificação inicial da administração):
 
 Pendente (ainda não iniciado): edição do conteúdo geral, documentos e perguntas, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
+## Sprint 1 — Engenharia assistida e saúde do sistema (tecnicamente concluída; em revisão na PR #4)
+
+Ver `docs/SPRINTS.md`.
+
+- [x] 8A: `CLAUDE.md`, metodologia e templates Git (integrado pela PR #2);
+- [x] 8B: saúde do sistema, com `GET /__admin/saude` e a página `/admin/saude/`, capacidade e estado separados, verificações reais e componentes inexistentes como não implementados, em contagem separada (MCP fora da saúde, por ser ferramenta de desenvolvimento). Conferência manual aprovada pela usuária em 13/11/2026 (`docs/TESTES_MANUAIS.md`, MH-01 a MH-12); falhas simuladas cobertas por testes automatizados;
+- [x] 8C: Playwright dos fluxos críticos, 13 testes somente leitura passando (`npm run test:e2e`);
+- [ ] 8D: documentação, evidências (`docs/EVIDENCIAS_SPRINT_1.md`) e fechamento da Sprint, em revisão na PR #4 (Issue #3 aberta até o merge).
+
 ## M3 — Conversa com IA
 
 - [ ] criar função serverless `/api/chat`;

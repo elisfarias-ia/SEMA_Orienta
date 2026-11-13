@@ -175,3 +175,32 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 - **Aprovados (conferência visual):** MS-01 a MS-05.
 - **Não executados manualmente:** MS-06 e MS-07, porque nenhum cadastro foi confirmado e nenhum assunto ou serviço real foi criado. A geração do id, a remoção de acentos, a colisão, o nome inválido e o bloqueio de id enviado pelo cliente estão **cobertos por testes automatizados** (`tests/admin-cadastro.test.js`, `tests/admin-cadastro-endpoint.test.js` e `tests/admin-interface.test.js`).
 - **Dados:** o catálogo real continua só com "Licenciamento Ambiental" e a LAC, sem alteração.
+
+### Execução — saúde do sistema (Passo 8B)
+
+- **Data:** 13/11/2026.
+- **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/` e `http://localhost:5173/admin/saude/`.
+- **Dimensão móvel:** 390 × 844 px.
+- **Validação:** conferência manual pela usuária.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| MH-01 | Abrir `/admin/` e `/admin/saude/` | Gestão de conteúdo e Saúde do sistema em páginas separadas | aprovado |
+| MH-02 | Usar a navegação do cabeçalho entre as páginas | Leva de uma página à outra e destaca a página atual | aprovado |
+| MH-03 | Ver a tela de cadastro | Sem a seção de saúde e com rolagem reduzida | aprovado |
+| MH-04 | Ver a lista de componentes | Aplicação, base, armazenamento e publicação apresentados | aprovado |
+| MH-05 | Ver banco de dados, IA externa e processamento de fontes | Aparecem como não implementados | aprovado |
+| MH-06 | Ver o MCP | Item retirado da saúde em ajuste posterior (não é componente operacional); conferência do resumo corrigido ainda pendente | substituído |
+| MH-07 | Clicar em "Verificar novamente" | A verificação é refeita e a tela é atualizada | aprovado |
+| MH-08 | Conferir as datas e horas | Formato DD-MM-AAAA HH:mm:ss | aprovado |
+| MH-09 | Procurar linhas duplicadas, caminhos, tokens e erros internos | Nenhum aparece | aprovado |
+| MH-10 | Usar a página em desktop e em 390 × 844 px | Sem rolagem horizontal | aprovado |
+| MH-11 | Navegar só pelo teclado | Ordem de foco coerente e foco visível | aprovado |
+| MH-12 | Abrir a interface pública | Sem alteração | aprovado |
+| MH-13 | Conferir o resumo corrigido em `/admin/saude/` (13/11/2026) | 6 operacionais, 0 degradados, 0 indisponíveis, 0 não verificados e 3 não implementados (processamento de fontes, banco e IA); MCP ausente da saúde; mensagem de que recurso não implementado não é falha; layout aprovado | aprovado |
+
+**Registro**
+
+- **Aprovados pela usuária:** MH-01 a MH-05 e MH-07 a MH-13 (MH-06 substituído, pois o MCP saiu da saúde; MH-13 confere o resumo corrigido).
+- **Cobertos só por testes automatizados:** os estados degradado e indisponível (falhas simuladas em cópias temporárias da base e do armazenamento), a proteção do endpoint e a ausência de vazamento. Não foram provocados manualmente.
+- **Dados:** nenhum dado real foi criado ou alterado.

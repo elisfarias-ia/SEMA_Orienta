@@ -13,6 +13,7 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Endpoint administrativo local | `services/admin/admin-endpoint.js` | Somente no `npm run dev`: leitura e cadastro de assunto e serviço; sem interface. |
 | Cadastro e transação | `services/admin/cadastro.js`, `transacao.js` | Montagem pura do assunto e do esqueleto do serviço; gravação tudo ou nada. |
 | Tela "Gestão de conteúdo" | `admin/` (`index.html`, `styles.css`, `admin.js`, `admin-logic.js`) | Somente no `npm run dev`, em `http://localhost:5173/admin/`; só cadastra assunto e serviço. |
+| Saúde do sistema | `services/admin/saude.js` e `admin/saude/` | Verificações reais por `GET /__admin/saude` e a página `/admin/saude/`; só no `npm run dev`. |
 
 Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC está na versão 1 (`services/lac/versoes/v1/`, em rascunho), migrada de forma estrutural, sem alteração material, sem hash, sem envio e sem decisões.
 
@@ -74,6 +75,26 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 - **Gravação:** a mesma transação do cadastro (ensaio em cópia temporária, escrita atômica, conferência pelo validador e desfazer integral em caso de falha). Atenção: ao gravar, o arquivo de fontes é reescrito no formato determinístico (chaves em ordem alfabética), então o primeiro cadastro real numa base com arquivo formatado à mão gera um diff de formatação.
 - **Tela:** a seção "Fontes do serviço" permite escolher um serviço, ver as fontes (título, tipo, órgão, situação de validação e "não publicada") e cadastrar uma nova, com resumo e confirmação antes de gravar. Depois do sucesso, a versão e a lista são recarregadas. Sem edição, exclusão, validação ou publicação de fontes.
 - **Atenção em testes manuais:** confirmar o cadastro de uma fonte altera o arquivo de fontes real do serviço escolhido. Para desfazer, restaure esse arquivo com o Git.
+
+## Saúde do sistema (Passo 8B)
+
+- **Endpoint:** `GET /__admin/saude`, só no `npm run dev`. Reutiliza o token, o `Host` e a origem do endpoint administrativo; aceita só `GET`, sem query nem corpo; responde com `Cache-Control: no-store` e erros genéricos.
+- **Capacidade e estado são coisas diferentes.** Capacidade: `implementado`, `nao_implementado` ou `nao_se_aplica`. Estado: `operacional`, `degradado`, `indisponivel` ou `nao_verificado`.
+- **Resultado:** para cada componente, `componente`, `capacidade`, `estado`, `verificadoEm` (horário ISO) e uma mensagem pública curta, de uma lista fixa. Nunca traz caminhos, erros internos, pilhas de execução, tokens, dados ou conteúdo da base.
+- **Verificações reais:**
+  - **Aplicação administrativa:** responde e a pasta do projeto está acessível.
+  - **Base:** assuntos, serviços e versões atuais válidos e referências consistentes (o mesmo validador da base).
+  - **Armazenamento:** teste de gravação e leitura numa pasta temporária **fora dos dados reais**, removida ao final.
+  - **Conteúdo publicado:** contagem real de versões publicadas e itens marcados como publicados (hoje, nenhum).
+  Uma falha em um componente vira `degradado` ou `indisponivel` naquele componente, sem derrubar os demais nem esconder o problema.
+- **Sem fingir funcionamento:** processamento de fontes, banco de dados e IA externa aparecem como `nao_implementado` e `nao_verificado`. O MCP não faz parte da saúde operacional: será documentado como ferramenta de desenvolvimento. O resumo conta Operacionais, Degradados, Indisponíveis e Não verificados só entre os componentes implementados e traz a contagem separada "Não implementados" (hoje 6 operacionais e 3 não implementados); "Não implementado" não é falha, e os cartões dizem isso. A contagem de `nao_se_aplica` só aparece se existir componente assim.
+- **Páginas separadas:** a saúde fica em `/admin/saude/` (`/admin/saude` redireciona), e a tela de cadastro, em `/admin/`, não tem mais essa seção. O cabeçalho das duas páginas tem a navegação "Gestão de conteúdo" e "Saúde do sistema", com a página atual destacada.
+- **Página de saúde:** resumo por estado, lista dos componentes (capacidade, estado, mensagem e hora), horário da última verificação, botão "Verificar novamente" e link para voltar à Gestão de conteúdo. Data e hora em DD-MM-AAAA HH:mm:ss (horário local); o horário ISO fica só na API. Usa o mesmo token em memória, `textContent` e nenhum armazenamento do navegador.
+- **Limites:** a verificação é sob demanda e local; não mede serviços externos nem desempenho. O endpoint e a página não existem no build nem no preview.
+
+## Testes de ponta a ponta (Passo 8C)
+
+`npm run test:e2e` (Playwright, só Chromium, em `e2e/`) abre o servidor local na porta 5173 e confere o chat público, `/admin/` e `/admin/saude/` no navegador. Os testes são somente leitura: bloqueiam qualquer requisição que não seja GET e qualquer rede externa, e não gravam serviços, assuntos nem fontes. Na saúde conferem a contagem separada de "Não implementados" (que não são falhas), a ausência de MCP, caminhos, tokens e erros internos, o botão "Verificar novamente" sem componentes duplicados, 390 px sem rolagem horizontal e o foco visível por Tab. Não substituem a conferência manual em `docs/TESTES_MANUAIS.md`.
 
 ## Armazenamento local
 

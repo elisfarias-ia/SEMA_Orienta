@@ -404,3 +404,118 @@ input[type='checkbox'] {
   font-size: 0.92rem;
   color: var(--texto-suave);
 }
+
+/* Saúde do sistema */
+.saude__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.saude__acoes .ajuda {
+  margin: 0;
+  flex: 1 1 14rem;
+  overflow-wrap: anywhere;
+}
+.saude {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.saude__item {
+  padding: 0.6rem 0.75rem;
+  background: var(--verde-50);
+  border: 1px solid var(--borda);
+  border-left-width: 6px;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.saude__item[data-estado='operacional'] {
+  border-left-color: var(--verde-700);
+}
+.saude__item[data-estado='degradado'] {
+  border-left-color: var(--foco);
+  background: var(--aviso-fundo);
+}
+.saude__item[data-estado='indisponivel'] {
+  border-left-color: var(--erro);
+  background: var(--erro-fundo);
+}
+.saude__item[data-estado='nao_verificado'] {
+  border-left-color: var(--texto-suave);
+  background: #fff;
+}
+.saude__nome {
+  margin: 0;
+  font-weight: 700;
+}
+.saude__linha {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  color: var(--texto-suave);
+}
+.saude__estado {
+  font-weight: 700;
+  color: var(--texto);
+}
+.saude__hora {
+  font-size: 0.85rem;
+}
+
+/* Navegação entre as páginas da administração */
+.navegacao {
+  max-width: 56rem;
+  margin: 0.6rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.navegacao__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.9rem;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.navegacao__link:hover {
+  background: var(--verde-700);
+}
+.navegacao__link--atual {
+  color: var(--verde-900);
+  background: #fff;
+  border-color: var(--verde-200);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+.navegacao__link--atual:hover {
+  background: #fff;
+}
+
+/* Página de saúde: conteúdo mais compacto */
+.pagina--compacta {
+  gap: 0.75rem;
+}
+.saude__resumo {
+  margin: 0.4rem 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.saude__rodape {
+  margin: 1rem 0 0;
+}
+a.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.pagina--compacta .saude {
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
