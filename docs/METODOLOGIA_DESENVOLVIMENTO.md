@@ -128,3 +128,10 @@ Documentos atualizados no ciclo do passo; commits de escopo objetivo em portugu�
 - **Base:** `npm run validate:services`.
 - **Build limpo:** `npm run build` e `node scripts/check-dist.js`.
 - **Higiene:** `git diff --check` e `git status` limpos após o push.
+
+## Atualização — Sprint 2
+
+- **Skills:** três skills do projeto versionadas; a `validar-sema-orienta` foi invocada de fato no fechamento.
+- **Subagentes:** `arquiteto-sema`, `auditor-sema` e `implementador-sema` versionados; a execução delegada nos passos 2B e 2C não tem relatório guardado no repositório (ver `docs/EVIDENCIAS_SPRINT_2.md`).
+- **MCP:** chamadas reais às quatro ferramentas registradas em `docs/EVIDENCIAS_MCP.md`.
+- **Hooks:** o Passo 2D foi cancelado por decisão da usuária. Nenhum hook foi implementado; a técnica de guardrails por hook segue **não demonstrada**.

@@ -68,3 +68,11 @@ Planejamento em ciclos curtos, com objetivo, backlog, critérios de aceite e Def
 ### Revisão e retrospectiva
 
 Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o motivo, os riscos que mudaram e os ajustes de processo em `docs/METODOLOGIA_DESENVOLVIMENTO.md`.
+
+## Sprint 2 — Engenharia assistida (skills, subagentes e MCP)
+
+- **Objetivo:** apoiar o desenvolvimento com skills, subagentes e um servidor MCP local de consulta da base, sem alterar a aplicação, os dados da LAC nem o que o chat público mostra.
+- **Entregas:** skills do projeto (`7459a28`), subagentes (`2875966`), MCP local somente leitura com quatro ferramentas (`d7fbc97`) e demonstração real (`d230773`).
+- **Cancelado:** o Passo 2D (hook de proteção) foi cancelado por decisão da usuária e não foi implementado.
+- **Verificação de fechamento:** validação da base, 570 testes (566 passaram, 4 ignorados), 13 testes e2e, build e `check-dist` sem falhas.
+- **Evidências:** `docs/EVIDENCIAS_SPRINT_2.md` e `docs/EVIDENCIAS_MCP.md`.

@@ -165,3 +165,13 @@ Ver `docs/SPRINTS.md`.
 3. proteção da chave e tratamento de falhas;
 4. checklist;
 5. acabamento visual e expansão.
+
+## Sprint 2 — Engenharia assistida (tecnicamente concluída; hook cancelado)
+
+Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
+
+- [x] 2A: skills do projeto (`.claude/skills/`).
+- [x] 2B: subagentes do projeto (`.claude/agents/`).
+- [x] 2C: MCP local somente leitura (`.mcp.json`, `scripts/mcp/`) e demonstração real (`docs/EVIDENCIAS_MCP.md`).
+- [ ] 2D: hook de proteção — cancelado por decisão da usuária; não implementado.
+- [x] Fechamento: evidências e verificação final (`docs/EVIDENCIAS_SPRINT_2.md`).
