@@ -42,11 +42,11 @@ test('I3. todos os plugins do Vite valem só no servidor de desenvolvimento; nã
   assert.doesNotMatch(texto, /\bdefine\b|envPrefix|VITE_|process\.env|loadEnv|server:\s*\{|host:|cors/);
 });
 
-test('I4. não há dependências novas, nem scripts novos, e a pasta administrativa pública e os dados privados não existem', () => {
+test('I4. não há dependências nem scripts além de vite, Playwright e dos testes e2e, e a pasta administrativa pública e os dados privados não existem', () => {
   const pacote = lerJson('package.json');
-  assert.deepEqual(Object.keys(pacote.devDependencies), ['vite']);
+  assert.deepEqual(Object.keys(pacote.devDependencies).sort(), ['@playwright/test', 'vite']);
   assert.equal(pacote.dependencies, undefined);
-  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'preview', 'test', 'validate:services']);
+  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
   assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'saude', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
