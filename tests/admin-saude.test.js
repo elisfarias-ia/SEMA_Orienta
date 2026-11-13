@@ -59,7 +59,7 @@ const MENSAGENS_PERMITIDAS = [
   /^Gravação e leitura num teste temporário funcionaram, sem tocar nos dados reais\.$/, /^O teste temporário de gravação e leitura falhou\.$/,
   /^Não foi possível contar o conteúdo publicado\.$/, /^Nenhum conteúdo está publicado\.$/, /^\d+ versões? publicadas? e \d+ itens? marcados? como publicados?\.$/,
   /^O processamento de fontes ainda não existe\.$/, /^Não há banco de dados: o conteúdo fica em arquivos do projeto\.$/, /^A integração com IA externa ainda não existe\.$/,
-  /^MCP não faz parte da operação do produto\.$/, /^A verificação falhou e o componente não pôde ser confirmado\.$/,
+  /^A verificação falhou e o componente não pôde ser confirmado\.$/,
 ];
 function conferirSemVazamento(r, ...proibidos) {
   const texto = JSON.stringify(r);
@@ -94,15 +94,13 @@ test('SH1. a base real é verificada: dez componentes, horário ISO, capacidade 
   conferirSemVazamento(r, RAIZ, os.tmpdir());
 });
 
-test('SH2. componentes que não existem não fingem funcionamento: nao_implementado ou nao_se_aplica, sempre nao_verificado', () => {
+test('SH2. componentes que não existem não fingem funcionamento: nao_implementado, sempre nao_verificado', () => {
   const r = verificarSaude({ raiz: RAIZ, agora });
   for (const id of ['processamento_fontes', 'banco_de_dados', 'ia_externa']) {
     assert.deepEqual([por(r, id).capacidade, por(r, id).estado], ['nao_implementado', 'nao_verificado'], id);
   }
-  assert.deepEqual([por(r, 'mcp').capacidade, por(r, 'mcp').estado], ['nao_se_aplica', 'nao_verificado']);
-  assert.match(por(r, 'mcp').mensagem, /não faz parte da operação do produto/);
   const naoExistem = r.componentes.filter((c) => c.capacidade !== 'implementado');
-  assert.equal(naoExistem.length, 4);
+  assert.equal(naoExistem.length, 3);
   assert.ok(naoExistem.every((c) => c.estado !== 'operacional' && c.estado !== 'degradado'));
 });
 
@@ -170,9 +168,9 @@ test('SH5. versão atual inválida ou registro ausente: serviços e versões deg
 test('SH6. raiz inválida: aplicação e base ficam indisponivel, sem erro nem vazamento, e os componentes inexistentes seguem como estão', () => {
   for (const raiz of ['relativa/invalida', '', undefined, '/caminho/que/nao/existe']) {
     const r = verificarSaude({ raiz, agora });
-    assert.equal(r.componentes.length, 10);
+    assert.equal(r.componentes.length, 9);
     assert.deepEqual(['aplicacao_administrativa', 'base_assuntos', 'base_servicos_versoes', 'conteudo_publicado'].map((id) => por(r, id).estado), Array(4).fill('indisponivel'), String(raiz));
-    assert.equal(por(r, 'mcp').estado, 'nao_verificado');
+    assert.equal(por(r, 'ia_externa').estado, 'nao_verificado');
     conferirSemVazamento(r, 'caminho/que');
   }
 });

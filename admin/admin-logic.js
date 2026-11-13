@@ -289,7 +289,6 @@ export const NOMES_DOS_COMPONENTES = Object.freeze({
   processamento_fontes: 'Processamento de fontes',
   banco_de_dados: 'Banco de dados',
   ia_externa: 'IA externa',
-  mcp: 'MCP',
 });
 const PADRAO_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
@@ -318,9 +317,16 @@ export function normalizarSaude(corpo) {
 }
 
 /** Resumo em uma frase: quantos componentes em cada estado. */
+export const NOTA_NAO_IMPLEMENTADO = 'Ainda não existe no sistema. Isso não é uma falha.';
+
+// Estados contam só componentes implementados; os não implementados têm contagem própria (e os "não se aplica" só aparecem se existirem).
 export function resumoDaSaude(componentes) {
-  const n = (estado) => componentes.filter((c) => c.estado === estado).length;
-  return `Operacionais: ${n('operacional')}. Degradados: ${n('degradado')}. Indisponíveis: ${n('indisponivel')}. Não verificados: ${n('nao_verificado')}.`;
+  const implementados = componentes.filter((c) => c.capacidade === 'implementado');
+  const n = (estado) => implementados.filter((c) => c.estado === estado).length;
+  const total = (capacidade) => componentes.filter((c) => c.capacidade === capacidade).length;
+  const partes = [`Operacionais: ${n('operacional')}.`, `Degradados: ${n('degradado')}.`, `Indisponíveis: ${n('indisponivel')}.`, `Não verificados: ${n('nao_verificado')}.`, `Não implementados: ${total('nao_implementado')}.`];
+  if (total('nao_se_aplica') > 0) partes.push(`Não se aplicam: ${total('nao_se_aplica')}.`);
+  return partes.join(' ');
 }
 
 // ---------- Catálogo ----------

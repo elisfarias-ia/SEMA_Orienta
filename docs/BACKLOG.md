@@ -116,7 +116,7 @@ Pendente (ainda não iniciado): edição do conteúdo geral, documentos e pergun
 Ver `docs/SPRINTS.md`.
 
 - [x] 8A: `CLAUDE.md`, metodologia e templates Git (integrado pela PR #2);
-- [x] 8B: saúde do sistema, com `GET /__admin/saude` e a página `/admin/saude/`, capacidade e estado separados, verificações reais, componentes inexistentes como não implementados e MCP como não aplicável. Conferência manual aprovada pela usuária em 13/11/2026 (`docs/TESTES_MANUAIS.md`, MH-01 a MH-12); falhas simuladas cobertas por testes automatizados;
+- [x] 8B: saúde do sistema, com `GET /__admin/saude` e a página `/admin/saude/`, capacidade e estado separados, verificações reais e componentes inexistentes como não implementados, em contagem separada (MCP fora da saúde, por ser ferramenta de desenvolvimento). Conferência manual aprovada pela usuária em 13/11/2026 (`docs/TESTES_MANUAIS.md`, MH-01 a MH-12); falhas simuladas cobertas por testes automatizados;
 - [ ] 8C: Playwright dos fluxos críticos;
 - [ ] 8D: documentação, evidências e fechamento da Sprint.
 

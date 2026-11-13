@@ -34,7 +34,6 @@ const corpoDeSaude = () => ({
     componente('processamento_fontes', 'nao_implementado', 'nao_verificado', 'O processamento de fontes ainda não existe.'),
     componente('banco_de_dados', 'nao_implementado', 'nao_verificado', 'Não há banco de dados.'),
     componente('ia_externa', 'nao_implementado', 'nao_verificado', 'A integração com IA externa ainda não existe.'),
-    componente('mcp', 'nao_se_aplica', 'nao_verificado', 'MCP não faz parte da operação do produto.'),
   ],
 });
 
@@ -64,27 +63,28 @@ test('SI2. rótulos de capacidade, estado e componente cobrem exatamente o que o
 test('SI3. a resposta é normalizada: só componentes, capacidades e estados conhecidos; campos extras e caminhos nunca chegam à tela', () => {
   const saude = normalizarSaude(corpoDeSaude());
   assert.equal(saude.geradoEm, ISO);
-  assert.equal(saude.componentes.length, 7);
+  assert.equal(saude.componentes.length, 6);
   assert.deepEqual(Object.keys(saude.componentes[0]).sort(), ['capacidade', 'estado', 'id', 'mensagem', 'nome', 'verificadoEm']);
   assert.equal(saude.componentes[0].nome, 'Aplicação administrativa');
   const suja = corpoDeSaude();
   suja.componentes.push({ ...componente('inventado', 'implementado', 'operacional'), caminho: '/segredo/interno' });
-  suja.componentes.push(componente('mcp', 'talvez', 'operacional'));
-  suja.componentes.push(componente('mcp', 'nao_se_aplica', 'ok'));
-  suja.componentes.push({ ...componente('mcp', 'nao_se_aplica', 'nao_verificado'), verificadoEm: 'ontem' });
+  suja.componentes.push(componente('ia_externa', 'talvez', 'operacional'));
+  suja.componentes.push(componente('ia_externa', 'nao_implementado', 'ok'));
+  suja.componentes.push({ ...componente('ia_externa', 'nao_implementado', 'nao_verificado'), verificadoEm: 'ontem' });
   suja.componentes.push(null);
   suja.componentes[0].caminho = '/segredo/interno';
   suja.componentes[0].mensagem = 'x'.repeat(500);
   const limpa = normalizarSaude(suja);
-  assert.equal(limpa.componentes.length, 7, 'só os sete válidos');
+  assert.equal(limpa.componentes.length, 6, 'só os seis válidos');
   assert.equal(limpa.componentes[0].mensagem.length, 200);
   assert.doesNotMatch(JSON.stringify(limpa), /segredo|inventado/);
   for (const ruim of [null, undefined, [], 'x', {}, { geradoEm: ISO }, { geradoEm: 'ontem', componentes: [] }, { geradoEm: ISO, componentes: [] }, { geradoEm: ISO, componentes: [{}] }]) assert.equal(normalizarSaude(ruim), null);
 });
 
 test('SI4. resumo em uma frase: quantos componentes em cada estado', () => {
-  assert.equal(resumoDaSaude(normalizarSaude(corpoDeSaude()).componentes), 'Operacionais: 1. Degradados: 1. Indisponíveis: 1. Não verificados: 4.');
-  assert.equal(resumoDaSaude([]), 'Operacionais: 0. Degradados: 0. Indisponíveis: 0. Não verificados: 0.');
+  assert.equal(resumoDaSaude(normalizarSaude(corpoDeSaude()).componentes), 'Operacionais: 1. Degradados: 1. Indisponíveis: 1. Não verificados: 0. Não implementados: 3.');
+  assert.equal(resumoDaSaude([]), 'Operacionais: 0. Degradados: 0. Indisponíveis: 0. Não verificados: 0. Não implementados: 0.');
+  assert.match(resumoDaSaude([{ capacidade: 'nao_se_aplica', estado: 'nao_verificado' }]), /Não verificados: 0..*Não se aplicam: 1.$/);
 });
 
 // ---------- Cliente ----------
@@ -109,7 +109,7 @@ test('SI5. verificar a saúde: GET com o token em memória, resposta normalizada
   await c.iniciarSessao();
   const r = await c.carregarSaude();
   assert.equal(r.ok, true);
-  assert.equal(r.saude.componentes.length, 7);
+  assert.equal(r.saude.componentes.length, 6);
   const chamada = s.chamadas.at(-1);
   assert.deepEqual([chamada.url, chamada.method, chamada.headers[CABECALHO_TOKEN], chamada.cache, chamada.credentials], ['/__admin/saude', 'GET', TOKEN, 'no-store', 'omit']);
   assert.equal(JSON.stringify(r).includes(TOKEN), false);
@@ -225,7 +225,7 @@ test('SI11. renderização real da página: mostra cada componente com capacidad
   try {
     await tela.esperar(() => tela.el('saude-lista').filhos.length > 0);
     const itens = tela.el('saude-lista').filhos[0].filhos;
-    assert.equal(itens.length, 7);
+    assert.equal(itens.length, 6);
     const hora = formatarDataHoraBr(ISO, criarData);
     const primeiro = itens[0];
     assert.equal(primeiro.dataset.estado, 'operacional');
@@ -233,12 +233,12 @@ test('SI11. renderização real da página: mostra cada componente com capacidad
       'Aplicação administrativa', 'Capacidade: Implementado', 'Estado: Operacional', 'A aplicação administrativa local está respondendo.', `Verificado em ${hora}`,
     ]);
     assert.match(hora, /^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/);
-    const mcp = itens[6];
-    assert.deepEqual([mcp.dataset.estado, mcp.filhos[1].textContent, mcp.filhos[2].textContent], ['nao_verificado', 'Capacidade: Não se aplica', 'Estado: Não verificado']);
+    assert.equal(itens[5].filhos[4].textContent, 'Ainda não existe no sistema. Isso não é uma falha.');
+    assert.equal(primeiro.filhos.length, 5, 'só os não implementados têm a nota');
     assert.equal(itens[3].filhos[1].textContent, 'Capacidade: Não implementado');
     assert.equal(itens[1].dataset.estado, 'degradado');
     assert.equal(itens[2].dataset.estado, 'indisponivel');
-    assert.equal(tela.el('saude-resumo').textContent, 'Operacionais: 1. Degradados: 1. Indisponíveis: 1. Não verificados: 4.');
+    assert.equal(tela.el('saude-resumo').textContent, 'Operacionais: 1. Degradados: 1. Indisponíveis: 1. Não verificados: 0. Não implementados: 3.');
     assert.equal(tela.el('saude-quando').textContent, `Última verificação: ${hora}.`);
     assert.equal(tela.el('saude-lista').getAttribute('aria-busy'), 'false');
     assert.equal(tela.el('saude-verificar').disabled, false);
@@ -253,7 +253,7 @@ test('SI11. renderização real da página: mostra cada componente com capacidad
     await Promise.all([a, b]);
     assert.equal(tela.chamadas.filter((c) => c.url === ROTAS.saude).length, 2, 'o segundo clique simultâneo não gerou nova chamada');
     assert.equal(tela.el('saude-verificar').disabled, false);
-    assert.equal(tela.el('saude-lista').filhos[0].filhos.length, 7);
+    assert.equal(tela.el('saude-lista').filhos[0].filhos.length, 6);
     // O que aparece na tela não tem token nem ids técnicos.
     const tudo = [...tela.elementos.values()].map((e) => e.textContent).join('\n');
     assert.equal(tudo.includes(TOKEN), false);

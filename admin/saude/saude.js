@@ -2,7 +2,7 @@
 // funções de formatação de admin-logic.js; as regras e os estados vêm do endpoint GET /__admin/saude, sem duplicação aqui.
 // Só textContent e APIs seguras do DOM (nada de HTML montado como texto), sem armazenamento do navegador, sem cookies e sem log.
 
-import { CAPACIDADES_SAUDE, ESTADOS_SAUDE, criarClienteAdmin, formatarDataHoraBr, MENSAGENS, resumoDaSaude } from '../admin-logic.js';
+import { CAPACIDADES_SAUDE, ESTADOS_SAUDE, criarClienteAdmin, formatarDataHoraBr, MENSAGENS, NOTA_NAO_IMPLEMENTADO, resumoDaSaude } from '../admin-logic.js';
 
 const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos) });
 const $ = (id) => document.getElementById(id);
@@ -32,6 +32,7 @@ function renderizar(saude) {
     item.append(criar('p', 'saude__linha', `Capacidade: ${CAPACIDADES_SAUDE[c.capacidade]}`));
     item.append(criar('p', 'saude__linha saude__estado', `Estado: ${ESTADOS_SAUDE[c.estado]}`));
     item.append(criar('p', 'saude__linha', c.mensagem));
+    if (c.capacidade === 'nao_implementado') item.append(criar('p', 'saude__linha saude__nota', NOTA_NAO_IMPLEMENTADO));
     item.append(criar('p', 'saude__linha saude__hora', `Verificado em ${formatarDataHoraBr(c.verificadoEm, criarData)}`));
     lista.append(item);
   }

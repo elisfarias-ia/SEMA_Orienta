@@ -20,7 +20,7 @@ export const CAPACIDADES = Object.freeze(['implementado', 'nao_implementado', 'n
 export const ESTADOS = Object.freeze(['operacional', 'degradado', 'indisponivel', 'nao_verificado']);
 export const COMPONENTES = Object.freeze([
   'aplicacao_administrativa', 'base_assuntos', 'base_servicos_versoes', 'base_referencias', 'armazenamento', 'conteudo_publicado',
-  'processamento_fontes', 'banco_de_dados', 'ia_externa', 'mcp',
+  'processamento_fontes', 'banco_de_dados', 'ia_externa',
 ]);
 
 const plural = (n, singular, pluralTexto) => `${n} ${n === 1 ? singular : pluralTexto}`;
@@ -147,7 +147,6 @@ export function verificarSaude({ raiz, sistema = fs, agora = () => new Date(), d
   componentes.push(item('processamento_fontes', 'nao_implementado', 'nao_verificado', 'O processamento de fontes ainda não existe.'));
   componentes.push(item('banco_de_dados', 'nao_implementado', 'nao_verificado', 'Não há banco de dados: o conteúdo fica em arquivos do projeto.'));
   componentes.push(item('ia_externa', 'nao_implementado', 'nao_verificado', 'A integração com IA externa ainda não existe.'));
-  componentes.push(item('mcp', 'nao_se_aplica', 'nao_verificado', 'MCP não faz parte da operação do produto.'));
 
   return { geradoEm: agora().toISOString(), componentes };
 }
