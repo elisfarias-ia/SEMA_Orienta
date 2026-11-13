@@ -24,6 +24,7 @@ const TOKEN = 'ab'.repeat(32);
 
 // ---------- Servidor simulado (nenhuma rede) ----------
 
+const identificador = (nome) => nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 function servidorFalso({ assuntos, servicos, estados = {}, token = TOKEN, portao = null, respostas = {} } = {}) {
   const estado = {
     assuntos: assuntos ?? [{ id: 'assunto-ficticio', nome: 'Assunto Fictício', descricao: 'Descrição fictícia.', ativo: true, criadoEm: '2026-11-10', atualizadoEm: '2026-11-10' }],
@@ -42,13 +43,14 @@ function servidorFalso({ assuntos, servicos, estados = {}, token = TOKEN, portao
     if (portao) await portao;
     if (url === ROTAS.assuntos && opcoes.method === 'POST') {
       const c = JSON.parse(opcoes.body);
-      const a = { ...c, ativo: true, criadoEm: '2026-11-10', atualizadoEm: '2026-11-10' };
+      const a = { id: identificador(c.nome), ...c, ativo: true, criadoEm: '2026-11-10', atualizadoEm: '2026-11-10' };
       estado.assuntos.push(a);
       return resposta(201, { assunto: a });
     }
     if (url === ROTAS.servicos && opcoes.method === 'POST') {
       const c = JSON.parse(opcoes.body);
-      const s = { id: c.id, assuntoId: c.assuntoId, nome: c.nome, sigla: c.sigla ?? 'PENDENTE', versaoAtualId: `${c.id}-v1`, versaoPublicadaId: null, statusValidacao: 'rascunho', publicado: false };
+      const novoId = identificador(c.nome);
+      const s = { id: novoId, assuntoId: c.assuntoId, nome: c.nome, sigla: c.sigla ?? 'PENDENTE', versaoAtualId: `${novoId}-v1`, versaoPublicadaId: null, statusValidacao: 'rascunho', publicado: false };
       estado.servicos.push(s);
       return resposta(201, { servico: { ...s, estado: 'rascunho' } });
     }
@@ -72,7 +74,7 @@ test('AI1. o token vem de /__admin/sessao, é enviado em X-Admin-Token e nunca �
   assert.equal(chamadas[0].url, ROTAS.sessao);
   assert.equal(chamadas[0].headers[CABECALHO_TOKEN], undefined, 'a chamada de sessão não leva token');
   const catalogo = await cliente.carregarCatalogo();
-  const cadastro = await cliente.cadastrar('assunto', { id: 'novo-ficticio', nome: 'Novo Fictício', descricao: 'Descrição.' });
+  const cadastro = await cliente.cadastrar('assunto', { nome: 'Novo Fictício', descricao: 'Descrição.' });
   assert.equal(catalogo.ok && cadastro.ok, true);
   for (const c of chamadas.slice(1)) {
     assert.equal(c.headers[CABECALHO_TOKEN], TOKEN, c.url);
@@ -111,7 +113,7 @@ test('AI2. sem sessão não há chamadas protegidas nem gravação; falhas da se
 
 // ---------- Catálogo ----------
 
-test('AI3. o catálogo é carregado e agrupado por assunto, com versão atual, estado e publicação', async () => {
+test('AI3. o catálogo é carregado e agrupado por assunto, só com nome, descrição, sigla, situação e publicação (sem ids nem versões)', async () => {
   const { cliente, chamadas } = await clienteComSessao({
     assuntos: [{ id: 'a-um', nome: 'Assunto Um', descricao: 'D1', ativo: true }, { id: 'a-dois', nome: 'Assunto Dois', descricao: 'D2', ativo: false }],
     servicos: [
@@ -125,14 +127,16 @@ test('AI3. o catálogo é carregado e agrupado por assunto, com versão atual, e
   assert.equal(r.ok, true);
   assert.deepEqual(r.estados, { 's-1': 'rascunho', 's-2': 'em_validacao', 's-3': 'rascunho' });
   const grupos = agruparCatalogo(r.catalogo, r.estados);
-  assert.deepEqual(grupos.map((g) => g.assunto && g.assunto.id), ['a-um', 'a-dois', null]);
-  assert.deepEqual(grupos[0].servicos.map((s) => [s.id, s.nome, s.sigla, s.versaoAtualId, s.estado, s.publicacao]), [
-    ['s-1', 'Serviço 1', 'S1', 's-1-v1', 'Rascunho', 'Não publicada'],
-    ['s-2', 'Serviço 2', 'PENDENTE', 's-2-v3', 'Em validação', 'Publicada (s-2-v2)'],
+  assert.deepEqual(grupos.map((g) => g.assunto && g.assunto.nome), ['Assunto Um', 'Assunto Dois', null]);
+  assert.deepEqual(grupos[0].servicos, [
+    { nome: 'Serviço 1', sigla: 'S1', situacao: 'Rascunho', publicacao: 'Não publicado' },
+    { nome: 'Serviço 2', sigla: null, situacao: 'Em análise', publicacao: 'Publicado' },
   ]);
+  assert.deepEqual(grupos[0].assunto, { nome: 'Assunto Um', descricao: 'D1', ativo: true });
   assert.deepEqual(grupos[1].servicos, []);
   assert.equal(grupos[1].assunto.ativo, false);
-  assert.deepEqual(grupos[2].servicos.map((s) => s.id), ['s-3']);
+  assert.deepEqual(grupos[2].servicos.map((s) => s.nome), ['Serviço 3']);
+  assert.doesNotMatch(JSON.stringify(grupos), /s-1|s-2|s-3|a-um|a-dois|-v1|-v2|-v3|sem-assunto/, 'nenhum id nem versão sai do catálogo de exibição');
   assert.equal(chamadas.filter((c) => /versao-atual$/.test(c.url)).length, 3, 'uma consulta de estado por serviço');
   assert.ok(chamadas.every((c) => c.method === 'GET' || c.method === undefined || c.method === 'POST'));
 });
@@ -142,7 +146,7 @@ test('AI4. estado indisponível, catálogo inválido e falhas do catálogo viram
   const r = await cliente.carregarCatalogo();
   assert.equal(r.ok, true);
   assert.equal(r.estados['servico-ficticio'], null);
-  assert.equal(agruparCatalogo(r.catalogo, r.estados)[0].servicos[0].estado, 'Estado indisponível');
+  assert.equal(agruparCatalogo(r.catalogo, r.estados)[0].servicos[0].situacao, 'Estado indisponível');
   for (const [fetchImpl, mensagem] of [
     [async () => ({ status: 200, json: async () => ({ assuntos: 'x', servicos: [] }) }), MENSAGENS.catalogo],
     [async () => ({ status: 500, json: async () => ({ erro: 'indisponivel' }) }), MENSAGENS.catalogo],
@@ -159,7 +163,8 @@ test('AI4. estado indisponível, catálogo inválido e falhas do catálogo viram
   assert.equal(catalogoValido({ assuntos: [{}], servicos: [] }), false);
   assert.equal(rotuloEstado('inexistente'), 'Estado indisponível');
   assert.equal(rotuloEstado('__proto__'), 'Estado indisponível');
-  assert.equal(rotuloPublicacao(null), 'Não publicada');
+  assert.equal(rotuloPublicacao(null), 'Não publicado');
+  assert.equal(rotuloPublicacao('x-v2'), 'Publicado');
   assert.deepEqual(agruparCatalogo(null), []);
 });
 
@@ -173,33 +178,37 @@ test('AI5. termos equivalentes: um por linha, sem espaços extras nem linhas vaz
   assert.equal(normalizar('  Ação   Ambiental '), 'acao ambiental');
 });
 
-test('AI6. validação do formulário de assunto: campos obrigatórios, formato, limites e dados pessoais', () => {
-  const ok = validarFormAssunto({ id: ' assunto-novo ', nome: '  Nome   Fictício ', descricao: ' Descrição fictícia. ' });
-  assert.deepEqual(ok, { ok: true, dados: { id: 'assunto-novo', nome: 'Nome Fictício', descricao: 'Descrição fictícia.' } });
+test('AI6. validação do formulário de assunto: só nome e descrição, formato, limites e dados pessoais', () => {
+  const ok = validarFormAssunto({ nome: '  Nome   Fictício ', descricao: ' Descrição fictícia. ' });
+  assert.deepEqual(ok, { ok: true, dados: { nome: 'Nome Fictício', descricao: 'Descrição fictícia.' } });
   const erros = (v) => validarFormAssunto(v).erros;
-  assert.deepEqual(Object.keys(erros({})).sort(), ['descricao', 'id', 'nome']);
-  assert.match(erros({ id: 'ID Ruim', nome: 'N', descricao: 'D' }).id, /minúsculas/);
-  assert.match(erros({ id: 'a'.repeat(LIMITES.id + 1), nome: 'N', descricao: 'D' }).id, /máximo/);
-  assert.match(erros({ id: 'a', nome: '   ', descricao: 'D' }).nome, /Preencha o nome/);
-  assert.match(erros({ id: 'a', nome: 'x'.repeat(LIMITES.nome + 1), descricao: 'D' }).nome, /máximo 120/);
-  assert.match(erros({ id: 'a', nome: 'N', descricao: 'd'.repeat(LIMITES.descricao + 1) }).descricao, /máximo 1000/);
-  assert.match(erros({ id: 'a', nome: 'N', descricao: 'linha\ninvalida' }).descricao, /não permitidos/);
-  assert.match(erros({ id: 'a', nome: 'N', descricao: `Contato ${['pessoa', 'exemplo.test'].join('@')}` }).descricao, /e-mail/);
-  assert.match(erros({ id: 'a', nome: 'N', descricao: `Ligue ${['(65)', '99999-0000'].join(' ')}` }).descricao, /telefone/);
-  assert.deepEqual(Object.keys(validarFormAssunto(null).erros).sort(), ['descricao', 'id', 'nome']);
+  assert.deepEqual(Object.keys(erros({})).sort(), ['descricao', 'nome']);
+  assert.match(erros({ nome: '   ', descricao: 'D' }).nome, /Preencha o nome/);
+  assert.match(erros({ nome: '123', descricao: 'D' }).nome, /ao menos uma letra/);
+  assert.match(erros({ nome: '!!! ---', descricao: 'D' }).nome, /ao menos uma letra/);
+  assert.equal(validarFormAssunto({ nome: '2ª Via', descricao: 'D' }).ok, true);
+  assert.match(erros({ nome: 'x'.repeat(LIMITES.nome + 1), descricao: 'D' }).nome, /máximo 120/);
+  assert.match(erros({ nome: 'N', descricao: 'd'.repeat(LIMITES.descricao + 1) }).descricao, /máximo 1000/);
+  assert.match(erros({ nome: 'N', descricao: 'linha\ninvalida' }).descricao, /não permitidos/);
+  assert.match(erros({ nome: 'N', descricao: `Contato ${['pessoa', 'exemplo.test'].join('@')}` }).descricao, /e-mail/);
+  assert.match(erros({ nome: 'N', descricao: `Ligue ${['(65)', '99999-0000'].join(' ')}` }).descricao, /telefone/);
+  assert.deepEqual(Object.keys(validarFormAssunto(null).erros).sort(), ['descricao', 'nome']);
+  // Um id digitado (ou colado) é ignorado: o formulário não tem esse campo e os dados não o carregam.
+  assert.equal('id' in validarFormAssunto({ id: 'meu-id', nome: 'N', descricao: 'D' }).dados, false);
 });
 
-test('AI7. validação do formulário de serviço: assunto ativo, id, nome, sigla opcional e termos', () => {
-  const base = { assuntoId: 'assunto-ficticio', id: 'servico-novo', nome: 'Serviço Novo', sigla: '', termosEquivalentes: 'primeiro termo\nSegundo Termo' };
+test('AI7. validação do formulário de serviço: assunto ativo, nome, sigla opcional e termos', () => {
+  const base = { assuntoId: 'assunto-ficticio', nome: 'Serviço Novo', sigla: '', termosEquivalentes: 'primeiro termo\nSegundo Termo' };
   const ok = validarFormServico(base, assuntosAtivos);
-  assert.deepEqual(ok, { ok: true, dados: { assuntoId: 'assunto-ficticio', id: 'servico-novo', nome: 'Serviço Novo', sigla: null, termosEquivalentes: ['primeiro termo', 'Segundo Termo'] } });
+  assert.deepEqual(ok, { ok: true, dados: { assuntoId: 'assunto-ficticio', nome: 'Serviço Novo', sigla: null, termosEquivalentes: ['primeiro termo', 'Segundo Termo'] } });
   assert.equal(validarFormServico({ ...base, sigla: ' SN ' }, assuntosAtivos).dados.sigla, 'SN');
   const erros = (v) => validarFormServico({ ...base, ...v }, assuntosAtivos).erros;
   assert.match(erros({ assuntoId: '' }).assuntoId, /Escolha o assunto/);
   assert.match(erros({ assuntoId: 'inexistente' }).assuntoId, /existente e ativo/);
   assert.match(erros({ assuntoId: 'inativo-ficticio' }).assuntoId, /existente e ativo/);
-  assert.match(erros({ id: 'Id Ruim' }).id, /minúsculas/);
   assert.match(erros({ nome: '' }).nome, /Preencha o nome/);
+  assert.match(erros({ nome: '123' }).nome, /ao menos uma letra/);
+  assert.equal('id' in validarFormServico({ ...base, id: 'meu-id' }, assuntosAtivos).dados, false);
   assert.match(erros({ sigla: 'x'.repeat(21) }).sigla, /sigla/);
   assert.match(erros({ sigla: ['a', 'b.cc'].join('@') }).sigla, /sigla/);
   assert.match(erros({ termosEquivalentes: '  \n \n' }).termosEquivalentes, /ao menos um/);
@@ -211,20 +220,22 @@ test('AI7. validação do formulário de serviço: assunto ativo, id, nome, sigl
   assert.equal(validarFormServico(null, assuntosAtivos).ok, false);
 });
 
-test('AI8. o corpo enviado tem somente os campos permitidos (sigla só quando informada) e o resumo nunca traz o token', () => {
-  assert.deepEqual(corpoDoAssunto({ id: 'a', nome: 'N', descricao: 'D', ativo: false, publicado: true }), { id: 'a', nome: 'N', descricao: 'D' });
+test('AI8. o corpo enviado tem somente os campos permitidos, nunca o id (sigla só quando informada), e o resumo não traz id nem token', () => {
+  assert.deepEqual(corpoDoAssunto({ id: 'a', nome: 'N', descricao: 'D', ativo: false, publicado: true }), { nome: 'N', descricao: 'D' });
   const dados = { assuntoId: 'x', id: 'y', nome: 'Z', sigla: null, termosEquivalentes: ['t'], publicado: true, estado: 'publicado' };
-  assert.deepEqual(corpoDoServico(dados), { id: 'y', assuntoId: 'x', nome: 'Z', termosEquivalentes: ['t'] });
-  assert.deepEqual(corpoDoServico({ ...dados, sigla: 'S' }), { id: 'y', assuntoId: 'x', nome: 'Z', termosEquivalentes: ['t'], sigla: 'S' });
+  assert.deepEqual(corpoDoServico(dados), { assuntoId: 'x', nome: 'Z', termosEquivalentes: ['t'] });
+  assert.deepEqual(corpoDoServico({ ...dados, sigla: 'S' }), { assuntoId: 'x', nome: 'Z', termosEquivalentes: ['t'], sigla: 'S' });
   const resumoA = resumoDoAssunto({ id: 'a', nome: 'N', descricao: 'D' });
-  assert.deepEqual(resumoA.map((l) => l.rotulo), ['Identificador', 'Nome', 'Descrição']);
+  assert.deepEqual(resumoA, [{ rotulo: 'Nome', valor: 'N' }, { rotulo: 'Descrição', valor: 'D' }]);
   const resumoS = resumoDoServico({ ...dados, sigla: null, termosEquivalentes: ['um', 'dois'] }, [{ id: 'x', nome: 'Assunto X' }]);
-  assert.deepEqual(resumoS.map((l) => l.rotulo), ['Assunto', 'Identificador', 'Nome', 'Sigla', 'Termos equivalentes', 'Situação inicial']);
-  assert.equal(resumoS[0].valor, 'Assunto X (x)');
-  assert.match(resumoS[3].valor, /PENDENTE/);
-  assert.equal(resumoS[4].valor, 'um; dois');
-  assert.match(resumoS[5].valor, /rascunho.*não publicada/);
-  assert.equal(JSON.stringify([resumoA, resumoS]).includes(TOKEN), false);
+  assert.deepEqual(resumoS.map((l) => l.rotulo), ['Assunto', 'Nome', 'Sigla', 'Termos equivalentes', 'Situação inicial']);
+  assert.equal(resumoS[0].valor, 'Assunto X');
+  assert.match(resumoS[2].valor, /PENDENTE/);
+  assert.equal(resumoS[3].valor, 'um; dois');
+  assert.match(resumoS[4].valor, /Rascunho.*não publicado/);
+  const texto = JSON.stringify([resumoA, resumoS]);
+  assert.equal(texto.includes(TOKEN), false);
+  assert.doesNotMatch(texto, /Identificador|"y"|\(x\)/, 'nenhum id técnico no painel de confirmação');
 });
 
 // ---------- Confirmação, duplicidade, sucesso e erros ----------
@@ -232,7 +243,7 @@ test('AI8. o corpo enviado tem somente os campos permitidos (sigla só quando in
 test('AI9. nada é gravado sem confirmação: validar e resumir não chamam o endpoint, e Voltar descarta os dados', async () => {
   const { cliente, chamadas } = await clienteComSessao();
   const antes = chamadas.length;
-  const r = validarFormAssunto({ id: 'novo-ficticio', nome: 'Novo Fictício', descricao: 'Descrição.' });
+  const r = validarFormAssunto({ nome: 'Novo Fictício', descricao: 'Descrição.' });
   resumoDoAssunto(r.dados);
   assert.equal(chamadas.length, antes, 'validar e resumir não fazem requisição');
   assert.equal(chamadas.some((c) => c.method === 'POST'), false, '"Voltar" não grava');
@@ -252,17 +263,17 @@ test('AI10. envio duplicado é bloqueado enquanto há gravação em andamento e 
   let abrir;
   const portao = new Promise((r) => { abrir = r; });
   const { cliente, chamadas } = await clienteComSessao({ portao });
-  const corpo = { id: 'novo-ficticio', nome: 'Novo Fictício', descricao: 'Descrição.' };
+  const corpo = { nome: 'Novo Fictício', descricao: 'Descrição.' };
   const primeira = cliente.cadastrar('assunto', corpo);
   await Promise.resolve();
   assert.equal(cliente.gravando(), true);
-  const segunda = await cliente.cadastrar('assunto', { ...corpo, id: 'outro-ficticio', nome: 'Outro' });
+  const segunda = await cliente.cadastrar('assunto', { ...corpo, nome: 'Outro' });
   assert.deepEqual(segunda, { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento });
   assert.equal(chamadas.filter((c) => c.method === 'POST').length, 1, 'só um POST foi enviado');
   abrir();
   assert.equal((await primeira).ok, true);
   assert.equal(cliente.gravando(), false);
-  assert.equal((await cliente.cadastrar('assunto', { ...corpo, id: 'terceiro-ficticio', nome: 'Terceiro' })).ok, true);
+  assert.equal((await cliente.cadastrar('assunto', { ...corpo, nome: 'Terceiro' })).ok, true);
   // Liberação também após falha de rede e após erro do servidor.
   const falha = criarClienteAdmin({ fetchImpl: async (url, o) => { if (url === ROTAS.sessao) return { status: 200, json: async () => ({ token: TOKEN }) }; throw new Error('rede'); } });
   await falha.iniciarSessao();
@@ -272,8 +283,8 @@ test('AI10. envio duplicado é bloqueado enquanto há gravação em andamento e 
 
 test('AI11. a requisição de cadastro é um POST JSON para a rota certa, com o token e somente os dados do formulário', async () => {
   const { cliente, chamadas } = await clienteComSessao();
-  await cliente.cadastrar('servico', corpoDoServico({ assuntoId: 'assunto-ficticio', id: 'novo-ficticio', nome: 'Novo', sigla: null, termosEquivalentes: ['um'] }));
-  await cliente.cadastrar('assunto', corpoDoAssunto({ id: 'outro-ficticio', nome: 'Outro', descricao: 'D' }));
+  await cliente.cadastrar('servico', corpoDoServico({ assuntoId: 'assunto-ficticio', nome: 'Novo', sigla: null, termosEquivalentes: ['um'] }));
+  await cliente.cadastrar('assunto', corpoDoAssunto({ nome: 'Outro', descricao: 'D' }));
   const posts = chamadas.filter((c) => c.method === 'POST');
   assert.deepEqual(posts.map((p) => p.url), [ROTAS.servicos, ROTAS.assuntos]);
   for (const p of posts) {
@@ -281,7 +292,8 @@ test('AI11. a requisição de cadastro é um POST JSON para a rota certa, com o 
     assert.equal(p.headers[CABECALHO_TOKEN], TOKEN);
     assert.equal(p.body.includes(TOKEN), false, 'o token não vai no corpo');
   }
-  assert.deepEqual(posts[0].corpo, { id: 'novo-ficticio', assuntoId: 'assunto-ficticio', nome: 'Novo', termosEquivalentes: ['um'] });
+  assert.deepEqual(posts[0].corpo, { assuntoId: 'assunto-ficticio', nome: 'Novo', termosEquivalentes: ['um'] });
+  for (const p of posts) assert.equal('id' in p.corpo, false, 'o cliente nunca envia id');
   assert.deepEqual((await cliente.cadastrar('tipo-invalido', {})), { ok: false, mensagem: MENSAGENS.generica });
   assert.equal(chamadas.filter((c) => c.method === 'POST').length, 2);
 });
@@ -309,7 +321,7 @@ test('AI12. códigos do endpoint viram mensagens curtas em português, sem repet
     const s = servidorFalso({ respostas: { [ROTAS.assuntos]: async () => ({ status, json: async () => corpo }) } });
     const c = criarClienteAdmin({ fetchImpl: s.fetchImpl });
     await c.iniciarSessao();
-    assert.deepEqual(await c.cadastrar('assunto', { id: 'a-ficticio', nome: 'A', descricao: 'D' }), { ok: false, mensagem });
+    assert.deepEqual(await c.cadastrar('assunto', { nome: 'A', descricao: 'D' }), { ok: false, mensagem });
   }
   // Texto hostil na resposta nunca chega à mensagem; status desconhecido é genérico.
   const hostil = { erro: '<img src=x onerror=alert(1)> SEGREDO-INTERNO /caminho/secreto', campo: '<script>x</script>', campos: ['<b>SEGREDO-INTERNO</b>', 'id'] };
@@ -323,14 +335,14 @@ test('AI12. códigos do endpoint viram mensagens curtas em português, sem repet
 
 test('AI13. sucesso: devolve só id e nome do item e o catálogo recarregado passa a mostrar o novo item', async () => {
   const { cliente, estado } = await clienteComSessao();
-  const a = await cliente.cadastrar('assunto', { id: 'novo-assunto', nome: 'Novo Assunto', descricao: 'Descrição.' });
+  const a = await cliente.cadastrar('assunto', { nome: 'Novo Assunto', descricao: 'Descrição.' });
   assert.deepEqual(a, { ok: true, item: { id: 'novo-assunto', nome: 'Novo Assunto' } });
-  const s = await cliente.cadastrar('servico', { id: 'novo-servico', assuntoId: 'novo-assunto', nome: 'Novo Serviço', termosEquivalentes: ['novo'] });
+  const s = await cliente.cadastrar('servico', { assuntoId: 'novo-assunto', nome: 'Novo Serviço', termosEquivalentes: ['novo'] });
   assert.deepEqual(s, { ok: true, item: { id: 'novo-servico', nome: 'Novo Serviço' } });
   const r = await cliente.carregarCatalogo();
   const grupos = agruparCatalogo(r.catalogo, r.estados);
-  assert.deepEqual(grupos.map((g) => g.assunto.id), ['assunto-ficticio', 'novo-assunto']);
-  assert.deepEqual(grupos[1].servicos.map((x) => [x.id, x.versaoAtualId, x.estado, x.publicacao]), [['novo-servico', 'novo-servico-v1', 'Rascunho', 'Não publicada']]);
+  assert.deepEqual(grupos.map((g) => g.assunto.nome), ['Assunto Fictício', 'Novo Assunto']);
+  assert.deepEqual(grupos[1].servicos, [{ nome: 'Novo Serviço', sigla: null, situacao: 'Rascunho', publicacao: 'Não publicado' }]);
   assert.equal(estado.servicos.length, 2);
   // Resposta 201 sem o item esperado é tratada como falha genérica, não como sucesso.
   const sem = servidorFalso({ respostas: { [ROTAS.assuntos]: async () => ({ status: 201, json: async () => ({}) }) } });
@@ -388,7 +400,7 @@ test('AI17. rótulos associados, ids únicos, descrições existentes, status ao
   const ids = [...HTML.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(ids).size, ids.length, 'ids únicos');
   const controles = [...HTML.matchAll(/<(input|select|textarea)\b[^>]*\sid="([^"]+)"[^>]*>/g)].map((m) => m[2]);
-  assert.deepEqual(controles.sort(), ['assunto-descricao', 'assunto-id', 'assunto-nome', 'fonte-data', 'fonte-descricao', 'fonte-dispositivo', 'fonte-id', 'fonte-oficial', 'fonte-orgao', 'fonte-tipo', 'fonte-titulo', 'fonte-url', 'fontes-servico', 'servico-assunto', 'servico-id', 'servico-nome', 'servico-sigla', 'servico-termos']);
+  assert.deepEqual(controles.sort(), ['assunto-descricao', 'assunto-nome', 'fonte-data', 'fonte-descricao', 'fonte-dispositivo', 'fonte-id', 'fonte-oficial', 'fonte-orgao', 'fonte-tipo', 'fonte-titulo', 'fonte-url', 'fontes-servico', 'servico-assunto', 'servico-nome', 'servico-sigla', 'servico-termos']);
   for (const id of controles) assert.match(HTML, new RegExp(`<label for="${id}">`), `label de ${id}`);
   for (const m of HTML.matchAll(/aria-(?:describedby|labelledby)="([^"]+)"/g)) {
     for (const ref of m[1].split(' ')) assert.ok(ids.includes(ref), `aria referencia ${ref}`);
@@ -492,4 +504,39 @@ test('AI22. a pasta admin/ tem só os quatro arquivos da tela; nenhum dado real,
   assert.deepEqual(lerJson('services', 'assuntos.json').assuntos.map((a) => a.nome), ['Licenciamento Ambiental']);
   assert.deepEqual(lerJson('services', 'registry.json').servicos.map((s) => s.id), ['lac']);
   assert.doesNotMatch(lerTexto('tests', 'admin-interface.test.js').replace(/assert\.doesNotMatch[^\n]*\n/g, ''), /writeFileSync|appendFileSync|mkdirSync|rmSync|renameSync|unlinkSync|copyFileSync|cpSync/);
+});
+
+// ---------- Interface simplificada (Passo 7E3B) ----------
+
+test('AI23. ids técnicos ausentes na tela: sem campo Identificador em assunto e serviço, sem ids e versões no catálogo nem no painel de confirmação', () => {
+  const formAssunto = HTML.slice(HTML.indexOf('id="form-assunto"'), HTML.indexOf('</form>', HTML.indexOf('id="form-assunto"')));
+  const formServico = HTML.slice(HTML.indexOf('id="form-servico"'), HTML.indexOf('</form>', HTML.indexOf('id="form-servico"')));
+  assert.deepEqual([...formAssunto.matchAll(/<label for="([^"]+)"/g)].map((m) => m[1]), ['assunto-nome', 'assunto-descricao']);
+  assert.deepEqual([...formServico.matchAll(/<label for="([^"]+)"/g)].map((m) => m[1]), ['servico-assunto', 'servico-nome', 'servico-sigla', 'servico-termos']);
+  assert.doesNotMatch(formAssunto + formServico, /Identificador|name="id"|-id"|maxlength="60"/);
+  assert.doesNotMatch(HTML, /id="assunto-id|id="servico-id/);
+  assert.match(JS, /assunto: \{ nome: 'assunto-nome', descricao: 'assunto-descricao' \}/);
+  assert.match(JS, /servico: \{ assuntoId: 'servico-assunto', nome: 'servico-nome', sigla: 'servico-sigla', termosEquivalentes: 'servico-termos' \}/);
+  // O desenho do catálogo mostra só nome, descrição, situação e publicação.
+  const catalogo = JS.slice(JS.indexOf('function renderizarCatalogo'), JS.indexOf('function preencherAssuntos'));
+  assert.doesNotMatch(catalogo, /\.id\b|versaoAtualId|Identificador|Versão atual|criar\('code'/);
+  assert.match(catalogo, /Situação: \$\{s\.situacao\}/);
+  assert.match(catalogo, /grupo\.assunto\.descricao/);
+  // O texto das fontes e das listas de serviços também não mostra ids nem versões.
+  const fontes = JS.slice(JS.indexOf('function preencherServicosDasFontes'), JS.indexOf('/** Os botões de envio'));
+  assert.doesNotMatch(fontes, /Versão atual|\$\{fontes\.versaoId\}|\(\$\{s\.id\}\)/, 'o id de versão não é mostrado (só fica no estado interno)');
+});
+
+test('AI24. estados técnicos viram textos amigáveis; ids, versões e hashes continuam só nos dados internos e na API', async () => {
+  assert.deepEqual(['rascunho', 'em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado'].map(rotuloEstado),
+    ['Rascunho', 'Em análise', 'Precisa de ajustes', 'Conteúdo validado', 'Pronto para publicação', 'Publicado']);
+  assert.equal(rotuloEstado('qualquer'), 'Estado indisponível');
+  assert.deepEqual([rotuloPublicacao(null), rotuloPublicacao(''), rotuloPublicacao('x-v1')], ['Não publicado', 'Não publicado', 'Publicado']);
+  // A API de consulta continua entregando ids e versões ao cliente (para uso interno), mas o resultado de exibição não os repete.
+  const { cliente } = await clienteComSessao();
+  const r = await cliente.carregarCatalogo();
+  assert.ok(r.catalogo.servicos[0].id && r.catalogo.servicos[0].versaoAtualId && r.catalogo.assuntos[0].id, 'dados internos preservados');
+  assert.deepEqual(Object.keys(agruparCatalogo(r.catalogo, r.estados)[0].servicos[0]).sort(), ['nome', 'publicacao', 'sigla', 'situacao']);
+  assert.deepEqual(Object.keys(agruparCatalogo(r.catalogo, r.estados)[0].assunto).sort(), ['ativo', 'descricao', 'nome']);
+  assert.doesNotMatch(JSON.stringify(agruparCatalogo(r.catalogo, r.estados)), /servico-ficticio|assunto-ficticio|-v1/);
 });

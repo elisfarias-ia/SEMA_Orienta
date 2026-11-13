@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  normalizarNome, validarCorpoAssunto, validarCorpoServico, montarAssunto, montarEsqueletoServico, montarRoteiroInicial,
+  normalizarNome, baseDoId, gerarId, IDS_RESERVADOS, validarCorpoAssunto, validarCorpoServico, montarAssunto, montarEsqueletoServico, montarRoteiroInicial,
   SECOES_ROTEIRO, LIMITE_CORPO,
 } from '../services/admin/cadastro.js';
 import { executarTransacao } from '../services/admin/transacao.js';
@@ -21,8 +21,9 @@ import { congelar } from './admin-auxiliar.js';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
 const ASSUNTO = { id: 'licenciamento-ambiental', nome: 'Licenciamento Ambiental', descricao: 'Área fictícia.', ativo: true, criadoEm: '2026-11-09', atualizadoEm: '2026-11-09' };
-const CORPO_ASSUNTO = { id: 'assunto-ficticio', nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.' };
-const CORPO_SERVICO = { id: 'servico-ficticio', assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] };
+// Corpos enviados pelo cliente: sem id (o servidor gera o id a partir do nome).
+const CORPO_ASSUNTO = { nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.' };
+const CORPO_SERVICO = { assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] };
 
 function comCopia(fn) {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-cadastro-'));
@@ -61,19 +62,20 @@ test('K1. normalizarNome ignora acentos, maiúsculas e espaços repetidos', () =
   assert.equal(normalizarNome(undefined), '');
 });
 
-test('K2. corpo de assunto: aceita só id, nome e descricao; devolve dados aparados', () => {
-  const r = validarCorpoAssunto({ id: 'a-1', nome: '  Nome   Fictício ', descricao: ' Texto fictício. ' });
-  assert.deepEqual(r, { ok: true, dados: { id: 'a-1', nome: 'Nome Fictício', descricao: 'Texto fictício.' } });
+test('K2. corpo de assunto: aceita só nome e descricao (o id é do servidor); devolve dados aparados', () => {
+  const r = validarCorpoAssunto({ nome: '  Nome   Fictício ', descricao: ' Texto fictício. ' });
+  assert.deepEqual(r, { ok: true, dados: { nome: 'Nome Fictício', descricao: 'Texto fictício.' } });
   const campos = (c) => validarCorpoAssunto(c).campos;
   assert.deepEqual(campos({ ...CORPO_ASSUNTO, publicado: true }), ['extras']);
   for (const extra of ['ativo', 'statusValidacao', 'estado', 'hashConteudo', 'decisao', 'responsavel', 'criadoEm', 'atualizadoEm', '__proto__', 'constructor']) {
     const corpo = JSON.parse(`{"id":"a-1","nome":"N","descricao":"D","${extra}":true}`);
     assert.deepEqual(campos(corpo), ['extras'], extra);
   }
-  for (const id of ['', 'A1', '1a', 'a b', 'a_b', 'a'.repeat(61), undefined, 5, null, '../x', 'a/b']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, id }), ['id'], String(id));
-  for (const nome of ['', '   ', undefined, 5, 'a'.repeat(121), 'linha\ninvalida', 'nul\u0000o']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, nome }), ['nome'], String(nome));
+  // O cliente não envia id: qualquer valor no campo id (válido ou não) é um campo extra.
+  for (const id of ['', 'A1', '1a', 'a b', 'a_b', 'a'.repeat(61), undefined, 5, null, '../x', 'a/b', 'assunto-valido']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, id }), ['extras'], String(id));
+  for (const nome of ['', '   ', undefined, 5, 'a'.repeat(121), 'linha\ninvalida', 'nul\u0000o', '123', '2026', '!!! ---', '___', '12 34']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, nome }), ['nome'], String(nome));
   for (const descricao of ['', undefined, 'a'.repeat(1001), 'tab\tinvalida']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, descricao }), ['descricao']);
-  assert.deepEqual(campos({}), ['id', 'nome', 'descricao']);
+  assert.deepEqual(campos({}), ['nome', 'descricao']);
   for (const corpo of [null, undefined, [], 'texto', 5]) assert.deepEqual(campos(corpo), ['corpo']);
 });
 
@@ -87,14 +89,15 @@ test('K3. textos com e-mail ou telefone são recusados (sem dados pessoais)', ()
 
 test('K4. corpo de serviço: campos, sigla opcional (padrão PENDENTE) e termos equivalentes', () => {
   const ok = validarCorpoServico(CORPO_SERVICO);
-  assert.deepEqual(ok, { ok: true, dados: { id: 'servico-ficticio', assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] } });
+  assert.deepEqual(ok, { ok: true, dados: { assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] } });
   const { sigla, ...semSigla } = CORPO_SERVICO;
   assert.equal(validarCorpoServico(semSigla).dados.sigla, 'PENDENTE');
   const campos = (c) => validarCorpoServico(c).campos;
   for (const extra of ['publicado', 'versaoAtualId', 'versaoPublicadaId', 'estado', 'arquivo', 'statusValidacao', 'hashConteudo', 'categoria']) {
     assert.deepEqual(campos({ ...CORPO_SERVICO, [extra]: 'x' }), ['extras'], extra);
   }
-  assert.deepEqual(campos({ ...CORPO_SERVICO, id: 'LAC' }), ['id']);
+  for (const id of ['LAC', 'lac', '', null, 'servico-valido']) assert.deepEqual(campos({ ...CORPO_SERVICO, id }), ['extras'], String(id));
+  for (const nome of ['', '123', '!!!']) assert.deepEqual(campos({ ...CORPO_SERVICO, nome }), ['nome'], nome);
   assert.deepEqual(campos({ ...CORPO_SERVICO, assuntoId: 'Assunto 1' }), ['assuntoId']);
   assert.deepEqual(campos({ ...CORPO_SERVICO, sigla: '' }), ['sigla']);
   assert.deepEqual(campos({ ...CORPO_SERVICO, sigla: 'x'.repeat(21) }), ['sigla']);
@@ -102,21 +105,21 @@ test('K4. corpo de serviço: campos, sigla opcional (padrão PENDENTE) e termos 
   for (const termos of [[], undefined, 'texto', [''], [5], ['a', 'A'], ['Ação', 'acao'], Array.from({ length: 21 }, (_, i) => `termo ${i}`), ['x'.repeat(121)]]) {
     assert.deepEqual(campos({ ...CORPO_SERVICO, termosEquivalentes: termos }), ['termosEquivalentes'], JSON.stringify(termos)?.slice(0, 30));
   }
-  assert.deepEqual(campos({}), ['id', 'assuntoId', 'nome', 'termosEquivalentes']);
+  assert.deepEqual(campos({}), ['assuntoId', 'nome', 'termosEquivalentes']);
   assert.equal(LIMITE_CORPO, 32 * 1024);
 });
 
 // ---------- Montagem pura ----------
 
 test('K5. novo assunto: sempre ativo, com as datas informadas e nenhum campo de publicação ou validação', () => {
-  const entrada = congelar({ ...CORPO_ASSUNTO });
+  const entrada = congelar({ id: 'assunto-ficticio', ...CORPO_ASSUNTO });
   const a = montarAssunto(entrada, '2026-11-10');
   assert.deepEqual(a, { id: 'assunto-ficticio', nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.', ativo: true, criadoEm: '2026-11-10', atualizadoEm: '2026-11-10' });
   assert.deepEqual(montarAssunto(entrada, '2026-11-10'), a);
 });
 
 test('K6. esqueleto do serviço: versão 1 em rascunho, não publicado, tudo PENDENTE, sem hash, decisão ou responsável', () => {
-  const dados = congelar({ ...validarCorpoServico(CORPO_SERVICO).dados, termosEquivalentes: [...CORPO_SERVICO.termosEquivalentes] });
+  const dados = congelar({ ...validarCorpoServico(CORPO_SERVICO).dados, id: 'servico-ficticio', termosEquivalentes: [...CORPO_SERVICO.termosEquivalentes] });
   const e = montarEsqueletoServico(dados, congelar({ ...ASSUNTO }), '2026-11-10');
   assert.equal(e.pasta, 'services/servico-ficticio/versoes/v1');
   assert.equal(e.versaoId, 'servico-ficticio-v1');
@@ -163,7 +166,7 @@ test('K7. o roteiro inicial tem só as seções obrigatórias, todas PENDENTE', 
 });
 
 test('K8. montagem determinística e sem modificar a entrada; o esqueleto gravado passa no validador da base', () => {
-  const dados = congelar(validarCorpoServico(CORPO_SERVICO).dados);
+  const dados = congelar({ ...validarCorpoServico(CORPO_SERVICO).dados, id: 'servico-ficticio' });
   const a = montarEsqueletoServico(dados, congelar({ ...ASSUNTO }), '2026-11-10');
   assert.deepEqual(montarEsqueletoServico(dados, ASSUNTO, '2026-11-10'), a);
   comCopia(({ raiz }) => {
@@ -307,4 +310,55 @@ test('K18. falha ao gravar texto preserva o arquivo anterior e não deixa tempor
     assert.equal(fs.readFileSync(path.join(raiz, 'docs', 'r.md'), 'utf8'), 'anterior\n');
     assert.deepEqual(fs.readdirSync(path.join(raiz, 'docs')), ['r.md']);
   });
+});
+
+// ---------- Identificador automático (Passo 7E3B) ----------
+
+test('K19. o id é gerado do nome: minúsculas, sem acentos, espaços e símbolos viram hífen, só letras, números e hífen', () => {
+  const casos = [
+    ['Pesca', 'pesca'], ['Licenciamento Ambiental', 'licenciamento-ambiental'], ['Licença por Adesão e Compromisso', 'licenca-por-adesao-e-compromisso'],
+    ['Água & Solo', 'agua-solo'], ['  Ação   Ambiental!  ', 'acao-ambiental'], ['São João D\'Oeste', 'sao-joao-d-oeste'], ['Çedilha ÜÖ Ñandú', 'cedilha-uo-nandu'],
+    ['Fauna / Flora — 2026', 'fauna-flora-2026'], ['Licença Prévia (LP)', 'licenca-previa-lp'], ['MAIÚSCULAS', 'maiusculas'], ['a', 'a'], ['A1', 'a1'],
+  ];
+  for (const [nome, id] of casos) {
+    assert.equal(baseDoId(nome), id, nome);
+    assert.match(baseDoId(nome), /^[a-z][a-z0-9-]*$/);
+    assert.doesNotMatch(baseDoId(nome), /--|-$/);
+  }
+  assert.equal(baseDoId('Pesca'), baseDoId('Pesca'), 'determinística');
+});
+
+test('K20. nome que começa por número recebe o prefixo "item-"; nome sem nenhuma letra é inválido; ids longos são truncados sem hífen final', () => {
+  assert.equal(baseDoId('2ª Via de Teste'), 'item-2-via-de-teste');
+  assert.equal(baseDoId('7 Lagoas'), 'item-7-lagoas');
+  for (const nome of ['', '   ', '123', '2026-11', '!!! ---', '___', '—', '€ 10', undefined, null, 5]) assert.equal(baseDoId(nome), null, String(nome));
+  const longo = baseDoId(`Nome ${'muito-longo '.repeat(20)}`);
+  assert.ok(longo.length <= 52, String(longo.length));
+  assert.match(longo, /^[a-z][a-z0-9-]*[a-z0-9]$/);
+  assert.equal(gerarId('x'.repeat(200), new Set()).length, 52);
+});
+
+test('K21. colisão é resolvida de forma determinística (base, -2, -3...), sem reaproveitar ids existentes, e a entrada não é modificada', () => {
+  const usados = congelar(new Set());
+  assert.equal(gerarId('Pesca', usados), 'pesca');
+  assert.equal(gerarId('Pesca', new Set(['pesca'])), 'pesca-2');
+  assert.equal(gerarId('Pesca', new Set(['pesca', 'pesca-2'])), 'pesca-3');
+  assert.equal(gerarId('Pesca', new Set(['pesca', 'pesca-3'])), 'pesca-2', 'o primeiro livre');
+  assert.equal(gerarId('Pesca!', new Set(['pesca'])), 'pesca-2', 'nomes diferentes com o mesmo id gerado');
+  assert.equal(gerarId('Pesca', new Set(['pesca', 'pesca-2', 'pesca-3', 'pesca-4'])), 'pesca-5');
+  assert.equal(gerarId('Pesca', new Set(['pesca'])), gerarId('Pesca', new Set(['pesca'])), 'mesma entrada, mesma saída');
+  assert.equal(gerarId('123', new Set()), null);
+  for (const nome of ['Admin', 'Schemas', 'Versoes', 'Registry', 'Assuntos']) assert.match(gerarId(nome, new Set(IDS_RESERVADOS)), /-2$/, nome);
+  assert.equal(gerarId('Pesca', new Set(['pesca'])).length <= 60, true);
+  // Um id longo que colide continua dentro do limite (o sufixo cabe na reserva).
+  const longo = baseDoId('y'.repeat(200));
+  assert.ok(gerarId('y'.repeat(200), new Set([longo])).length <= 60);
+});
+
+test('K22. a validação do corpo recusa nome sem letras (nenhum id poderia ser gerado) e o cliente nunca envia id', () => {
+  assert.deepEqual(validarCorpoAssunto({ nome: '123', descricao: 'D.' }).campos, ['nome']);
+  assert.deepEqual(validarCorpoServico({ ...CORPO_SERVICO, nome: '---' }).campos, ['nome']);
+  assert.equal(validarCorpoAssunto({ nome: '2ª Via', descricao: 'D.' }).ok, true, 'começar por número é aceito (o id ganha prefixo)');
+  assert.equal('id' in validarCorpoAssunto(CORPO_ASSUNTO).dados, false);
+  assert.equal('id' in validarCorpoServico(CORPO_SERVICO).dados, false);
 });

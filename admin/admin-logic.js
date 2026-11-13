@@ -75,10 +75,10 @@ function validarId(valor, erros, campo) {
 export function validarFormAssunto(valores) {
   const v = ehObjeto(valores) ? valores : {};
   const erros = {};
-  const id = validarId(v.id, erros, 'id');
   const nome = textoLivre(v.nome, LIMITES.nome, 'o nome', erros, 'nome');
+  if (nome !== null && !/\p{L}/u.test(nome)) erros.nome = 'O nome deve conter ao menos uma letra.';
   const descricao = textoLivre(v.descricao, LIMITES.descricao, 'a descrição', erros, 'descricao');
-  return Object.keys(erros).length ? { ok: false, erros } : { ok: true, dados: { id, nome, descricao } };
+  return Object.keys(erros).length ? { ok: false, erros } : { ok: true, dados: { nome, descricao } };
 }
 
 /** Valida o formulário "Novo serviço". `assuntos` é a lista do catálogo; só assunto ativo é aceito. */
@@ -89,8 +89,8 @@ export function validarFormServico(valores, assuntos) {
   const assunto = lista.find((a) => ehObjeto(a) && a.id === v.assuntoId);
   if (!ehTexto(v.assuntoId) || v.assuntoId === '') erros.assuntoId = 'Escolha o assunto.';
   else if (!assunto || assunto.ativo !== true) erros.assuntoId = 'Escolha um assunto existente e ativo.';
-  const id = validarId(v.id, erros, 'id');
   const nome = textoLivre(v.nome, LIMITES.nome, 'o nome', erros, 'nome');
+  if (nome !== null && !/\p{L}/u.test(nome)) erros.nome = 'O nome deve conter ao menos uma letra.';
 
   let sigla = null;
   if (ehTexto(v.sigla) && v.sigla.trim() !== '') {
@@ -114,16 +114,16 @@ export function validarFormServico(valores, assuntos) {
     }
   }
   if (Object.keys(erros).length) return { ok: false, erros };
-  const dados = { assuntoId: v.assuntoId, id, nome, sigla, termosEquivalentes: termos };
+  const dados = { assuntoId: v.assuntoId, nome, sigla, termosEquivalentes: termos };
   return { ok: true, dados };
 }
 
-/** Corpo enviado ao endpoint: somente os campos permitidos (sigla só quando informada). */
-export function corpoDoAssunto({ id, nome, descricao }) {
-  return { id, nome, descricao };
+/** Corpo enviado ao endpoint: somente os campos permitidos (sigla só quando informada). O id é gerado pelo servidor e nunca é enviado. */
+export function corpoDoAssunto({ nome, descricao }) {
+  return { nome, descricao };
 }
-export function corpoDoServico({ id, assuntoId, nome, sigla, termosEquivalentes }) {
-  const corpo = { id, assuntoId, nome, termosEquivalentes: [...termosEquivalentes] };
+export function corpoDoServico({ assuntoId, nome, sigla, termosEquivalentes }) {
+  const corpo = { assuntoId, nome, termosEquivalentes: [...termosEquivalentes] };
   if (sigla) corpo.sigla = sigla;
   return corpo;
 }
@@ -225,7 +225,7 @@ export function corpoDaFonte(dados, revisao) {
 
 export function resumoDaFonte(dados, servico) {
   return [
-    { rotulo: 'Serviço', valor: servico ? `${servico.nome} (${servico.id})` : 'não identificado' },
+    { rotulo: 'Serviço', valor: servico ? servico.nome : 'não identificado' },
     { rotulo: 'Identificador', valor: dados.id },
     { rotulo: 'Título', valor: dados.titulo },
     { rotulo: 'Tipo', valor: rotuloTipoFonte(dados.tipo) },
@@ -259,7 +259,6 @@ export function resumirFontes(documento) {
 /** Linhas do resumo mostrado antes da gravação (nunca inclui o token). */
 export function resumoDoAssunto(dados) {
   return [
-    { rotulo: 'Identificador', valor: dados.id },
     { rotulo: 'Nome', valor: dados.nome },
     { rotulo: 'Descrição', valor: dados.descricao },
   ];
@@ -267,12 +266,11 @@ export function resumoDoAssunto(dados) {
 export function resumoDoServico(dados, assuntos = []) {
   const assunto = assuntos.find((a) => a.id === dados.assuntoId);
   return [
-    { rotulo: 'Assunto', valor: assunto ? `${assunto.nome} (${assunto.id})` : dados.assuntoId },
-    { rotulo: 'Identificador', valor: dados.id },
+    { rotulo: 'Assunto', valor: assunto ? assunto.nome : 'não identificado' },
     { rotulo: 'Nome', valor: dados.nome },
     { rotulo: 'Sigla', valor: dados.sigla ?? 'não informada (ficará PENDENTE)' },
     { rotulo: 'Termos equivalentes', valor: dados.termosEquivalentes.join('; ') },
-    { rotulo: 'Situação inicial', valor: 'Versão 1 em rascunho, sem conteúdo e não publicada' },
+    { rotulo: 'Situação inicial', valor: 'Rascunho, sem conteúdo e não publicado' },
   ];
 }
 
@@ -280,28 +278,29 @@ export function resumoDoServico(dados, assuntos = []) {
 
 export const ROTULOS_ESTADO = Object.freeze({
   rascunho: 'Rascunho',
-  em_validacao: 'Em validação',
-  ajustes_solicitados: 'Ajustes solicitados',
-  validado_materialmente: 'Validado materialmente',
-  autorizado_publicacao: 'Autorizado para publicação',
+  em_validacao: 'Em análise',
+  ajustes_solicitados: 'Precisa de ajustes',
+  validado_materialmente: 'Conteúdo validado',
+  autorizado_publicacao: 'Pronto para publicação',
   publicado: 'Publicado',
   validado: 'Validado',
 });
 export const rotuloEstado = (estado) => (ehTexto(estado) && Object.hasOwn(ROTULOS_ESTADO, estado) ? ROTULOS_ESTADO[estado] : 'Estado indisponível');
-export const rotuloPublicacao = (versaoPublicadaId) => (ehTexto(versaoPublicadaId) && versaoPublicadaId !== '' ? `Publicada (${versaoPublicadaId})` : 'Não publicada');
+export const rotuloPublicacao = (versaoPublicadaId) => (ehTexto(versaoPublicadaId) && versaoPublicadaId !== '' ? 'Publicado' : 'Não publicado');
 
 /**
- * Agrupa os serviços por assunto, na ordem do catálogo. `estados` mapeia id do serviço -> estado da versão atual.
+ * Agrupa os serviços por assunto, na ordem do catálogo, só com dados de exibição (nome, descrição, sigla, situação e
+ * publicação): ids, versões e hashes não saem daqui. `estados` mapeia id do serviço -> estado da versão atual.
  * Serviços cujo assunto não está na lista aparecem num grupo final sem assunto.
  */
 export function agruparCatalogo(catalogo, estados = {}) {
   const assuntos = ehObjeto(catalogo) && Array.isArray(catalogo.assuntos) ? catalogo.assuntos : [];
   const servicos = ehObjeto(catalogo) && Array.isArray(catalogo.servicos) ? catalogo.servicos : [];
   const item = (s) => ({
-    id: s.id, nome: ehTexto(s.nome) ? s.nome : s.id, sigla: ehTexto(s.sigla) ? s.sigla : null, versaoAtualId: s.versaoAtualId,
-    estado: rotuloEstado(estados[s.id] ?? null), publicacao: rotuloPublicacao(s.versaoPublicadaId),
+    nome: ehTexto(s.nome) && s.nome !== '' ? s.nome : 'Serviço sem nome', sigla: ehTexto(s.sigla) && s.sigla !== 'PENDENTE' ? s.sigla : null,
+    situacao: rotuloEstado(estados[s.id] ?? null), publicacao: rotuloPublicacao(s.versaoPublicadaId),
   });
-  const grupos = assuntos.map((a) => ({ assunto: { id: a.id, nome: a.nome, descricao: a.descricao, ativo: a.ativo === true }, servicos: servicos.filter((s) => s.assuntoId === a.id).map(item) }));
+  const grupos = assuntos.map((a) => ({ assunto: { nome: a.nome, descricao: ehTexto(a.descricao) ? a.descricao : '', ativo: a.ativo === true }, servicos: servicos.filter((s) => s.assuntoId === a.id).map(item) }));
   const conhecidos = new Set(assuntos.map((a) => a.id));
   const soltos = servicos.filter((s) => !conhecidos.has(s.assuntoId)).map(item);
   if (soltos.length) grupos.push({ assunto: null, servicos: soltos });

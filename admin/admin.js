@@ -12,8 +12,8 @@ const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argum
 const $ = (id) => document.getElementById(id);
 
 const CAMPOS = {
-  assunto: { id: 'assunto-id', nome: 'assunto-nome', descricao: 'assunto-descricao' },
-  servico: { assuntoId: 'servico-assunto', id: 'servico-id', nome: 'servico-nome', sigla: 'servico-sigla', termosEquivalentes: 'servico-termos' },
+  assunto: { nome: 'assunto-nome', descricao: 'assunto-descricao' },
+  servico: { assuntoId: 'servico-assunto', nome: 'servico-nome', sigla: 'servico-sigla', termosEquivalentes: 'servico-termos' },
   fonte: {
     id: 'fonte-id', titulo: 'fonte-titulo', tipo: 'fonte-tipo', orgaoResponsavel: 'fonte-orgao', url: 'fonte-url', descricao: 'fonte-descricao',
     origemOficial: 'fonte-oficial', dataPublicacao: 'fonte-data', dispositivoRelevante: 'fonte-dispositivo',
@@ -68,7 +68,7 @@ function renderizarCatalogo() {
       titulo.append(criar('span', grupo.assunto.ativo ? 'selo' : 'selo selo--inativo', grupo.assunto.ativo ? 'Ativo' : 'Inativo'));
     }
     secao.append(titulo);
-    if (grupo.assunto) secao.append(criar('p', 'grupo__descricao', `${grupo.assunto.id} — ${grupo.assunto.descricao ?? ''}`));
+    if (grupo.assunto && grupo.assunto.descricao !== '') secao.append(criar('p', 'grupo__descricao', grupo.assunto.descricao));
     if (grupo.servicos.length === 0) {
       secao.append(criar('p', 'vazio', 'Nenhum serviço cadastrado neste assunto.'));
     } else {
@@ -76,13 +76,8 @@ function renderizarCatalogo() {
       for (const s of grupo.servicos) {
         const item = criar('li', 'servico');
         item.append(criar('p', 'servico__nome', s.sigla ? `${s.nome} (${s.sigla})` : s.nome));
-        const codigo = criar('code', '', s.id);
-        const linhaId = criar('p', 'servico__linha', 'Identificador: ');
-        linhaId.append(codigo);
-        item.append(linhaId);
-        item.append(criar('p', 'servico__linha', `Versão atual: ${s.versaoAtualId}`));
-        item.append(criar('p', 'servico__linha', `Estado: ${s.estado}`));
-        item.append(criar('p', 'servico__linha', `Publicação: ${s.publicacao}`));
+        item.append(criar('p', 'servico__linha', `Situação: ${s.situacao}`));
+        item.append(criar('p', 'servico__linha', s.publicacao));
         lista.append(item);
       }
       secao.append(lista);
@@ -125,7 +120,7 @@ function preencherServicosDasFontes() {
   for (const s of servicos) {
     const opcao = document.createElement('option');
     opcao.value = s.id;
-    opcao.textContent = typeof s.nome === 'string' && s.nome !== '' ? `${s.nome} (${s.id})` : s.id;
+    opcao.textContent = typeof s.nome === 'string' && s.nome !== '' ? s.nome : 'Serviço sem nome';
     select.append(opcao);
   }
   if (servicos.some((s) => s.id === atual)) select.value = atual;
@@ -148,8 +143,8 @@ function renderizarFontes(mensagem) {
   }
   const bloqueio = fontes.estado === 'rascunho'
     ? 'É possível cadastrar fontes.'
-    : 'O cadastro de fontes está bloqueado: só é permitido em versão em rascunho.';
-  $('fontes-situacao').textContent = `Versão atual: ${fontes.versaoId}. Estado: ${rotuloEstado(fontes.estado)}. ${bloqueio}`;
+    : 'O cadastro de fontes está bloqueado: só é permitido enquanto o serviço está em rascunho.';
+  $('fontes-situacao').textContent = `Situação do serviço: ${rotuloEstado(fontes.estado)}. ${bloqueio}`;
   if (fontes.lista.length === 0) {
     raiz.append(criar('p', 'vazio', 'Nenhuma fonte cadastrada neste serviço.'));
   } else {
@@ -286,7 +281,7 @@ function linhasDoResumo(tipo, dados) {
   if (tipo === 'assunto') return resumoDoAssunto(dados);
   if (tipo === 'servico') return resumoDoServico(dados, catalogo.assuntos);
   const servico = catalogo.servicos.find((s) => s.id === fontes.servicoId);
-  return resumoDaFonte(dados, servico ? { id: servico.id, nome: servico.nome ?? servico.id } : null);
+  return resumoDaFonte(dados, servico ? { nome: servico.nome ?? 'Serviço sem nome' } : null);
 }
 
 function abrirConfirmacao(tipo, dados, gatilho) {
@@ -322,7 +317,7 @@ function aplicarFoco() {
 }
 
 function mensagemDeSucesso(tipo, nome) {
-  if (tipo === 'assunto') return `Assunto “${nome}” cadastrado. Ele já aparece no catálogo, sem conteúdo e não publicado.`;
+  if (tipo === 'assunto') return `Assunto “${nome}” cadastrado. Ele já aparece no catálogo.`;
   if (tipo === 'servico') return `Serviço “${nome}” cadastrado. Ele já aparece no catálogo, sem conteúdo e não publicado.`;
   return `Fonte “${nome}” cadastrada. Ela já aparece na lista, em rascunho e não publicada.`;
 }

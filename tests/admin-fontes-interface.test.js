@@ -113,7 +113,7 @@ test('FI4. corpo enviado: revisão e somente os campos permitidos (opcionais só
   const resumo = resumoDaFonte(dados, { id: 'servico-ficticio', nome: 'Serviço Fictício' });
   assert.equal(resumo[8].valor, '27-07-2020', 'o resumo exibe DD-MM-AAAA');
   assert.deepEqual(resumo.map((l) => l.rotulo), ['Serviço', 'Identificador', 'Título', 'Tipo', 'Órgão responsável', 'URL', 'Descrição', 'Origem oficial', 'Data de publicação', 'Dispositivo relevante', 'Situação inicial']);
-  assert.equal(resumo[0].valor, 'Serviço Fictício (servico-ficticio)');
+  assert.equal(resumo[0].valor, 'Serviço Fictício', 'o resumo mostra só o nome do serviço, sem id');
   assert.equal(resumo[3].valor, 'Página oficial');
   assert.ok(resumo[7].valor.includes(AJUDA_ORIGEM_OFICIAL));
   assert.match(resumo[10].valor, /Rascunho e não publicada/);

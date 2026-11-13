@@ -25,8 +25,8 @@ Existe apenas no servidor de desenvolvimento (`npm run dev`): o plugin usa `appl
 | `GET /__admin/sessao` | não | O token da sessão, criado na primeira chamada. |
 | `GET /__admin/catalogo` | sim | Assuntos e serviços, com versão atual e versão publicada. |
 | `GET /__admin/servicos/<id>/versao-atual` | sim | Manifesto e arquivos modulares da versão atual (id de serviço cadastrado). |
-| `POST /__admin/assuntos` | sim | Cadastra um assunto (corpo: `id`, `nome`, `descricao`). |
-| `POST /__admin/servicos` | sim | Cadastra um serviço (corpo: `id`, `assuntoId`, `nome`, `termosEquivalentes` e `sigla` opcional). |
+| `POST /__admin/assuntos` | sim | Cadastra um assunto (corpo: `nome` e `descricao`; o id é gerado pelo servidor). |
+| `POST /__admin/servicos` | sim | Cadastra um serviço (corpo: `assuntoId`, `nome`, `termosEquivalentes` e `sigla` opcional; o id é gerado pelo servidor). |
 | `POST /__admin/servicos/<id>/fontes` | sim | Cadastra uma fonte na versão atual do serviço, só se estiver em rascunho (corpo: `revisao` e os campos da fonte). |
 
 - **Token:** gerado com `node:crypto` (32 bytes aleatórios), mantido só em memória do servidor de desenvolvimento, enviado no cabeçalho `X-Admin-Token` e comparado de forma segura. Não é gravado, não vai para cookie, `localStorage` nem variável de ambiente, e nunca é registrado em log. Reiniciar o servidor invalida o token.
@@ -40,8 +40,8 @@ Existe apenas no servidor de desenvolvimento (`npm run dev`): o plugin usa `appl
 
 As duas rotas de cadastro exigem token, origem local, `Content-Type: application/json`, corpo de até 32 KB, JSON válido e somente os campos permitidos (qualquer outro, como `publicado`, `estado` ou `hashConteudo`, é recusado com 422).
 
-- **Assunto:** `id` no padrão do projeto, `nome` e `descricao` obrigatórios; id ou nome (sem distinguir acento e caixa) já existentes recebem 409. Nasce com `ativo: true`, e as datas são geradas pelo servidor.
-- **Serviço:** exige assunto existente e ativo, id e nome inéditos e nenhuma pasta com o mesmo nome. Nasce sempre como **versão 1, em rascunho, `publicado: false`**, com `versaoAtualId: <id>-v1` e `versaoPublicadaId: null`, sem hash, decisão, responsável ou autorização. A estrutura modular é criada em `services/<id>/versoes/v1/` (manifesto, `service.json`, roteiro, documentos, perguntas, fontes e conteúdo do assistente), com listas vazias e `PENDENTE`; o roteiro tem só as seções obrigatórias, todas `PENDENTE`. **Nenhum conteúdo ambiental é inventado.** Sem sigla informada, o campo fica `PENDENTE`.
+- **Assunto:** `nome` e `descricao` obrigatórios (o id é gerado pelo servidor, ver "Identificadores automáticos"); nome já existente (sem distinguir acento e caixa) recebe 409. Nasce com `ativo: true`, e as datas são geradas pelo servidor.
+- **Serviço:** exige assunto existente e ativo e nome inédito (o id é gerado pelo servidor e nunca reaproveita uma pasta existente). Nasce sempre como **versão 1, em rascunho, `publicado: false`**, com `versaoAtualId: <id>-v1` e `versaoPublicadaId: null`, sem hash, decisão, responsável ou autorização. A estrutura modular é criada em `services/<id>/versoes/v1/` (manifesto, `service.json`, roteiro, documentos, perguntas, fontes e conteúdo do assistente), com listas vazias e `PENDENTE`; o roteiro tem só as seções obrigatórias, todas `PENDENTE`. **Nenhum conteúdo ambiental é inventado.** Sem sigla informada, o campo fica `PENDENTE`.
 - **Tudo ou nada:** a alteração é ensaiada numa cópia temporária e conferida pelo validador da base; depois é gravada com escrita atômica (o registro por último) e conferida de novo. Se qualquer gravação ou a conferência falhar, tudo é desfeito: arquivos novos e pastas criadas são removidos e o que já existia volta byte a byte. Nunca sobrescreve assunto, serviço ou pasta existente.
 - **Concorrência:** uma gravação por vez; se outra estiver em andamento, a nova recebe 409 (`operacao_em_andamento`), sem perder dados.
 - **Sem registro de dados:** o corpo, o token e os dados enviados não vão para log, e os erros não repetem o que foi enviado.
@@ -49,12 +49,20 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 ## Tela "Gestão de conteúdo" (Passo 7E2)
 
 - **Acesso:** somente no `npm run dev`, em `http://localhost:5173/admin/` (`/admin` redireciona para `/admin/`). A pasta `admin/` não entra no build nem no preview, e não há link para ela na interface do cidadão. A tela mostra o aviso "Ambiente administrativo local — sem autenticação".
-- **O que mostra:** o catálogo (assuntos e, em cada um, os serviços com versão atual, estado e se há versão publicada ou "não publicada") e dois formulários, "Novo assunto" e "Novo serviço".
+- **O que mostra:** o catálogo (assuntos e, em cada um, os serviços com nome, sigla, situação amigável e "Publicado" ou "Não publicado", sem ids técnicos nem versões) e os formulários "Novo assunto" (nome e descrição) e "Novo serviço" (assunto, nome, sigla opcional e termos equivalentes).
 - **Como cadastra:** o formulário valida os dados e abre uma confirmação com o resumo e os botões "Voltar" e "Confirmar cadastro". Só depois de confirmar é feita a gravação. Com sucesso, o formulário é limpo, o catálogo é atualizado e o foco vai para a mensagem de confirmação.
 - **Sessão e token:** o token é obtido em `/__admin/sessao`, fica só numa variável em memória e é enviado em `X-Admin-Token`; nunca aparece na tela. Enquanto a sessão ou o catálogo não estiverem disponíveis, e durante uma gravação, os botões de envio ficam desabilitados (sem envio duplicado).
 - **Segurança do código:** só `textContent` e APIs seguras do DOM; sem `innerHTML`, `localStorage`, `sessionStorage`, cookies ou log. Os erros do endpoint viram mensagens curtas em português, sem mostrar a resposta bruta.
 - **O que não faz:** não edita nem exclui, não valida, não registra decisão e não publica. Não altera a LAC.
 - **Atenção em testes manuais:** confirmar um cadastro grava arquivos reais em `services/`. Use dados fictícios e desfaça depois (restaure `services/assuntos.json` e `services/registry.json` com o Git e remova a pasta do serviço criada).
+
+### Identificadores automáticos e tela simplificada (Passo 7E3B)
+
+- **Identificadores gerados pelo servidor:** o id de assunto e de serviço sai do nome: minúsculas, sem acentos, espaços e símbolos viram hífen, só letras, números e hífen, começando por letra (nome que começa por número recebe o prefixo `item-`; nome sem nenhuma letra é recusado; o id é truncado em 52 caracteres). O id é criado uma única vez e é guardado nos arquivos internos; não depende de nome futuro.
+- **Colisões:** se o id já existir (no catálogo, em pasta de `services/` ou nome reservado), o servidor usa o primeiro sufixo livre (`-2`, `-3`...), sem sobrescrever nada. Nome repetido continua recusado com 409.
+- **O cliente não envia id:** qualquer campo `id` no corpo de assunto ou serviço é recusado com 422 como campo extra. (O cadastro de fontes mantém o campo "Identificador".)
+- **Tela:** os formulários de assunto e serviço não têm mais o campo "Identificador". O catálogo e o painel de confirmação não mostram ids nem ids de versão (como `lac-v1`), e os caminhos, o JSON e os hashes nunca aparecem. Situações: rascunho = "Rascunho"; em_validacao = "Em análise"; ajustes_solicitados = "Precisa de ajustes"; validado_materialmente = "Conteúdo validado"; autorizado_publicacao = "Pronto para publicação"; publicado = "Publicado".
+- **Estrutura interna preservada:** ids, versões, hashes e caminhos continuam nos arquivos internos e na API de consulta (`GET`). Os registros existentes (assunto e serviço da LAC) não foram alterados, e todo serviço novo continua como versão 1, rascunho e não publicado.
 
 ### Cadastro de fontes por serviço (Passo 7E3A)
 

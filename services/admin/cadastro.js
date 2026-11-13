@@ -11,8 +11,10 @@ import { analisarUrl, dataValida, TIPOS_FONTE } from '../../scripts/validate-ser
 
 export const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 export const LIMITE_CORPO = 32 * 1024;
-export const CAMPOS_ASSUNTO = Object.freeze(['id', 'nome', 'descricao']);
-export const CAMPOS_SERVICO = Object.freeze(['id', 'assuntoId', 'nome', 'sigla', 'termosEquivalentes']);
+// O identificador (id) NÃO é enviado pelo cliente: o servidor o gera a partir do nome, uma única vez (ver gerarId).
+export const CAMPOS_ASSUNTO = Object.freeze(['nome', 'descricao']);
+export const CAMPOS_SERVICO = Object.freeze(['assuntoId', 'nome', 'sigla', 'termosEquivalentes']);
+export const IDS_RESERVADOS = Object.freeze(['admin', 'schemas', 'versoes', 'registry', 'assuntos']);
 export const SECOES_ROTEIRO = Object.freeze(['Descrição do serviço', 'Quem pode solicitar', 'Condições', 'Etapas', 'Onde iniciar', 'Observações', 'Fontes']);
 export const PENDENTE = 'PENDENTE';
 
@@ -45,6 +47,40 @@ function textoLivre(valor, limite) {
   return t;
 }
 const idAceitavel = (v) => typeof v === 'string' && v.length <= LIMITE_ID && PADRAO_ID.test(v);
+const LIMITE_BASE_DO_ID = 52; // deixa espaço para o sufixo de colisão ("-2", "-3", ...) dentro de LIMITE_ID
+
+/**
+ * Base do identificador a partir do nome: minúsculas, sem acentos, espaços e símbolos viram hífen, só letras, números e
+ * hífen, começando por letra (se o nome começar por número, recebe o prefixo "item-"). Retorna null se o nome não tiver
+ * nenhuma letra. Função pura e determinística.
+ */
+export function baseDoId(nome) {
+  const s = String(nome ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (!/[a-z]/.test(s)) return null;
+  let base = /^[a-z]/.test(s) ? s : `item-${s}`;
+  if (base.length > LIMITE_BASE_DO_ID) base = base.slice(0, LIMITE_BASE_DO_ID).replace(/-+$/, '');
+  return base;
+}
+
+/**
+ * Gera o identificador único do novo registro. Colisão com `existentes` (Set de ids já usados) é resolvida de forma
+ * determinística: base, base-2, base-3... (o primeiro livre). Nunca reaproveita um id existente. Retorna null se o nome for inválido.
+ */
+export function gerarId(nome, existentes) {
+  const base = baseDoId(nome);
+  if (base === null) return null;
+  if (!existentes.has(base)) return base;
+  for (let n = 2; n < 10000; n += 1) {
+    const candidato = `${base}-${n}`;
+    if (!existentes.has(candidato)) return candidato;
+  }
+  return null;
+}
 
 /** Campos do corpo que não fazem parte do conjunto permitido (a contagem não repete o conteúdo enviado). */
 function camposExtras(corpo, permitidos) {
@@ -52,34 +88,31 @@ function camposExtras(corpo, permitidos) {
 }
 
 /**
- * Valida o corpo do cadastro de assunto: somente id, nome e descricao. Retorna { ok: true, dados } ou
+ * Valida o corpo do cadastro de assunto: somente nome e descricao (o id é gerado pelo servidor). Retorna { ok: true, dados } ou
  * { ok: false, campos } com os NOMES dos campos inválidos (nunca os valores enviados).
  */
 export function validarCorpoAssunto(corpo) {
   if (!ehObjeto(corpo)) return { ok: false, campos: ['corpo'] };
   const campos = [];
   if (camposExtras(corpo, CAMPOS_ASSUNTO)) campos.push('extras');
-  const id = corpo.id;
   const nome = textoLivre(corpo.nome, LIMITE_NOME);
   const descricao = textoLivre(corpo.descricao, LIMITE_DESCRICAO);
-  if (!idAceitavel(id)) campos.push('id');
-  if (nome === null) campos.push('nome');
+  if (nome === null || baseDoId(nome) === null) campos.push('nome');
   if (descricao === null) campos.push('descricao');
-  return campos.length ? { ok: false, campos } : { ok: true, dados: { id, nome, descricao } };
+  return campos.length ? { ok: false, campos } : { ok: true, dados: { nome, descricao } };
 }
 
 /**
- * Valida o corpo do cadastro de serviço: id, assuntoId, nome, termosEquivalentes e sigla opcional.
+ * Valida o corpo do cadastro de serviço: assuntoId, nome, termosEquivalentes e sigla opcional (o id é gerado pelo servidor).
  * Sem sigla, o serviço recebe PENDENTE.
  */
 export function validarCorpoServico(corpo) {
   if (!ehObjeto(corpo)) return { ok: false, campos: ['corpo'] };
   const campos = [];
   if (camposExtras(corpo, CAMPOS_SERVICO)) campos.push('extras');
-  if (!idAceitavel(corpo.id)) campos.push('id');
   if (!idAceitavel(corpo.assuntoId)) campos.push('assuntoId');
   const nome = textoLivre(corpo.nome, LIMITE_NOME);
-  if (nome === null) campos.push('nome');
+  if (nome === null || baseDoId(nome) === null) campos.push('nome');
 
   let sigla = PENDENTE;
   if (corpo.sigla !== undefined) {
@@ -103,7 +136,7 @@ export function validarCorpoServico(corpo) {
       termos.push(t);
     }
   }
-  return campos.length ? { ok: false, campos } : { ok: true, dados: { id: corpo.id, assuntoId: corpo.assuntoId, nome, sigla, termosEquivalentes: termos } };
+  return campos.length ? { ok: false, campos } : { ok: true, dados: { assuntoId: corpo.assuntoId, nome, sigla, termosEquivalentes: termos } };
 }
 
 /** Novo assunto: sempre ativo, com as datas informadas (geradas pelo servidor). */

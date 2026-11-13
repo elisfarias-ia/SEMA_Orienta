@@ -153,3 +153,25 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 - **Aprovados:** listagem das fontes da LAC (MF-01); formulário e a explicação da origem oficial (MF-02); validações dos campos (MF-03); painel de confirmação e botão "Voltar" (MF-04); navegação por teclado (MF-10); responsividade em 390 × 844 px (MF-11); data de publicação em DD-MM-AAAA (MF-13).
 - **Não executados:** MF-05 (confirmar o cadastro e `POST`), MF-06 (duplicidade), MF-07 (duas abas e revisão), MF-08 (clique duplo), MF-09 (serviço fora de rascunho) e MF-12 (`build` e `preview`). Nenhum cadastro foi confirmado, então a criação real de fonte, a atualização da lista após gravar e a revisão otimista em uso real **não foram testadas manualmente** (estão cobertas só pelos testes automatizados, com dados fictícios em cópias temporárias).
 - **Dados:** nenhuma fonte real foi criada; as oito fontes da LAC permaneceram inalteradas.
+
+### Execução — administração simplificada (Passo 7E3B)
+
+- **Data:** 13/11/2026.
+- **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/`.
+- **Validação:** conferência visual pela usuária; nenhum cadastro foi confirmado.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| MS-01 | Abrir o formulário "Novo assunto" | Somente "Nome" e "Descrição" (sem "Identificador") | aprovado |
+| MS-02 | Abrir o formulário "Novo serviço" | "Assunto", "Nome", "Sigla (opcional)" e "Termos equivalentes" (sem "Identificador") | aprovado |
+| MS-03 | Ver o catálogo | Nome e descrição do assunto; nome e sigla do serviço; "Situação: Rascunho"; "Não publicado"; sem ids nem versões como "lac-v1" | aprovado |
+| MS-04 | Revisar um cadastro e abrir o painel de confirmação, depois "Voltar" | O resumo mostra só os dados informados (sem id), e "Voltar" fecha sem gravar | aprovado |
+| MS-05 | Escolher o serviço na seção de fontes | A lista mostra só o nome do serviço e a situação (sem id nem versão) | aprovado |
+| MS-06 | Confirmar um cadastro real e conferir o id gerado | O servidor gera o id do nome e o catálogo é atualizado | não executado |
+| MS-07 | Nomes com acentos, símbolos ou repetidos (colisão de id) | Normalização e sufixo determinístico | não executado |
+
+**Registro**
+
+- **Aprovados (conferência visual):** MS-01 a MS-05.
+- **Não executados manualmente:** MS-06 e MS-07, porque nenhum cadastro foi confirmado e nenhum assunto ou serviço real foi criado. A geração do id, a remoção de acentos, a colisão, o nome inválido e o bloqueio de id enviado pelo cliente estão **cobertos por testes automatizados** (`tests/admin-cadastro.test.js`, `tests/admin-cadastro-endpoint.test.js` e `tests/admin-interface.test.js`).
+- **Dados:** o catálogo real continua só com "Licenciamento Ambiental" e a LAC, sem alteração.

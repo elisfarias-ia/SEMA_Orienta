@@ -18,8 +18,8 @@ const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerJsonReal = (...p) => JSON.parse(fs.readFileSync(path.join(RAIZ, ...p), 'utf8'));
 const HEADERS_OK = { host: 'localhost:5173' };
 const AGORA = () => new Date(2026, 10, 10, 12, 0, 0);
-const ASSUNTO = { id: 'assunto-ficticio', nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.' };
-const SERVICO = { id: 'servico-ficticio', assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] };
+const ASSUNTO = { nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.' };
+const SERVICO = { assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] };
 const ARQUIVOS_V1 = ['conteudo-assistente.json', 'documentos.json', 'fontes.json', 'perguntas-frequentes.json', 'roteiro.md', 'service.json', 'versao.json'];
 
 /** Requisição simulada com corpo (fluxo de leitura igual ao do servidor real). */
@@ -94,34 +94,36 @@ test('CE1. cadastro válido de assunto: 201, ativo, datas do servidor (relógio 
   });
 });
 
-test('CE2. assunto duplicado por id ou por nome (sem distinguir acento e caixa) é recusado com 409 e nada muda', async () => {
+test('CE2. nome de assunto repetido (sem distinguir acento e caixa) é recusado com 409; colisão de id vira sufixo, sem sobrescrever', async () => {
   await comCopia(async ({ m, token, raiz }) => {
     assert.equal((await assunto(m, token)).status, 201);
     const antes = retrato(raiz);
-    for (const [corpo, campo] of [
-      [{ ...ASSUNTO, nome: 'Outro Nome' }, 'id'],
-      [{ ...ASSUNTO, id: 'outro-id' }, 'nome'],
-      [{ ...ASSUNTO, id: 'outro-id', nome: '  ASSUNTO   FICTICIO ' }, 'nome'],
-      [{ ...ASSUNTO, id: 'licenciamento-ambiental', nome: 'Novo' }, 'id'],
-      [{ ...ASSUNTO, id: 'outro-id', nome: 'licenciamento  ambiental' }, 'nome'],
-    ]) {
-      const r = await assunto(m, token, corpo);
-      assert.equal(r.status, 409, JSON.stringify(corpo));
-      assert.deepEqual(r.corpo, { erro: 'ja_existe', campo });
+    for (const nome of ['Assunto Fictício', '  ASSUNTO   FICTICIO ', 'assunto fictício', 'licenciamento  ambiental', 'LICENCIAMENTO AMBIENTAL']) {
+      const r = await assunto(m, token, { ...ASSUNTO, nome });
+      assert.deepEqual([r.status, r.corpo], [409, { erro: 'ja_existe', campo: 'nome' }], nome);
     }
     assert.equal(retrato(raiz), antes);
+    // Nomes diferentes que geram o mesmo id: colisão determinística (assunto-ficticio, -2, -3), sem tocar nos existentes.
+    const r2 = await assunto(m, token, { ...ASSUNTO, nome: 'Assunto Fictício!' });
+    const r3 = await assunto(m, token, { ...ASSUNTO, nome: 'Assunto, Fictício' });
+    assert.deepEqual([r2.status, r2.corpo.assunto.id], [201, 'assunto-ficticio-2']);
+    assert.deepEqual([r3.status, r3.corpo.assunto.id], [201, 'assunto-ficticio-3']);
+    const doc = lerJson(raiz, 'services', 'assuntos.json');
+    assert.deepEqual(doc.assuntos.map((a) => a.id), ['licenciamento-ambiental', 'assunto-ficticio', 'assunto-ficticio-2', 'assunto-ficticio-3']);
+    assert.deepEqual(doc.assuntos[0], lerJsonReal('services', 'assuntos.json').assuntos[0], 'o assunto existente foi preservado');
+    assert.equal(doc.assuntos[1].nome, 'Assunto Fictício', 'o assunto anterior não foi sobrescrito');
   });
 });
 
 test('CE3. campos extras e dados inválidos no assunto: 422 sem repetir o que foi enviado, e nada muda', async () => {
   await comCopia(async ({ m, token, raiz }) => {
     const antes = retrato(raiz);
-    for (const extra of [{ publicado: true }, { ativo: false }, { statusValidacao: 'validado' }, { estado: 'publicado' }, { hashConteudo: 'a'.repeat(64) }, { decisao: 'validado_materialmente' }, { responsavel: 'x' }]) {
+    for (const extra of [{ id: 'meu-id' }, { id: 'licenciamento-ambiental' }, { id: '' }, { publicado: true }, { ativo: false }, { statusValidacao: 'validado' }, { estado: 'publicado' }, { hashConteudo: 'a'.repeat(64) }, { decisao: 'validado_materialmente' }, { responsavel: 'x' }]) {
       const r = await assunto(m, token, { ...ASSUNTO, ...extra });
       assert.equal(r.status, 422, JSON.stringify(extra));
       assert.deepEqual(r.corpo, { erro: 'dados_invalidos', campos: ['extras'] });
     }
-    for (const corpo of [{ ...ASSUNTO, id: 'Id Inválido SEGREDO123' }, { ...ASSUNTO, nome: '' }, { ...ASSUNTO, descricao: 'x'.repeat(1001) }, {}, [], null, 'texto', 5]) {
+    for (const corpo of [{ ...ASSUNTO, id: 'Id Inválido SEGREDO123' }, { ...ASSUNTO, nome: '' }, { ...ASSUNTO, nome: '123' }, { ...ASSUNTO, nome: '!!! ---' }, { ...ASSUNTO, descricao: 'x'.repeat(1001) }, {}, [], null, 'texto', 5]) {
       const r = await assunto(m, token, corpo);
       assert.equal(r.status, 422, JSON.stringify(corpo)?.slice(0, 40));
       assert.equal(r.corpo.erro, 'dados_invalidos');
@@ -224,25 +226,29 @@ test('CE7. assunto inexistente ou inativo: 422 e nada é criado', async () => {
   });
 });
 
-test('CE8. serviço duplicado por id, pasta existente ou nome: 409; nada é sobrescrito, nem a LAC', async () => {
+test('CE8. nome de serviço repetido: 409; o id vem do nome e colisões e pastas existentes viram sufixo; nada é sobrescrito, nem a LAC', async () => {
   await comCopia(async ({ m, token, raiz }) => {
     assert.equal((await servico(m, token)).status, 201);
     const antes = retrato(raiz);
     const nomeLac = lerJsonReal('services', 'lac', 'versoes', 'v1', 'service.json').nome;
-    for (const [corpo, campo] of [
-      [{ ...SERVICO, nome: 'Outro Serviço' }, 'id'],
-      [{ ...SERVICO, id: 'lac', nome: 'Outro Serviço' }, 'id'],
-      [{ ...SERVICO, id: 'schemas', nome: 'Outro Serviço' }, 'id'],
-      [{ ...SERVICO, id: 'admin', nome: 'Outro Serviço' }, 'id'],
-      [{ ...SERVICO, id: 'outro-servico' }, 'nome'],
-      [{ ...SERVICO, id: 'outro-servico', nome: '  SERVICO   FICTICIO ' }, 'nome'],
-      [{ ...SERVICO, id: 'outro-servico', nome: nomeLac.toUpperCase() }, 'nome'],
-    ]) {
-      const r = await servico(m, token, corpo);
-      assert.equal(r.status, 409, JSON.stringify(corpo));
-      assert.deepEqual(r.corpo, { erro: 'ja_existe', campo });
+    for (const nome of ['  SERVICO   FICTICIO ', 'serviço fictício', nomeLac, nomeLac.toUpperCase()]) {
+      const r = await servico(m, token, { ...SERVICO, nome });
+      assert.deepEqual([r.status, r.corpo], [409, { erro: 'ja_existe', campo: 'nome' }], nome);
     }
     assert.equal(retrato(raiz), antes);
+    // Nomes diferentes com o mesmo id gerado: -2, -3, sem sobrescrever o primeiro.
+    const r2 = await servico(m, token, { ...SERVICO, nome: 'Serviço Fictício!' });
+    const r3 = await servico(m, token, { ...SERVICO, nome: 'Serviço, Fictício' });
+    assert.deepEqual([r2.status, r2.corpo.servico.id, r3.status, r3.corpo.servico.id], [201, 'servico-ficticio-2', 201, 'servico-ficticio-3']);
+    // Nomes que coincidem com ids ou pastas existentes (lac, schemas, admin, registry) nunca reaproveitam o nome da pasta.
+    for (const [nome, id] of [['LAC', 'lac-2'], ['Schemas', 'schemas-2'], ['Admin', 'admin-2'], ['Registry', 'registry-2']]) {
+      const r = await servico(m, token, { ...SERVICO, nome });
+      assert.deepEqual([r.status, r.corpo.servico.id], [201, id], nome);
+    }
+    const registro = lerJson(raiz, 'services', 'registry.json');
+    assert.deepEqual(registro.servicos[0], lerJsonReal('services', 'registry.json').servicos[0], 'a LAC foi preservada no registro');
+    assert.deepEqual(fs.readFileSync(path.join(raiz, 'services', 'lac', 'versoes', 'v1', 'fontes.json'), 'utf8'), fs.readFileSync(path.join(RAIZ, 'services', 'lac', 'versoes', 'v1', 'fontes.json'), 'utf8'));
+    assert.deepEqual(validarServicos(raiz).erros, []);
   });
 });
 
@@ -316,8 +322,8 @@ test('CE12. falha na gravação do assunto preserva o arquivo anterior', async (
 test('CE13. gravações simultâneas diferentes não perdem dados: todas chegam ao disco', async () => {
   await comCopia(async ({ m, token, raiz }) => {
     const [a, b, c] = await Promise.all([
-      assunto(m, token, { id: 'assunto-a', nome: 'Assunto A', descricao: 'Fictício A.' }),
-      assunto(m, token, { id: 'assunto-b', nome: 'Assunto B', descricao: 'Fictício B.' }),
+      assunto(m, token, { nome: 'Assunto A', descricao: 'Fictício A.' }),
+      assunto(m, token, { nome: 'Assunto B', descricao: 'Fictício B.' }),
       servico(m, token),
     ]);
     assert.deepEqual([a.status, b.status, c.status], [201, 201, 201]);
@@ -342,14 +348,14 @@ test('CE14. trava de escrita: uma gravação em andamento faz a outra receber 40
   await comCopia(async ({ m, token, raiz }) => {
     const p1 = assunto(m, token);
     await aviso; // a primeira gravação já está dentro da trava
-    const r2 = await assunto(m, token, { id: 'assunto-b', nome: 'Assunto B', descricao: 'Fictício B.' });
+    const r2 = await assunto(m, token, { nome: 'Assunto B', descricao: 'Fictício B.' });
     assert.equal(r2.status, 409);
     assert.deepEqual(r2.corpo, { erro: 'operacao_em_andamento' });
     liberar();
     const r1 = await p1;
     assert.equal(r1.status, 201);
     assert.deepEqual(lerJson(raiz, 'services', 'assuntos.json').assuntos.map((x) => x.id), ['licenciamento-ambiental', 'assunto-ficticio']);
-    assert.equal((await assunto(m, token, { id: 'assunto-b', nome: 'Assunto B', descricao: 'Fictício B.' })).status, 201, 'trava liberada');
+    assert.equal((await assunto(m, token, { nome: 'Assunto B', descricao: 'Fictício B.' })).status, 201, 'trava liberada');
   }, { antesDeGravar });
   let lancar = true;
   await comCopia(async ({ m, token }) => {
@@ -411,14 +417,14 @@ test('CE17. Content-Type deve ser application/json; o tamanho máximo do corpo �
     }
     assert.equal(retrato(raiz), antes);
     for (const tipo of ['application/json', 'APPLICATION/JSON', 'application/json; charset=utf-8', 'application/json;charset=UTF-8']) {
-      const id = `a-${crypto.randomBytes(3).toString('hex')}`.replace(/^a-\d/, 'a-x');
-      const r = await enviar(m, { url: ROTA_ASSUNTOS, corpo: { id, nome: `Nome ${id}`, descricao: 'Fictício.' }, token, tipo });
+      const sufixo = crypto.randomBytes(3).toString('hex');
+      const r = await enviar(m, { url: ROTA_ASSUNTOS, corpo: { nome: `Nome x${sufixo}`, descricao: 'Fictício.' }, token, tipo });
       assert.equal(r.status, 201, tipo);
     }
   });
   await comCopia(async ({ m, token, raiz }) => {
     const antes = retrato(raiz);
-    const valido = JSON.stringify({ id: 'assunto-limite', nome: 'Assunto Limite', descricao: 'Fictício.' });
+    const valido = JSON.stringify({ nome: 'Assunto Limite', descricao: 'Fictício.' });
     const exato = valido + ' '.repeat(32 * 1024 - Buffer.byteLength(valido));
     const grande = exato + ' ';
     assert.equal(Buffer.byteLength(exato), 32 * 1024);
@@ -487,4 +493,70 @@ test('CE19. o repositório real continua só com "Licenciamento Ambiental" e a L
   assert.deepEqual(validarServicos(RAIZ), { erros: [], servicos: ['lac'] });
   // Nenhuma cópia temporária ficou para trás.
   assert.deepEqual(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('sema-orienta-cadastro') || n.startsWith('sema-orienta-ensaio-')), []);
+});
+
+// ---------- Identificador automático (Passo 7E3B) ----------
+
+test('CE20. o id é gerado pelo servidor a partir do nome: minúsculas, sem acentos, hífen no lugar de espaços e símbolos, começando por letra', async () => {
+  await comCopia(async ({ m, token, raiz }) => {
+    const casos = [
+      ['Água & Pesca Esportiva', 'agua-pesca-esportiva'], ['Ação  Ambiental!', 'acao-ambiental'], ['  Fauna / Flora  ', 'fauna-flora'], ['São João D\'Oeste', 'sao-joao-d-oeste'],
+      ['Licença Prévia (LP)', 'licenca-previa-lp'], ['2ª Via de Teste', 'item-2-via-de-teste'], ['Çedilha ÜÖ Ñandú', 'cedilha-uo-nandu'],
+    ];
+    for (const [nome, id] of casos) {
+      const r = await assunto(m, token, { nome, descricao: 'Descrição fictícia.' });
+      assert.deepEqual([r.status, r.corpo.assunto.id], [201, id], nome);
+      assert.match(r.corpo.assunto.id, /^[a-z][a-z0-9-]*$/);
+      assert.equal(r.corpo.assunto.nome, nome.trim().replace(/ {2,}/g, ' '), 'o nome é guardado como informado (aparado)');
+    }
+    const longo = await assunto(m, token, { nome: `Nome muito ${'longo '.repeat(15)}`.trim(), descricao: 'D.' });
+    assert.equal(longo.status, 201);
+    assert.ok(longo.corpo.assunto.id.length <= 52 && /^[a-z][a-z0-9-]*[a-z0-9]$/.test(longo.corpo.assunto.id));
+    assert.deepEqual(validarServicos(raiz).erros, []);
+    // O serviço também recebe o id gerado, na pasta e na versão.
+    const s = await servico(m, token, { ...SERVICO, nome: 'Carteira de Pesca Amadora' });
+    assert.deepEqual([s.status, s.corpo.servico.id, s.corpo.servico.versaoAtualId], [201, 'carteira-de-pesca-amadora', 'carteira-de-pesca-amadora-v1']);
+    assert.equal(fs.existsSync(path.join(raiz, 'services', 'carteira-de-pesca-amadora', 'versoes', 'v1', 'versao.json')), true);
+  });
+});
+
+test('CE21. nome inválido (sem letras, vazio ou só símbolos) é recusado com 422 e nada é criado', async () => {
+  await comCopia(async ({ m, token, raiz }) => {
+    const antes = retrato(raiz);
+    for (const nome of ['', '   ', '123', '2026', '!!! ---', '___', '—', '12 34 56', undefined, 5, null, ['a']]) {
+      const a = await assunto(m, token, { nome, descricao: 'Descrição.' });
+      assert.deepEqual([a.status, a.corpo], [422, { erro: 'dados_invalidos', campos: ['nome'] }], `assunto ${JSON.stringify(nome)}`);
+      const s = await servico(m, token, { ...SERVICO, nome });
+      assert.deepEqual([s.status, s.corpo], [422, { erro: 'dados_invalidos', campos: ['nome'] }], `serviço ${JSON.stringify(nome)}`);
+    }
+    assert.equal(retrato(raiz), antes);
+  });
+});
+
+test('CE22. o cliente não escolhe nem envia o id: qualquer campo id (ou chave parecida) é recusado como extra, e nada muda', async () => {
+  await comCopia(async ({ m, token, raiz }) => {
+    const antes = retrato(raiz);
+    for (const extra of [{ id: 'meu-id' }, { id: 'licenciamento-ambiental' }, { id: '' }, { id: null }, { ID: 'x' }, { identificador: 'x' }, { slug: 'x' }, { versaoAtualId: 'x-v1' }]) {
+      const a = await assunto(m, token, { ...ASSUNTO, ...extra });
+      assert.deepEqual([a.status, a.corpo], [422, { erro: 'dados_invalidos', campos: ['extras'] }], `assunto ${JSON.stringify(extra)}`);
+      const s = await servico(m, token, { ...SERVICO, ...extra });
+      assert.deepEqual([s.status, s.corpo], [422, { erro: 'dados_invalidos', campos: ['extras'] }], `serviço ${JSON.stringify(extra)}`);
+    }
+    assert.equal(retrato(raiz), antes);
+  });
+});
+
+test('CE23. os ids dos registros existentes são preservados: cadastrar novos não reescreve nem renomeia os anteriores', async () => {
+  await comCopia(async ({ m, token, raiz }) => {
+    const assuntosAntes = lerJson(raiz, 'services', 'assuntos.json').assuntos;
+    const registroAntes = lerJson(raiz, 'services', 'registry.json').servicos;
+    for (const nome of ['Primeiro Assunto', 'Segundo Assunto']) assert.equal((await assunto(m, token, { nome, descricao: 'D.' })).status, 201);
+    assert.equal((await servico(m, token)).status, 201);
+    const assuntosDepois = lerJson(raiz, 'services', 'assuntos.json').assuntos;
+    const registroDepois = lerJson(raiz, 'services', 'registry.json').servicos;
+    assert.deepEqual(assuntosDepois.slice(0, assuntosAntes.length), assuntosAntes);
+    assert.deepEqual(registroDepois.slice(0, registroAntes.length), registroAntes);
+    assert.deepEqual(assuntosDepois.map((a) => a.id), ['licenciamento-ambiental', 'primeiro-assunto', 'segundo-assunto']);
+    assert.deepEqual(registroDepois.map((s) => s.id), ['lac', 'servico-ficticio']);
+  });
 });

@@ -24,7 +24,7 @@ import { criarArmazenamento } from './armazenamento.js';
 import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
 import { executarTransacao } from './transacao.js';
 import {
-  LIMITE_CORPO, montarAssunto, montarEsqueletoServico, montarFonte, normalizarNome, urlNormalizada, validarCorpoAssunto, validarCorpoFonte,
+  gerarId, IDS_RESERVADOS, LIMITE_CORPO, montarAssunto, montarEsqueletoServico, montarFonte, normalizarNome, urlNormalizada, validarCorpoAssunto, validarCorpoFonte,
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
@@ -236,10 +236,12 @@ export function criarManipuladorAdmin({
 
   function cadastrarAssunto(dados) {
     const doc = lerJson('services/assuntos.json');
-    if (doc.assuntos.some((a) => a.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
     const nome = normalizarNome(dados.nome);
     if (doc.assuntos.some((a) => normalizarNome(a.nome) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
-    const assunto = montarAssunto(dados, dataLocal(agora()));
+    // O id é gerado aqui, uma única vez, a partir do nome; colisão vira sufixo (-2, -3...) e nunca reaproveita um id existente.
+    const id = gerarId(dados.nome, new Set(doc.assuntos.map((a) => a.id)));
+    if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nome'] } };
+    const assunto = montarAssunto({ id, nome: dados.nome, descricao: dados.descricao }, dataLocal(agora()));
     const novo = { ...doc, assuntos: [...doc.assuntos, assunto] };
     const r = aplicar([{ caminho: 'services/assuntos.json', tipo: 'json', conteudo: novo, validar: (d) => validarAssuntos(d).erros }]);
     return resultadoDaTransacao(r) ?? { status: 201, corpo: { assunto } };
@@ -249,20 +251,16 @@ export function criarManipuladorAdmin({
     const assunto = lerJson('services/assuntos.json').assuntos.find((a) => a.id === dados.assuntoId);
     if (!assunto || assunto.ativo !== true) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['assuntoId'] } };
     const registro = lerJson('services/registry.json');
-    if (registro.servicos.some((s) => s.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
-    let pastaExiste = true;
-    try {
-      sistema.lstatSync(path.join(raiz, 'services', dados.id));
-    } catch (e) {
-      pastaExiste = !(e && e.code === 'ENOENT');
-    }
-    if (pastaExiste) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
     const nome = normalizarNome(dados.nome);
     if (registro.servicos.some((s) => normalizarNome(nomeDoServico(s.id)) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
+    // O id é gerado a partir do nome, uma única vez. Evita ids do registro, nomes de pasta já existentes em services/ e nomes reservados.
+    const pastas = sistema.readdirSync(path.join(raiz, 'services')).map((n) => n.replace(/\.[^.]*$/, ''));
+    const id = gerarId(dados.nome, new Set([...registro.servicos.map((s) => s.id), ...pastas, ...IDS_RESERVADOS]));
+    if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nome'] } };
 
-    const esqueleto = montarEsqueletoServico(dados, assunto, dataLocal(agora()));
+    const esqueleto = montarEsqueletoServico({ ...dados, id }, assunto, dataLocal(agora()));
     const passos = [
-      ...esqueleto.arquivos.map((a) => ({ caminho: a.caminho, tipo: a.tipo, conteudo: a.conteudo, novo: true, validar: validadorDoArquivo(a.caminho, dados.id) })),
+      ...esqueleto.arquivos.map((a) => ({ caminho: a.caminho, tipo: a.tipo, conteudo: a.conteudo, novo: true, validar: validadorDoArquivo(a.caminho, id) })),
       // O registro é gravado por último: é ele que torna o serviço visível.
       { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro, servicos: [...registro.servicos, esqueleto.entradaRegistro] }, validar: () => [] },
     ];

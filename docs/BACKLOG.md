@@ -105,6 +105,10 @@ Concluído (Passo 7E3A — cadastro de fontes por serviço):
 
 - [x] `POST /__admin/servicos/<id>/fontes` (só no `npm run dev`) com revisão otimista, versão em rascunho obrigatória, fonte sempre em rascunho e não publicada, vigência definida pelo servidor, gravação tudo ou nada, e a seção "Fontes do serviço" na tela administrativa. Validação manual parcial pela usuária em 11/11/2026 (listagem, formulário, validações, confirmação, teclado, responsividade e data DD-MM-AAAA). **O cadastro real de uma fonte (`POST`) não foi testado manualmente** e nenhuma fonte real foi criada (`docs/TESTES_MANUAIS.md`, MF-05 a MF-09 e MF-12 não executados).
 
+Concluído (Passo 7E3B — simplificação inicial da administração):
+
+- [x] id de assunto e de serviço gerado pelo servidor a partir do nome (sem acentos, com colisão por sufixo), formulários sem o campo "Identificador", catálogo e confirmação sem ids nem versões, situação em linguagem amigável e "Publicado" ou "Não publicado". Estrutura técnica interna e registros existentes preservados. Validação manual visual pela usuária; a criação real pela tela não foi testada manualmente (`docs/TESTES_MANUAIS.md`, geração, normalização e colisão do id cobertas por testes automatizados).
+
 Pendente (ainda não iniciado): edição do conteúdo geral, documentos e perguntas, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
 ## M3 — Conversa com IA
