@@ -92,6 +92,10 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 - **Página de saúde:** resumo por estado, lista dos componentes (capacidade, estado, mensagem e hora), horário da última verificação, botão "Verificar novamente" e link para voltar à Gestão de conteúdo. Data e hora em DD-MM-AAAA HH:mm:ss (horário local); o horário ISO fica só na API. Usa o mesmo token em memória, `textContent` e nenhum armazenamento do navegador.
 - **Limites:** a verificação é sob demanda e local; não mede serviços externos nem desempenho. O endpoint e a página não existem no build nem no preview.
 
+## Testes de ponta a ponta (Passo 8C)
+
+`npm run test:e2e` (Playwright, só Chromium, em `e2e/`) abre o servidor local na porta 5173 e confere o chat público, `/admin/` e `/admin/saude/` no navegador. Os testes são somente leitura: bloqueiam qualquer requisição que não seja GET e qualquer rede externa, e não gravam serviços, assuntos nem fontes. Na saúde conferem a contagem separada de "Não implementados" (que não são falhas), a ausência de MCP, caminhos, tokens e erros internos, o botão "Verificar novamente" sem componentes duplicados, 390 px sem rolagem horizontal e o foco visível por Tab. Não substituem a conferência manual em `docs/TESTES_MANUAIS.md`.
+
 ## Armazenamento local
 
 - A **raiz** é informada de forma explícita por quem usa o módulo; o módulo não escolhe pasta sozinho.

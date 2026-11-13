@@ -109,11 +109,28 @@ Executar os testes automatizados:
 npm test
 ```
 
+Executar os testes de ponta a ponta (Playwright, só Chromium). Na primeira vez, instale o navegador com `npx playwright install chromium`. O comando inicia e encerra sozinho o servidor local na porta 5173 (não deixe outro servidor nela) e os testes são somente leitura:
+
+```bash
+npm run test:e2e
+```
+
+`npm run test:e2e:headed` faz o mesmo com o navegador visível, para conferência manual.
+
 Gerar a versão de produção (pasta `dist/`, ignorada pelo Git):
 
 ```bash
 npm run build
 ```
+
+## Administração local
+
+Só existe no servidor de desenvolvimento (`npm run dev`), sem autenticação, e não entra no build:
+
+- `http://localhost:5173/admin/`: **Gestão de conteúdo** (catálogo, cadastro de assunto, serviço e fonte);
+- `http://localhost:5173/admin/saude/`: **Saúde do sistema**, com verificações reais da aplicação, da base, do armazenamento e do conteúdo publicado. Banco de dados, IA externa e processamento de fontes aparecem como "Não implementados", em contagem separada: isso não é falha.
+
+Detalhes em [docs/ADMINISTRACAO.md](docs/ADMINISTRACAO.md) e evidências da Sprint 1 em [docs/EVIDENCIAS_SPRINT_1.md](docs/EVIDENCIAS_SPRINT_1.md).
 
 ## Base de serviços
 
@@ -150,4 +167,5 @@ A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](
 - Marco 0 — pacote de contexto concluído.
 - Marco 1 — interface inicial do chat concluída: conversa livre, envio por botão e Enter, reinício, layout responsivo (incluindo 390 px) e navegação por teclado. As respostas são temporárias e não trazem conteúdo da LAC.
 - Marco 2A — estrutura da base de conhecimento da LAC concluída (registro, esquemas, arquivos e validação automatizada). O conteúdo oficial segue pendente.
+- Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes) concluídos tecnicamente e em revisão na PR #4; a Issue #3 segue aberta até o merge.
 - Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.

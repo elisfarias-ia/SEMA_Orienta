@@ -13,12 +13,12 @@ Planejamento em ciclos curtos, com objetivo, backlog, critérios de aceite e Def
 
 | ID | Passo | Entrega | Situação |
 |---|---|---|---|
-| 8A | `CLAUDE.md`, metodologia e templates Git | Regras permanentes, técnicas com situação e evidências, modelos de issue e de pull request | — |
+| 8A | `CLAUDE.md`, metodologia e templates Git | Regras permanentes, técnicas com situação e evidências, modelos de issue e de pull request | **Concluído** (PR #2) |
 | 8B | Endpoint e tela de saúde | Estado operacional do sistema, visível só no ambiente local de desenvolvimento | **Concluído** (13/11/2026) |
-| 8C | Playwright dos fluxos críticos | Testes de ponta a ponta do chat público, da administração local e da ausência da administração no build | Pendente |
-| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint | Pendente |
+| 8C | Playwright dos fluxos críticos | Testes de ponta a ponta do chat público, da administração local e da ausência da administração no build | **Concluído** (13 testes) |
+| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint | Em revisão (PR #4) |
 
-**Situação da Sprint:** aberta. O 8B foi concluído; a bateria completa, o build e o `check-dist` ficam para o fechamento da Sprint, depois do Playwright (8C).
+**Situação da Sprint:** tecnicamente concluída e em revisão na PR #4; a Issue #3 permanece aberta até o merge. Verificações do fechamento (validação da base, `npm test`, `npm run test:e2e`, build, `check-dist` e `git diff --check`) e evidências em `docs/EVIDENCIAS_SPRINT_1.md`. Os testes E2E são somente leitura e não cobrem o `preview` nem o build; a ausência da administração e da faixa de teste no `dist/` é verificada pelo `check-dist` e por testes Node.
 
 ### Critérios de aceite
 
