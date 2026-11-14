@@ -127,7 +127,8 @@ npm run build
 
 Só existe no servidor de desenvolvimento (`npm run dev`), sem autenticação, e não entra no build:
 
-- `http://localhost:5173/admin/`: **Gestão de conteúdo** (catálogo, cadastro de assunto, serviço e fonte);
+- `http://localhost:5173/admin/`: **Cadastro da base** (catálogo, cadastro de assunto, serviço e fonte; nome provisório, o cadastro guiado fica para a Sprint 4);
+- `http://localhost:5173/admin/conteudo/`: **Informações do chatbot** (cadastro, edição e exclusão de informações em rascunho, com fontes que as comprovam; nada chega ao chat público);
 - `http://localhost:5173/admin/saude/`: **Saúde do sistema**, com verificações reais da aplicação, da base, do armazenamento e do conteúdo publicado. Banco de dados, IA externa e processamento de fontes aparecem como "Não implementados", em contagem separada: isso não é falha.
 
 Detalhes em [docs/ADMINISTRACAO.md](docs/ADMINISTRACAO.md) e evidências da Sprint 1 em [docs/EVIDENCIAS_SPRINT_1.md](docs/EVIDENCIAS_SPRINT_1.md).
@@ -169,4 +170,5 @@ A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](
 - Marco 2A — estrutura da base de conhecimento da LAC concluída (registro, esquemas, arquivos e validação automatizada). O conteúdo oficial segue pendente.
 - Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes) concluídos tecnicamente e em revisão na PR #4; a Issue #3 segue aberta até o merge.
 - Sprint 2 — engenharia assistida: skills, subagentes e MCP local de consulta da base, com evidências em [docs/EVIDENCIAS_SPRINT_2.md](docs/EVIDENCIAS_SPRINT_2.md). O hook de proteção (2D) foi cancelado e não foi implementado.
+- Sprint 3 — informações do chatbot: blocos de conhecimento em rascunho (modelo, endpoints locais e a página `/admin/conteudo/`), sem publicação e sem alterar o chat público, com evidências em [docs/EVIDENCIAS_SPRINT_3.md](docs/EVIDENCIAS_SPRINT_3.md). O cadastro guiado de assunto, serviço e fontes ficou para a Sprint 4 (Issue #8).
 - Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.

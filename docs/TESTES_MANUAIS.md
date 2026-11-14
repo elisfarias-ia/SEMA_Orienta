@@ -204,3 +204,29 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 - **Aprovados pela usuária:** MH-01 a MH-05 e MH-07 a MH-13 (MH-06 substituído, pois o MCP saiu da saúde; MH-13 confere o resumo corrigido).
 - **Cobertos só por testes automatizados:** os estados degradado e indisponível (falhas simuladas em cópias temporárias da base e do armazenamento), a proteção do endpoint e a ausência de vazamento. Não foram provocados manualmente.
 - **Dados:** nenhum dado real foi criado ou alterado.
+
+### Execução — informações do chatbot (Sprint 3, Passo 3B2)
+
+- **Data:** 13/11/2026.
+- **Ambiente:** `npm run dev` (sem `--host`), em `http://localhost:5173/admin/conteudo/`.
+- **Dimensão móvel:** 390 × 844 px.
+- **Validação:** conferência manual pela usuária.
+
+| ID | Cenário | Resultado esperado | Resultado |
+|---|---|---|---|
+| MC-01 | Abrir a página separada "Informações do chatbot" (`/admin/conteudo/`) e usar a navegação entre as três páginas | Página própria, com navegação "Cadastro da base", "Informações do chatbot" e "Saúde do sistema" | aprovado |
+| MC-02 | Cadastrar uma informação (dado fictício) | Confirmação antes de salvar; informação em elaboração (rascunho), ainda não disponível no chatbot | aprovado |
+| MC-03 | Editar a informação cadastrada | Formulário preenchido; alteração salva depois da confirmação | aprovado |
+| MC-04 | Excluir a informação cadastrada | Confirmação de exclusão; informação removida da lista | aprovado |
+| MC-05 | Conferir a linguagem das páginas e dos campos | Nomes, campos e instruções claros para usuário não técnico | aprovado com ressalva (primeira versão considerada confusa); corrigida e aprovada em seguida |
+| MC-06 | Conferir o visual em desktop e em 390 × 844 px | Padrão visual aprovado (cartões, cabeçalho verde, duas colunas em tela larga), sem rolagem horizontal | aprovado |
+| MC-07 | Conferir os ícones | Ícones SVG simples de traço verde, sem emojis | aprovado |
+| MC-08 | Procurar ids e termos técnicos na tela | Nenhum aparece | aprovado |
+| MC-09 | Abrir a interface pública (chat) | Sem alteração | aprovado |
+
+**Registro**
+
+- **Aprovados pela usuária:** MC-01 a MC-04 (cadastro, edição e exclusão), MC-06 a MC-09 e MC-05 com ressalva de linguagem, depois corrigida.
+- **Dados:** o dado fictício criado no teste foi excluído pela própria tela e a base foi restaurada pelo Git: o conteúdo da LAC voltou ao original (5 blocos) e não existe bloco "TESTE MANUAL". `services/` (dados) sem alterações.
+- **Cobertos só por testes automatizados:** erros do servidor (409, 404, 422, 500), clique duplo, concorrência, rollback e proteção do endpoint, todos com requisições simuladas ou cópias temporárias.
+- **Fora desta entrega:** o cadastro guiado de assunto, serviço e fontes foi transferido para a Issue #8 (Sprint 4).

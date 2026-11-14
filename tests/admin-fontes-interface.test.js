@@ -287,10 +287,12 @@ test('FI12. o código da tela usa a revisão lida, só cadastra com versão em r
   assert.match(JS, /sequenciaDeFontes/);
   assert.match(JS, /r\.recarregar/);
   assert.equal((JS.match(/cliente\.cadastrar\(/g) ?? []).length, 1);
-  const textos = `${HTML}\n${JS}\n${LOGICA}`;
+  // A tela de cadastro (index.html e admin.js) não oferece edição nem exclusão; os blocos de conhecimento têm página própria (/admin/conteudo/).
+  const textos = `${HTML}\n${JS}`;
   assert.doesNotMatch(textos, /\b(Editar|Excluir|Apagar|Remover)\b|Publicar|Autorizar|Validar conteúdo|Enviar para validação|decis[ãa]o/i);
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 1);
-  assert.doesNotMatch(LOGICA, /['"`](PUT|PATCH|DELETE)['"`]/);
+  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 2, 'cadastrar e gravarConhecimento (criar)');
+  assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 2, 'só em gravarConhecimento');
+  assert.doesNotMatch(LOGICA, /['"`]PUT['"`]/);
   assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(contexto\.servicoId\)\}\/fontes`/);
   assert.doesNotMatch(`${JS}\n${LOGICA}`, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|document\.cookie|console\./);
   assert.doesNotMatch(LOGICA, /new Date\(|Date\.now|\bdocument\b|\bwindow\b/);

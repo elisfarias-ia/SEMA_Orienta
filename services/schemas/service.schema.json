@@ -253,7 +253,7 @@
         "alertas": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" } }
       }
     },
-    "tipoBlocoAssistente": { "enum": ["limitacao", "descricao", "sequencia", "link", "sem_conteudo"] },
+    "tipoBlocoAssistente": { "enum": ["limitacao", "descricao", "sequencia", "link", "sem_conteudo", "conhecimento"] },
     "ambienteAssistente": { "enum": ["teste_local", "publico"] },
     "arquivoConteudoAssistente": {
       "type": "object",
@@ -296,8 +296,47 @@
         "publicado": { "type": "boolean", "description": "Nunca true em bloco teste_local." },
         "revisaoAtualidade": { "$ref": "#/$defs/estadoRevisaoAtualidade" },
         "url": { "type": "string", "pattern": "^https://", "description": "Somente tipo link: deve ser a URL da fonte citada." },
-        "aviso": { "type": "string", "minLength": 1 }
-      }
+        "aviso": { "type": "string", "minLength": 1 },
+        "titulo": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Somente tipo conhecimento." },
+        "referencias": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "description": "Somente tipo conhecimento: uma referência por fonte de fonteIds (sem repetição).",
+          "items": {
+            "type": "object",
+            "required": ["fonteId", "localizacao"],
+            "additionalProperties": false,
+            "properties": {
+              "fonteId": { "type": "string", "description": "Deve estar em fonteIds." },
+              "localizacao": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Página, seção, item ou dispositivo da fonte." }
+            }
+          }
+        },
+        "alertas": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "\\S" }, "description": "Somente tipo conhecimento; opcional." },
+        "criadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Somente tipo conhecimento; AAAA-MM-DD (apresentação futura DD-MM-AAAA)." },
+        "atualizadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Somente tipo conhecimento; não anterior a criadoEm." }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["tipo"], "properties": { "tipo": { "const": "conhecimento" } } },
+          "then": {
+            "required": ["titulo", "texto", "fonteIds", "referencias", "ambiente", "statusValidacao", "publicado", "revisaoAtualidade", "criadoEm", "atualizadoEm"],
+            "properties": {
+              "origem": { "const": "fonte" },
+              "ambiente": { "const": "publico" },
+              "texto": { "maxLength": 2000 },
+              "fonteIds": { "minItems": 1, "maxItems": 10, "uniqueItems": true }
+            },
+            "oneOf": [
+              { "properties": { "statusValidacao": { "const": "rascunho" }, "revisaoAtualidade": { "const": "pendente" }, "publicado": { "const": false } } },
+              { "properties": { "statusValidacao": { "const": "em_validacao" }, "revisaoAtualidade": { "enum": ["pendente", "em_revisao"] }, "publicado": { "const": false } } },
+              { "properties": { "statusValidacao": { "const": "validado" }, "revisaoAtualidade": { "const": "concluida" }, "publicado": { "type": "boolean" } } }
+            ]
+          }
+        }
+      ],
+      "$comment": "Bloco do tipo conhecimento: nasce (criação pelo servidor) em rascunho, publicado false e revisaoAtualidade pendente, com ambiente publico (não significa publicado). Pode evoluir somente pelas combinações coerentes acima; publicado true exige validado, revisão concluída e fontes publicadas e não revogadas (conferido pelo validador). Só é entregue ao assistente quando cumprir todas as regras de publicação. Referências devem corresponder 1:1 aos fonteIds e atualizadoEm não pode ser anterior a criadoEm (conferido pelo validador)."
     }
   }
 }

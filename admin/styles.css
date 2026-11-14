@@ -519,3 +519,208 @@ a.botao {
 .pagina--compacta .saude {
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 }
+
+/* Página "Blocos de conhecimento" (Sprint 3, Passo 3B2) */
+.situacao {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+}
+.situacao__linha,
+.situacao__aviso {
+  margin: 0.2rem 0;
+  overflow-wrap: anywhere;
+}
+.situacao__rotulo {
+  font-weight: 700;
+}
+.situacao__aviso {
+  font-weight: 600;
+}
+.blocos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.bloco {
+  padding: 0.85rem 1rem;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.bloco__titulo {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+}
+.bloco__texto {
+  margin: 0 0 0.5rem;
+  white-space: pre-wrap;
+}
+.bloco__rotulo {
+  margin: 0.4rem 0 0.1rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.bloco__fontes,
+.bloco__alertas {
+  margin: 0 0 0.4rem;
+  padding-left: 1.2rem;
+}
+.bloco__linha {
+  margin: 0.2rem 0;
+  font-size: 0.92rem;
+}
+.bloco__acoes,
+.acoes-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.grupo-fontes {
+  min-width: 0;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+.grupo-fontes legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+}
+.fonte-opcao {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--borda);
+}
+.fonte-opcao:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.fonte-opcao__local {
+  margin: 0.4rem 0 0 1.75rem;
+}
+@media (max-width: 30rem) {
+  .bloco__acoes .botao,
+  .acoes-form .botao {
+    width: 100%;
+  }
+  .fonte-opcao__local {
+    margin-left: 0;
+  }
+}
+
+.passos {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 600;
+}
+.bloco__disponibilidade {
+  font-weight: 600;
+}
+
+/* Padrão visual da página "Informações do chatbot": cartões com ícone simples, faixa de situação e duas colunas em tela larga. */
+.pagina--larga {
+  max-width: 72rem;
+}
+.cartao__titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--verde-100);
+}
+.cartao__titulo h2 {
+  margin: 0;
+}
+.icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  background: var(--verde-100);
+  color: var(--verde-800);
+  line-height: 1;
+}
+.icone svg {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.icone--grande {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+.icone--grande svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.cabecalho__icone svg {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+}
+.introducao {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.introducao h2 {
+  margin-bottom: 0.2rem;
+}
+.introducao__texto {
+  margin: 0 0 0.5rem;
+  color: var(--texto-suave);
+}
+.campos-lado-a-lado {
+  display: grid;
+  gap: 0 1rem;
+  margin-top: 0.75rem;
+}
+.situacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 1.25rem;
+  background: var(--verde-100);
+  border-color: var(--borda);
+}
+.situacao__aviso {
+  flex-basis: 100%;
+}
+.duas-colunas {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+.bloco {
+  border-color: var(--borda);
+}
+.bloco .selo {
+  margin-left: 0.2rem;
+}
+@media (min-width: 48rem) {
+  .campos-lado-a-lado {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (min-width: 62rem) {
+  .duas-colunas {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 30rem) {
+  .introducao {
+    flex-direction: column;
+  }
+}

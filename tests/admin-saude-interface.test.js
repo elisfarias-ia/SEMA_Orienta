@@ -141,7 +141,7 @@ test('SI7. a página é acessível e compacta: título, resumo, botão "Verifica
   assert.match(HTML, /<p id="saude-quando" class="ajuda" aria-live="polite">Ainda não verificado\.<\/p>/);
   assert.match(HTML, /<div id="saude-lista" aria-busy="false"><\/div>/);
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
-  assert.match(HTML, /<a class="botao botao--secundario" href="..\/">Voltar para Gestão de conteúdo<\/a>/);
+  assert.match(HTML, /<a class="botao botao--secundario" href="..\/">Voltar para Cadastro da base<\/a>/);
   assert.match(HTML, /sem fingir funcionamento/);
   // A página de saúde tem só os elementos de saúde: nada de formulário de cadastro.
   assert.doesNotMatch(HTML, /<form|<input|<textarea|<select|<dialog/);
@@ -170,7 +170,7 @@ test('SI9. o código da página não usa innerHTML, armazenamento do navegador, 
   assert.match(JS, /if \(verificando \|\| !cliente\.sessaoPronta\(\)\) return;/);
   assert.deepEqual([...JS.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]), ['../admin-logic.js'], 'reutiliza a lógica da administração');
   assert.doesNotMatch(JS_CADASTRO, /saude|Saúde|new Date\(/i, 'a tela de cadastro não tem mais nada de saúde');
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 1, 'a saúde só faz GET');
+  assert.doesNotMatch(JS, /'(POST|PUT|PATCH|DELETE)'|cadastrar\(|gravarConhecimento\(/, 'a saúde só faz GET');
 });
 
 test('SI10. isolamento: dist/ sem a seção, a rota ou as funções de saúde; a conferência do build procura esses nomes', { skip: !fs.existsSync(path.join(RAIZ, 'dist')) }, () => {

@@ -369,12 +369,123 @@ export function catalogoValido(c) {
     && Array.isArray(c.servicos) && c.servicos.every((s) => ehObjeto(s) && ehTexto(s.id) && ehTexto(s.assuntoId));
 }
 
+// ---------- Blocos de conhecimento (Sprint 3, Passo 3B2) ----------
+
+// Mesmos limites do servidor (services/admin/conhecimento.js); o servidor continua sendo a palavra final.
+export const LIMITES_CONHECIMENTO = Object.freeze({ titulo: 200, texto: 2000, alerta: 300, alertas: 10, fontes: 10, localizacao: 200 });
+const CONTROLE_LONGO = /[\u0000-\u0008\u000b-\u001f\u007f]/; // permite quebra de linha e tabulação
+const ROTULOS_REVISAO = Object.freeze({ pendente: 'Revisão pendente', em_revisao: 'Em revisão', concluida: 'Revisão concluída' });
+export const rotuloSituacaoBloco = (s) => (s === 'rascunho' ? 'Em elaboração (rascunho)' : s === 'em_validacao' ? 'Em análise' : s === 'validado' ? 'Validada' : 'Situação indisponível');
+export const rotuloRevisao = (r) => (ehTexto(r) && Object.hasOwn(ROTULOS_REVISAO, r) ? ROTULOS_REVISAO[r] : 'Revisão indisponível');
+
+function textoLongo(valor, limite, nomeDoCampo, erros, campo) {
+  if (!ehTexto(valor) || valor.trim() === '') erros[campo] = `Preencha ${nomeDoCampo}.`;
+  else if (CONTROLE_LONGO.test(valor)) erros[campo] = `${capitalizar(nomeDoCampo)} contém caracteres não permitidos.`;
+  else if (valor.trim().length > limite) erros[campo] = `${capitalizar(nomeDoCampo)} deve ter no máximo ${limite} caracteres.`;
+  else if (PADRAO_EMAIL.test(valor) || PADRAO_TELEFONE.test(valor)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
+  else return valor.trim();
+  return null;
+}
+
+/**
+ * Valida o formulário de bloco de conhecimento. `valores`: { titulo, texto, alertas (texto, um por linha), selecionadas: [{ fonteId, localizacao }] }.
+ * `fontes`: fontes da versão ([{ id, revogada }]). Retorna { ok, dados } ou { ok: false, erros } (mensagem por campo; `localizacoes` por fonte).
+ */
+export function validarFormConhecimento(valores, fontes = []) {
+  const v = ehObjeto(valores) ? valores : {};
+  const L = LIMITES_CONHECIMENTO;
+  const erros = {};
+  const titulo = textoLivre(v.titulo, L.titulo, 'o tema da informação', erros, 'titulo');
+  const texto = textoLongo(v.texto, L.texto, 'a informação que o chatbot pode usar', erros, 'texto');
+
+  const disponiveis = new Map(fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => [f.id, f]));
+  const selecionadas = Array.isArray(v.selecionadas) ? v.selecionadas : [];
+  const referencias = [];
+  if (selecionadas.length === 0) erros.fontes = 'Escolha ao menos uma fonte que comprove a informação.';
+  else if (selecionadas.length > L.fontes) erros.fontes = `Escolha no máximo ${L.fontes} fontes.`;
+  else if (new Set(selecionadas.map((s) => s?.fonteId)).size !== selecionadas.length) erros.fontes = 'Cada fonte pode ser escolhida uma só vez.';
+  else if (selecionadas.some((s) => !ehObjeto(s) || !disponiveis.has(s.fonteId) || disponiveis.get(s.fonteId).revogada === true)) {
+    erros.fontes = 'Escolha apenas fontes disponíveis neste serviço (fontes revogadas não podem ser usadas).';
+  } else {
+    const locais = {};
+    for (const s of selecionadas) {
+      const e = {};
+      const localizacao = textoLivre(s.localizacao, L.localizacao, 'onde a informação aparece na fonte', e, 'x');
+      if (localizacao === null) locais[s.fonteId] = e.x === 'Preencha onde a informação aparece na fonte.' ? 'Informe onde esta informação aparece na fonte. Exemplo: página 3, item 2.1 ou seção Como solicitar.' : e.x;
+      else referencias.push({ fonteId: s.fonteId, localizacao });
+    }
+    if (Object.keys(locais).length) erros.localizacoes = locais;
+  }
+
+  const alertas = parseTermos(v.alertas);
+  if (alertas.length > L.alertas) erros.alertas = `Informe no máximo ${L.alertas} avisos.`;
+  else if (alertas.some((a) => a.length > L.alerta)) erros.alertas = `Cada aviso deve ter no máximo ${L.alerta} caracteres.`;
+  else if (alertas.some((a) => CONTROLE.test(a))) erros.alertas = 'Os avisos contêm caracteres não permitidos.';
+  else if (alertas.some((a) => PADRAO_EMAIL.test(a) || PADRAO_TELEFONE.test(a))) erros.alertas = 'Não informe e-mail nem telefone nos avisos.';
+
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, dados: { titulo, texto, fonteIds: referencias.map((r) => r.fonteId), referencias, alertas } };
+}
+
+/** Corpo enviado: somente titulo, texto, fonteIds, referencias e alertas (alertas só quando houver). Id, datas e estados nunca vão. */
+export function corpoDoConhecimento(dados) {
+  const corpo = {
+    titulo: dados.titulo, texto: dados.texto, fonteIds: [...dados.fonteIds], referencias: dados.referencias.map((r) => ({ fonteId: r.fonteId, localizacao: r.localizacao })),
+  };
+  if (Array.isArray(dados.alertas) && dados.alertas.length > 0) corpo.alertas = [...dados.alertas];
+  return corpo;
+}
+
+/** Linhas do resumo mostrado antes de gravar (sem ids): fontes por título. */
+export function resumoDoConhecimento(dados, fontes = [], servico = null) {
+  const titulos = new Map(fontes.map((f) => [f.id, f.titulo]));
+  return [
+    { rotulo: 'Serviço', valor: servico ?? 'não identificado' },
+    { rotulo: 'Tema da informação', valor: dados.titulo },
+    { rotulo: 'Informação que o chatbot pode usar', valor: dados.texto },
+    { rotulo: 'Fontes que comprovam', valor: dados.referencias.map((r) => `${titulos.get(r.fonteId) ?? 'Fonte'} — ${r.localizacao}`).join('; ') },
+    { rotulo: 'Avisos ou limitações', valor: dados.alertas.length ? dados.alertas.join('; ') : 'nenhum' },
+    { rotulo: 'Situação inicial', valor: 'Em elaboração (rascunho); ainda não disponível no chatbot' },
+  ];
+}
+
+/**
+ * Resume a resposta de GET versao-atual para a tela de blocos: nome do serviço, número e estado da versão, fontes (título e tipo)
+ * e somente os blocos do tipo conhecimento, com datas em DD-MM-AAAA. Nada interno além do necessário às chamadas é copiado.
+ * Retorna null se o formato não for o esperado.
+ */
+export function resumirConhecimento(c) {
+  if (!ehObjeto(c) || !ehObjeto(c.manifesto) || !ehTexto(c.manifesto.estado) || !Number.isInteger(c.manifesto.numero)) return null;
+  if (!ehObjeto(c.service) || !ehObjeto(c.fontes) || !Array.isArray(c.fontes.fontes)) return null;
+  if (!ehObjeto(c.conteudoAssistente) || !Array.isArray(c.conteudoAssistente.blocos)) return null;
+  const fontes = c.fontes.fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => ({
+    id: f.id, titulo: ehTexto(f.titulo) ? f.titulo : 'Fonte', tipo: rotuloTipoFonte(f.tipo), revogada: ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada',
+  }));
+  const titulos = new Map(fontes.map((f) => [f.id, f.titulo]));
+  const blocos = c.conteudoAssistente.blocos.filter((b) => ehObjeto(b) && b.tipo === 'conhecimento' && ehTexto(b.id)).map((b) => {
+    const referencias = (Array.isArray(b.referencias) ? b.referencias : []).filter(ehObjeto)
+      .map((r) => ({ fonteId: r.fonteId, fonteTitulo: titulos.get(r.fonteId) ?? 'Fonte', localizacao: ehTexto(r.localizacao) ? r.localizacao : '' }));
+    return {
+      id: b.id, titulo: ehTexto(b.titulo) ? b.titulo : '', texto: ehTexto(b.texto) ? b.texto : '', referencias,
+      alertas: Array.isArray(b.alertas) ? b.alertas.filter(ehTexto) : [],
+      situacao: rotuloSituacaoBloco(b.statusValidacao), revisao: rotuloRevisao(b.revisaoAtualidade), publicacao: b.publicado === true ? 'Disponível no chatbot.' : 'Ainda não disponível no chatbot.',
+      criadoEm: formatarDataBr(b.criadoEm), atualizadoEm: formatarDataBr(b.atualizadoEm),
+      editavel: b.statusValidacao === 'rascunho' && b.publicado === false && b.revisaoAtualidade === 'pendente',
+    };
+  });
+  return {
+    nomeServico: ehTexto(c.service.nome) && c.service.nome !== '' ? c.service.nome : 'Serviço sem nome', numero: c.manifesto.numero, estado: c.manifesto.estado,
+    editavel: c.manifesto.estado === 'rascunho', fontes, blocos,
+  };
+}
+
 // ---------- Mensagens ----------
 
 const ROTULO_DO_CAMPO = Object.freeze({
   id: 'identificador', nome: 'nome', descricao: 'descrição', assuntoId: 'assunto', sigla: 'sigla', termosEquivalentes: 'termos equivalentes',
   titulo: 'título', tipo: 'tipo', orgaoResponsavel: 'órgão responsável', url: 'URL', origemOficial: 'origem oficial', dataPublicacao: 'data de publicação',
   dispositivoRelevante: 'dispositivo relevante', revisao: 'revisão das fontes',
+  texto: 'informação que o chatbot pode usar', fonteIds: 'fontes', referencias: 'onde a informação aparece na fonte', alertas: 'avisos ou limitações',
 });
 export const MENSAGENS = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se o servidor de desenvolvimento está ativo e recarregue a página.',
@@ -383,15 +494,26 @@ export const MENSAGENS = Object.freeze({
   fontes: 'Não foi possível carregar as fontes deste serviço. Tente novamente.',
   saude: 'Não foi possível verificar a saúde do sistema. Tente novamente.',
   emAndamento: 'Uma gravação já está em andamento. Aguarde a conclusão.',
+  conhecimento: 'Não foi possível carregar as informações deste serviço. Tente novamente.',
   generica: 'Não foi possível concluir a operação. Nada foi alterado.',
 });
 
 /** Converte o código do endpoint em mensagem curta em português. Nunca usa texto bruto da resposta. */
-export function mensagemDeErro(status, corpo) {
+export function mensagemDeErro(status, corpo, contexto = 'geral') {
   const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
   const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
   if (status === 401) return 'A sessão administrativa é inválida ou expirou. Recarregue a página para iniciar uma nova sessão.';
   if (status === 403) return 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.';
+  if (contexto === 'conhecimento') {
+    if (status === 404) return 'Esta informação ou este serviço não foi encontrado. A lista foi recarregada.';
+    if (status === 409) {
+      if (erro === 'operacao_em_andamento') return 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.';
+      if (erro === 'versao_nao_editavel') return 'A versão atual deste serviço não está em rascunho; não é possível alterar as informações. A tela foi recarregada.';
+      if (erro === 'bloco_nao_editavel') return 'Esta informação não está mais em elaboração (rascunho) e não pode ser editada. A lista foi recarregada.';
+      if (erro === 'bloco_nao_removivel') return 'Esta informação não está mais em elaboração (rascunho) e não pode ser excluída. A lista foi recarregada.';
+      return MENSAGENS.generica;
+    }
+  }
   if (status === 409) {
     if (erro === 'operacao_em_andamento') return 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.';
     if (erro === 'revisao_divergente') return 'As fontes deste serviço mudaram desde que a lista foi aberta. A lista foi recarregada; confira e tente de novo.';
@@ -406,7 +528,8 @@ export function mensagemDeErro(status, corpo) {
     const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos : [];
     if (campos.includes('extras')) return 'Os dados enviados contêm campos que não são permitidos.';
     if (campos.length === 1 && campos[0] === 'assuntoId') return 'O assunto escolhido não existe ou está inativo.';
-    const nomes = campos.filter((c) => Object.hasOwn(ROTULO_DO_CAMPO, c)).map((c) => ROTULO_DO_CAMPO[c]);
+    const rotulos = contexto === 'conhecimento' ? { ...ROTULO_DO_CAMPO, titulo: 'tema da informação' } : ROTULO_DO_CAMPO;
+    const nomes = campos.filter((c) => Object.hasOwn(rotulos, c)).map((c) => rotulos[c]);
     return nomes.length ? `Revise os campos: ${nomes.join(', ')}.` : 'Revise os dados informados.';
   }
   if (status === 400) return 'Os dados enviados não puderam ser lidos. Revise o formulário e tente de novo.';
@@ -496,6 +619,43 @@ export function criarClienteAdmin({ fetchImpl }) {
         && ehTexto(c.revisaoFontes) && /^[0-9a-f]{64}$/.test(c.revisaoFontes) && ehObjeto(c.fontes) && Array.isArray(c.fontes.fontes);
       if (!valido) return { ok: false, mensagem: r.status === 401 ? mensagemDeErro(401, r.corpo) : MENSAGENS.fontes };
       return { ok: true, versaoId: c.versaoId, estado: c.manifesto.estado, revisao: c.revisaoFontes, fontes: resumirFontes(c.fontes) };
+    },
+
+    /** Lê a versão atual do serviço para a tela de blocos de conhecimento. */
+    async carregarConhecimento(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!ehTexto(servicoId) || !PADRAO_ID.test(servicoId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/versao-atual`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirConhecimento(r.corpo) : null;
+      if (resumo === null) return { ok: false, mensagem: r.status === 401 ? mensagemDeErro(401, r.corpo) : MENSAGENS.conhecimento };
+      return { ok: true, ...resumo };
+    },
+
+    /**
+     * Cria (operacao 'criar'), altera ('alterar') ou exclui ('excluir') um bloco de conhecimento. Uma gravação por vez no cliente.
+     * Retorna { ok } ou { ok: false, mensagem, recarregar? } (recarregar: o estado mudou no servidor e a tela deve ser recarregada).
+     */
+    async gravarConhecimento(operacao, servicoId, blocoId, corpo) {
+      if (!ehTexto(servicoId) || !PADRAO_ID.test(servicoId) || !['criar', 'alterar', 'excluir'].includes(operacao)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (operacao !== 'criar' && (!ehTexto(blocoId) || !PADRAO_ID.test(blocoId))) return { ok: false, mensagem: MENSAGENS.generica };
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      const base = `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/conhecimentos`;
+      gravando = true;
+      try {
+        const r = operacao === 'criar' ? await chamar('POST', base, corpo)
+          : operacao === 'alterar' ? await chamar('PATCH', `${base}/${encodeURIComponent(blocoId)}`, corpo)
+            : await chamar('DELETE', `${base}/${encodeURIComponent(blocoId)}`);
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        const esperado = { criar: 201, alterar: 200, excluir: 204 }[operacao];
+        if (r.status === esperado) return { ok: true };
+        const recarregar = r.status === 404 || (r.status === 409 && ehObjeto(r.corpo) && ['versao_nao_editavel', 'bloco_nao_editavel', 'bloco_nao_removivel'].includes(r.corpo.erro));
+        const mensagem = mensagemDeErro(r.status, r.corpo, 'conhecimento');
+        return recarregar ? { ok: false, mensagem, recarregar: true } : { ok: false, mensagem };
+      } finally {
+        gravando = false;
+      }
     },
 
     /**

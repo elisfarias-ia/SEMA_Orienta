@@ -11,6 +11,11 @@
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
 //   /__admin/servicos/<id>/fontes         -> cadastra uma fonte (só em versão em rascunho; revisão otimista do arquivo de fontes)
 //
+// Rotas de blocos de conhecimento (Sprint 3, Passo 3B1; exigem token; só em versão atual em rascunho; só o arquivo de conteúdo do assistente da versão):
+//   POST   /__admin/servicos/<id>/conhecimentos              -> cria um bloco (201); o id e as datas são gerados pelo servidor
+//   PATCH  /__admin/servicos/<id>/conhecimentos/<blocoId>    -> substitui titulo, texto, fonteIds, referencias e alertas (200)
+//   DELETE /__admin/servicos/<id>/conhecimentos/<blocoId>    -> remove bloco de conhecimento ainda em rascunho (204)
+//
 // Este módulo NÃO tem autenticação de pessoas: o token só impede que outro site aberto no navegador use o endpoint.
 // Não decide, não valida conteúdo, não publica e não exclui nada. Não lê dados privados (data/admin-private/); não usa
 // cookies, armazenamento do navegador, variáveis de ambiente nem registro em log. Erros são códigos genéricos, sem
@@ -29,6 +34,7 @@ import {
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
+import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento } from './conhecimento.js';
 import { verificarSaude } from './saude.js';
 import { validarVersao } from './versao.js';
 import {
@@ -49,6 +55,8 @@ const ORIGENS_LOCAIS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const PADRAO_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(?::(\d{1,5}))?$/i;
 const PADRAO_ROTA_VERSAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/versao-atual$/;
 const PADRAO_ROTA_FONTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes$/;
+const PADRAO_ROTA_CONHECIMENTOS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/conhecimentos$/;
+const PADRAO_ROTA_CONHECIMENTO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/conhecimentos\/([a-z][a-z0-9-]{0,59})$/;
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
@@ -140,6 +148,8 @@ export function criarManipuladorAdmin({
   diretorioTemporario = os.tmpdir(),
   antesDeGravar,
   verificarFinal = (r) => validarServicos(r).erros,
+  verificarInicial = (r) => validarServicos(r).erros,
+  gerarIdBloco = () => `bc-${crypto.randomBytes(6).toString('hex')}`,
 } = {}) {
   let token = null;
   let escrevendo = false;
@@ -296,6 +306,101 @@ export function criarManipuladorAdmin({
     return resultadoDaTransacao(r) ?? { status: 201, corpo: { fonte, revisao: hashConteudo(novo) } };
   }
 
+  // ---------- Blocos de conhecimento (3B1) ----------
+
+  /** Versão atual, manifesto, conteúdo do assistente e fontes (somente da versão atual). Lança erro se algo não puder ser lido. */
+  function contextoDeConhecimento(servicoId) {
+    const versao = localizarVersaoAtual(raiz, servicoId);
+    if (!versao.ok) throw new Error('versao');
+    return {
+      versao,
+      manifesto: lerJson(`${versao.pasta}/${NOME_DO_MANIFESTO}`),
+      conteudo: lerJson(versao.arquivos.conteudoAssistente),
+      fontes: lerJson(versao.arquivos.fontes).fontes,
+    };
+  }
+
+  /** Visão do bloco devolvida ao cliente: sem origem, ambiente nem tipo (campos internos). */
+  const visaoDoBloco = (b) => {
+    const v = { id: b.id, titulo: b.titulo, texto: b.texto, fonteIds: [...b.fonteIds], referencias: b.referencias.map((r) => ({ ...r })) };
+    if (Array.isArray(b.alertas)) v.alertas = [...b.alertas];
+    return { ...v, statusValidacao: b.statusValidacao, publicado: b.publicado, revisaoAtualidade: b.revisaoAtualidade, criadoEm: b.criadoEm, atualizadoEm: b.atualizadoEm };
+  };
+
+  /** Erros das funções puras viram códigos genéricos; detalhes internos (mensagens do validador) nunca saem. */
+  function respostaDoErroPuro(r) {
+    switch (r.erro) {
+      case 'dados_invalidos': return { status: 422, corpo: { erro: 'dados_invalidos', campos: Array.isArray(r.detalhes) ? r.detalhes : [] } };
+      case 'versao_nao_editavel': return { status: 409, corpo: { erro: 'versao_nao_editavel' } };
+      case 'bloco_nao_encontrado': return { status: 404, corpo: { erro: 'nao_encontrado' } };
+      case 'bloco_nao_editavel':
+      case 'bloco_nao_removivel': return { status: 409, corpo: { erro: r.erro } };
+      case 'id_duplicado': return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
+      default: return { status: 500, corpo: { erro: 'indisponivel' } };
+    }
+  }
+
+  /** Grava só o arquivo de conteúdo do assistente da versão atual: base válida antes, ensaio, escrita atômica, conferência e desfazer. */
+  function gravarConhecimento(contexto, novoConteudo, servicoId) {
+    let errosIniciais;
+    try {
+      errosIniciais = verificarInicial(raiz);
+    } catch {
+      errosIniciais = ['falha'];
+    }
+    if (!Array.isArray(errosIniciais) || errosIniciais.length > 0) return { falha: { status: 500, corpo: { erro: 'indisponivel' } } };
+    const fontesPorId = new Map(contexto.fontes.map((f) => [f.id, f]));
+    const r = aplicar([{
+      caminho: contexto.versao.arquivos.conteudoAssistente, tipo: 'json', conteudo: novoConteudo,
+      validar: (d) => validarConteudoAssistente(d, { idServico: servicoId, fontesPorId }),
+    }]);
+    return { falha: resultadoDaTransacao(r) };
+  }
+
+  function criarConhecimento(servicoId, corpo) {
+    const ctx = contextoDeConhecimento(servicoId);
+    const existentes = new Set(ctx.conteudo.blocos.map((b) => b && b.id));
+    // O id é gerado aqui, sem usar o título; repete o sorteio se houver colisão e nunca reaproveita um id existente.
+    let id = null;
+    for (let i = 0; i < 20 && id === null; i += 1) {
+      const candidato = gerarIdBloco();
+      if (!existentes.has(candidato)) id = candidato;
+    }
+    if (id === null) return { status: 500, corpo: { erro: 'indisponivel' } };
+    const r = montarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, corpo, { id, data: dataLocal(agora()) });
+    if (!r.ok) return respostaDoErroPuro(r);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    return g.falha ?? { status: 201, corpo: { bloco: visaoDoBloco(r.bloco) } };
+  }
+
+  function alterarConhecimento(servicoId, blocoId, corpo) {
+    const ctx = contextoDeConhecimento(servicoId);
+    const r = alterarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, blocoId, corpo, { data: dataLocal(agora()) });
+    if (!r.ok) return respostaDoErroPuro(r);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    return g.falha ?? { status: 200, corpo: { bloco: visaoDoBloco(r.bloco) } };
+  }
+
+  function removerConhecimento(servicoId, blocoId) {
+    const ctx = contextoDeConhecimento(servicoId);
+    const r = removerBlocoConhecimento(ctx.manifesto, ctx.conteudo, blocoId);
+    if (!r.ok) return respostaDoErroPuro(r);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    return g.falha ?? { status: 204, corpo: null };
+  }
+
+  /** Uma gravação por vez: se outra estiver em andamento, esta é recusada com 409 (nada é enfileirado). */
+  async function comTrava(operacao) {
+    if (escrevendo) return { status: 409, corpo: { erro: 'operacao_em_andamento' } };
+    escrevendo = true;
+    try {
+      if (antesDeGravar) await antesDeGravar();
+      return operacao();
+    } finally {
+      escrevendo = false;
+    }
+  }
+
   return async function manipuladorAdmin(req, res, next) {
     const url = typeof req.url === 'string' ? req.url : '';
     const indice = url.indexOf('?');
@@ -311,6 +416,14 @@ export function criarManipuladorAdmin({
       for (const [nome, valor] of Object.entries(cabecalhos)) res.setHeader(nome, valor);
       res.end(JSON.stringify(corpo));
     };
+    const responderResultado = (resultado) => {
+      if (resultado.status !== 204) return responder(resultado.status, resultado.corpo);
+      res.statusCode = 204;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      return res.end();
+    };
     const responderJson = (corpo) => {
       const texto = JSON.stringify(corpo);
       if (Buffer.byteLength(texto, 'utf8') > limiteResposta) return responder(500, { erro: 'indisponivel' });
@@ -319,12 +432,16 @@ export function criarManipuladorAdmin({
 
     if (!origemPermitida(req)) return responder(403, { erro: 'acesso_somente_local' });
     const rotaDeFontes = PADRAO_ROTA_FONTES.exec(caminho);
-    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || rotaDeFontes !== null;
-    const metodoEsperado = rotaDeCadastro ? 'POST' : 'GET';
-    if (req.method !== metodoEsperado) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodoEsperado });
+    const rotaDeConhecimentos = PADRAO_ROTA_CONHECIMENTOS.exec(caminho);
+    const rotaDeConhecimento = PADRAO_ROTA_CONHECIMENTO.exec(caminho);
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || rotaDeFontes !== null || rotaDeConhecimentos !== null;
+    const metodosPermitidos = rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
+    if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
+    // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
+    const temCorpo = rotaDeCadastro || (rotaDeConhecimento !== null && req.method === 'PATCH');
     const tamanho = req.headers['content-length'];
     if (indice !== -1) return responder(400, { erro: 'requisicao_invalida' });
-    if (!rotaDeCadastro && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
+    if (!temCorpo && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
       return responder(400, { erro: 'requisicao_invalida' });
     }
 
@@ -339,10 +456,15 @@ export function criarManipuladorAdmin({
       }
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
-      if (rotaDeCadastro) {
-        if (rotaDeFontes !== null && !lerJson('services/registry.json').servicos.some((s) => s.id === rotaDeFontes[1])) {
-          return responder(404, { erro: 'nao_encontrado' });
-        }
+      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento)?.[1];
+      if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {
+        return responder(404, { erro: 'nao_encontrado' });
+      }
+      if (rotaDeConhecimento !== null && req.method === 'DELETE') {
+        return responderResultado(await comTrava(() => removerConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2])));
+      }
+
+      if (temCorpo) {
         if (typeof req.headers['content-type'] !== 'string' || !PADRAO_TIPO_JSON.test(req.headers['content-type'])) {
           return responder(415, { erro: 'tipo_nao_suportado' });
         }
@@ -355,6 +477,14 @@ export function criarManipuladorAdmin({
           corpo = JSON.parse(lido.texto);
         } catch {
           return responder(400, { erro: 'requisicao_invalida' });
+        }
+        if (rotaDeConhecimentos !== null || rotaDeConhecimento !== null) {
+          // Os campos são conferidos pelas funções puras (somente titulo, texto, fonteIds, referencias e alertas), com as fontes da versão.
+          if (corpo === null || typeof corpo !== 'object' || Array.isArray(corpo)) return responder(422, { erro: 'dados_invalidos', campos: ['corpo'] });
+          const resultado = await comTrava(() => (rotaDeConhecimentos !== null
+            ? criarConhecimento(rotaDeConhecimentos[1], corpo)
+            : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo)));
+          return responderResultado(resultado);
         }
         const validacao = rotaDeFontes !== null ? validarCorpoFonte(corpo) : caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
         if (!validacao.ok) return responder(422, { erro: 'dados_invalidos', campos: validacao.campos });
