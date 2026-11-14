@@ -47,6 +47,26 @@ function fontesDoBlocoLiberadas(bloco, fontesPorId) {
   return bloco.fonteIds.every((id) => fonteLiberada(fontesPorId.get(id)));
 }
 
+/**
+ * Somente para o tipo "conhecimento": origem "fonte", fonteIds não vazio e sem repetição, e referências válidas que
+ * correspondam, uma a uma, aos fonteIds. Os demais tipos não são afetados (retornam true).
+ */
+function estruturaDeConhecimentoValida(bloco) {
+  if (bloco.tipo !== 'conhecimento') return true;
+  if (bloco.origem !== 'fonte') return false;
+  const ids = bloco.fonteIds;
+  if (!Array.isArray(ids) || ids.length === 0 || !ids.every((i) => typeof i === 'string' && i.trim() !== '') || new Set(ids).size !== ids.length) return false;
+  const refs = bloco.referencias;
+  if (!Array.isArray(refs) || refs.length !== ids.length) return false;
+  const citadas = new Set();
+  for (const r of refs) {
+    if (!ehObjeto(r) || typeof r.fonteId !== 'string' || !ids.includes(r.fonteId)) return false;
+    if (typeof r.localizacao !== 'string' || r.localizacao.trim() === '') return false;
+    citadas.add(r.fonteId);
+  }
+  return citadas.size === ids.length;
+}
+
 /** Cópia mínima do bloco: só o que o assistente pode usar. */
 function copiaDoBloco(bloco) {
   const copia = {
@@ -91,6 +111,7 @@ export function selecionarBlocosAssistente(dados, modo = MODO_PADRAO) {
         b.publicado === true &&
         b.statusValidacao === 'validado' &&
         b.revisaoAtualidade === 'concluida' &&
+        estruturaDeConhecimentoValida(b) &&
         fontesDoBlocoLiberadas(b, fontesPorId),
     )
     .map(copiaDoBloco);

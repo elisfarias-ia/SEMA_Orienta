@@ -41,7 +41,13 @@ export const TEMAS_PERGUNTA = [
   'correcao',
   'outro',
 ];
-export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'link', 'sem_conteudo'];
+export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'link', 'sem_conteudo', 'conhecimento'];
+// Campos exclusivos do bloco de conhecimento e conjunto completo de campos permitidos nele.
+export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm'];
+export const CAMPOS_BLOCO_CONHECIMENTO = [
+  'id', 'tipo', 'titulo', 'texto', 'origem', 'fonteIds', 'referencias', 'alertas', 'ambiente', 'statusValidacao', 'publicado',
+  'revisaoAtualidade', 'criadoEm', 'atualizadoEm',
+];
 export const AMBIENTES_ASSISTENTE = ['teste_local', 'publico'];
 export const BLOQUEIOS_PERGUNTA = [
   'desatualizacao',
@@ -481,6 +487,83 @@ const CONTEUDO_PROIBIDO_NO_TESTE = [
 ];
 
 /**
+ * Regras próprias do bloco de conhecimento (retorna a lista de erros). Nasce em rascunho, não publicado, com ambiente
+ * "publico" (que NÃO significa publicado), apoiado em fontes, com uma referência por fonte citada e datas AAAA-MM-DD.
+ */
+// Limites do bloco de conhecimento (os mesmos usados por services/admin/conhecimento.js na entrada da pessoa).
+export const LIMITES_CONHECIMENTO = Object.freeze({ titulo: 200, texto: 2000, alerta: 300, alertas: 10, fontes: 10, localizacao: 200 });
+// Combinações coerentes de estado: o bloco evolui (rascunho -> em_validacao -> validado, com ou sem publicação), mas só assim.
+const COMBINACOES_CONHECIMENTO = Object.freeze({
+  rascunho: { revisoes: ['pendente'], publicado: [false] },
+  em_validacao: { revisoes: ['pendente', 'em_revisao'], publicado: [false] },
+  validado: { revisoes: ['concluida'], publicado: [true, false] },
+});
+const OBRIGATORIOS_CONHECIMENTO = ['titulo', 'texto', 'fonteIds', 'referencias', 'ambiente', 'statusValidacao', 'publicado', 'revisaoAtualidade', 'criadoEm', 'atualizadoEm'];
+
+function validarBlocoConhecimento(b, ref, fonteIds) {
+  const erros = [];
+  for (const k of OBRIGATORIOS_CONHECIMENTO) if (b[k] === undefined) erros.push(`${ref}: campo obrigatório ausente em bloco de conhecimento: ${k}`);
+  const L = LIMITES_CONHECIMENTO;
+  if (typeof b.titulo === 'string' && b.titulo.length > L.titulo) erros.push(`${ref}: titulo excede o limite de ${L.titulo} caracteres`);
+  if (typeof b.texto === 'string' && b.texto.length > L.texto) erros.push(`${ref}: texto excede o limite de ${L.texto} caracteres`);
+  if (Array.isArray(b.fonteIds) && b.fonteIds.length > L.fontes) erros.push(`${ref}: fonteIds excede o limite de ${L.fontes} fontes`);
+  if (Array.isArray(b.alertas)) {
+    if (b.alertas.length > L.alertas) erros.push(`${ref}: alertas excede o limite de ${L.alertas} itens`);
+    if (b.alertas.some((t) => typeof t === 'string' && t.length > L.alerta)) erros.push(`${ref}: alerta excede o limite de ${L.alerta} caracteres`);
+  }
+  if (Array.isArray(b.referencias)) {
+    if (b.referencias.length > L.fontes) erros.push(`${ref}: referencias excede o limite de ${L.fontes} itens`);
+    if (b.referencias.some((r) => ehObjeto(r) && typeof r.localizacao === 'string' && r.localizacao.length > L.localizacao)) {
+      erros.push(`${ref}: localizacao excede o limite de ${L.localizacao} caracteres`);
+    }
+  }
+  const combinacao = COMBINACOES_CONHECIMENTO[b.statusValidacao];
+  if (combinacao && ESTADOS_REVISAO_ATUALIDADE.includes(b.revisaoAtualidade) && typeof b.publicado === 'boolean'
+    && !(combinacao.revisoes.includes(b.revisaoAtualidade) && combinacao.publicado.includes(b.publicado))) {
+    erros.push(`${ref}: combinação incoerente de estado (${b.statusValidacao}, revisão ${b.revisaoAtualidade}, publicado ${b.publicado})`);
+  }
+  for (const k of Object.keys(b)) if (!CAMPOS_BLOCO_CONHECIMENTO.includes(k)) erros.push(`${ref}: campo não previsto em bloco de conhecimento: ${k}`);
+  if (b.origem !== 'fonte') erros.push(`${ref}: bloco de conhecimento exige origem "fonte"`);
+  if (b.ambiente !== 'publico') erros.push(`${ref}: bloco de conhecimento exige ambiente "publico"`);
+  if (!textoPreenchido(b.titulo)) erros.push(`${ref}: titulo obrigatório`);
+
+  const ids = fonteIds ?? [];
+  if (new Set(ids).size !== ids.length) erros.push(`${ref}: fonteIds não pode repetir fonte`);
+  if (!Array.isArray(b.referencias) || b.referencias.length === 0) {
+    erros.push(`${ref}: referencias obrigatórias (uma por fonte citada)`);
+  } else {
+    const citadas = [];
+    b.referencias.forEach((r, j) => {
+      const rr = `${ref}.referencias[${j}]`;
+      if (!ehObjeto(r) || Object.keys(r).some((k) => k !== 'fonteId' && k !== 'localizacao')) {
+        erros.push(`${rr}: deve ter somente fonteId e localizacao`);
+        return;
+      }
+      if (!textoPreenchido(r.fonteId) || !ids.includes(r.fonteId)) erros.push(`${rr}: fonteId deve estar em fonteIds`);
+      else citadas.push(r.fonteId);
+      if (!textoPreenchido(r.localizacao)) erros.push(`${rr}: localizacao obrigatória`);
+      else if (PADRAO_EMAIL.test(r.localizacao) || PADRAO_TELEFONE.test(r.localizacao)) erros.push(`${rr}: localizacao contém e-mail ou telefone`);
+    });
+    if (new Set(citadas).size !== citadas.length) erros.push(`${ref}: referencias não pode repetir fonte`);
+    if (ids.some((id) => !citadas.includes(id))) erros.push(`${ref}: toda fonte de fonteIds exige uma referência`);
+  }
+
+  if (b.alertas !== undefined) {
+    if (!Array.isArray(b.alertas) || !b.alertas.every(textoPreenchido)) erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
+    else if (b.alertas.some((t) => PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);
+  }
+  if (!dataValida(b.criadoEm)) erros.push(`${ref}: criadoEm deve ser uma data válida AAAA-MM-DD`);
+  if (!dataValida(b.atualizadoEm)) erros.push(`${ref}: atualizadoEm deve ser uma data válida AAAA-MM-DD`);
+  else if (dataValida(b.criadoEm) && b.atualizadoEm < b.criadoEm) erros.push(`${ref}: atualizadoEm não pode ser anterior a criadoEm`);
+  for (const campo of ['titulo', 'texto']) {
+    if (typeof b[campo] === 'string' && (PADRAO_EMAIL.test(b[campo]) || PADRAO_TELEFONE.test(b[campo]))) {
+      erros.push(`${ref}: ${campo} contém e-mail ou telefone; contatos não podem ser armazenados`);
+    }
+  }
+  return erros;
+}
+
+/**
  * Valida o arquivo de conteúdo do assistente (blocos por ambiente).
  * Bloco teste_local nunca é publicado nem validado; a autorização de teste não é aprovação material nem pública.
  */
@@ -561,6 +644,14 @@ export function validarConteudoAssistente(doc, { rotulo = 'conteudoAssistente', 
       }
     } else if (b.url !== undefined) {
       erros.push(`${ref}: url só é permitida em bloco do tipo link`);
+    }
+
+    if (b.tipo === 'conhecimento') {
+      erros.push(...validarBlocoConhecimento(b, ref, fonteIds));
+    } else {
+      for (const campo of CAMPOS_EXCLUSIVOS_CONHECIMENTO) {
+        if (b[campo] !== undefined) erros.push(`${ref}: ${campo} só é permitido em bloco do tipo conhecimento`);
+      }
     }
 
     if (b.ambiente === 'teste_local') {
