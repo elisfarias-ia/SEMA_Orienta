@@ -13,6 +13,7 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Endpoint administrativo local | `services/admin/admin-endpoint.js` | Somente no `npm run dev`: leitura e cadastro de assunto e serviço; sem interface. |
 | Cadastro e transação | `services/admin/cadastro.js`, `transacao.js` | Montagem pura do assunto e do esqueleto do serviço; gravação tudo ou nada. |
 | Tela "Gestão de conteúdo" | `admin/` (`index.html`, `styles.css`, `admin.js`, `admin-logic.js`) | Somente no `npm run dev`, em `http://localhost:5173/admin/`; só cadastra assunto e serviço. |
+| Informações do chatbot (blocos de conhecimento) | `services/admin/conhecimento.js`, `admin/conteudo/` | Funções puras, endpoints `/__admin/servicos/<id>/conhecimentos` e a página `/admin/conteudo/`; só no `npm run dev` (Sprint 3). |
 | Saúde do sistema | `services/admin/saude.js` e `admin/saude/` | Verificações reais por `GET /__admin/saude` e a página `/admin/saude/`; só no `npm run dev`. |
 
 Nenhuma versão, decisão, validação material ou autorização de publicação real foi registrada. O conteúdo da LAC está na versão 1 (`services/lac/versoes/v1/`, em rascunho), migrada de forma estrutural, sem alteração material, sem hash, sem envio e sem decisões.
@@ -121,3 +122,21 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 - O módulo funciona somente em desenvolvimento local e **não pode ser incluído no build público**.
 - **A publicação institucional exigirá autenticação e persistência apropriada** (controle de acesso, trilha de auditoria e armazenamento protegido), a serem definidos e aprovados antes de qualquer uso fora do ambiente local.
 - Validação material é decisão humana da unidade competente. O módulo apenas registra; não decide.
+
+## Informações do chatbot — blocos de conhecimento (Sprint 3)
+
+Página `http://localhost:5173/admin/conteudo/`, só no `npm run dev`. O nome "Cadastro da base" na navegação é provisório (a Sprint 4 traz o cadastro guiado, Issue #8).
+
+- **O que é:** uma informação em linguagem simples, sustentada por uma ou mais fontes já cadastradas, com a indicação de onde ela aparece em cada fonte e avisos opcionais. É gravada como bloco do tipo `conhecimento` no arquivo de conteúdo do assistente da versão atual do serviço (fonte única de verdade, sem arquivo novo).
+- **Nascimento:** em elaboração (rascunho), não publicada, revisão pendente. Ela **não chega ao chat público nem ao assistente** enquanto não for validada, autorizada e publicada pelo fluxo existente.
+- **Rotas (exigem token, origem local e corpo JSON de até 32 KB):**
+  - `POST /__admin/servicos/<id>/conhecimentos` cria (201);
+  - `PATCH /__admin/servicos/<id>/conhecimentos/<blocoId>` altera título, texto, fontes, referências e avisos (200);
+  - `DELETE /__admin/servicos/<id>/conhecimentos/<blocoId>` exclui (204).
+- **Campos aceitos do cliente:** somente `titulo`, `texto`, `fonteIds`, `referencias` e `alertas`. Id, datas, estado, revisão, ambiente, publicação e campos extras são recusados (422). O id e as datas são gerados pelo servidor e o id nunca aparece na tela.
+- **Quando é aceito:** só com a versão atual em rascunho (409 `versao_nao_editavel`); alterar e excluir só em bloco de conhecimento em rascunho, não publicado e com revisão pendente. Os blocos `teste_local` existentes nunca são alterados nem excluídos. As fontes são lidas só da versão atual, e cada fonte escolhida exige a indicação de onde a informação aparece nela.
+- **Gravação:** só o arquivo de conteúdo do assistente; base validada antes e depois, ensaio em cópia temporária, escrita atômica e desfazer integral; uma gravação por vez (409 para a concorrente). Registro, manifesto, fontes, documentos e perguntas não são alterados. Ao gravar, o arquivo é reescrito no formato determinístico (chaves em ordem alfabética), o que gera diff de formatação no Git.
+- **Títulos repetidos:** permitidos (decisão revista); a duplicidade por conteúdo não é detectada.
+- **Tela:** escolha de assunto e serviço, situação do serviço, lista e formulário (duas colunas em tela larga), confirmação antes de salvar e de excluir, ações desabilitadas fora de rascunho, datas em DD-MM-AAAA, mensagens curtas e foco levado à mensagem. Ícones SVG, sem biblioteca; sem `innerHTML`, `localStorage`, `sessionStorage` ou cookies.
+- **Limitações:** sem criação automática de nova versão (a edição fica bloqueada quando a versão está congelada), sem IA, sem busca semântica, sem upload e sem publicação. Revisão otimista no PATCH e no DELETE e proteção contra alterações externas entre ensaio e gravação ficam como melhorias futuras.
+- **Atenção em testes manuais:** salvar ou excluir grava no arquivo real da LAC. Use dado fictício e restaure o arquivo pelo Git depois (a conferência de 13/11/2026 está em `docs/TESTES_MANUAIS.md`, MC-01 a MC-09).

@@ -76,3 +76,16 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Cancelado:** o Passo 2D (hook de proteção) foi cancelado por decisão da usuária e não foi implementado.
 - **Verificação de fechamento:** validação da base, 570 testes (566 passaram, 4 ignorados), 13 testes e2e, build e `check-dist` sem falhas.
 - **Evidências:** `docs/EVIDENCIAS_SPRINT_2.md` e `docs/EVIDENCIAS_MCP.md`.
+
+## Sprint 3 — Informações do chatbot (blocos de conhecimento em rascunho)
+
+- **Objetivo:** permitir cadastrar, editar e excluir, na administração local, informações em rascunho sustentadas por fontes oficiais, sem publicar nada e sem alterar o chat público.
+- **Entregas:** modelo, validador e regras (`658edc1`), endpoints locais (`81ef0c3`), página `/admin/conteudo/` com conferência manual aprovada em 13/11/2026 (`0f071d1`) e fechamento com `check-dist` ampliado e evidências.
+- **Verificação de fechamento:** validação da base, 623 testes (619 passaram, 4 ignorados por falta de permissão para links simbólicos), 27 testes e2e, build e `check-dist` sem falhas.
+- **Fora do escopo:** IA, busca semântica, upload, publicação e criação automática de nova versão.
+- **Transferido:** o cadastro guiado de assunto, serviço e fontes foi para a Sprint 4 (Issue #8).
+- **Evidências:** `docs/EVIDENCIAS_SPRINT_3.md`.
+
+## Sprint 4 — Cadastro guiado da base (planejada)
+
+Assunto, serviço e fontes em um único fluxo guiado, com ids automáticos e invisíveis, endpoint composto e gravação atômica. Apenas planejamento na Issue #8; nada foi implementado.

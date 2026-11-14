@@ -133,3 +133,11 @@ Novos serviços serão incluídos no registro e em pastas próprias. Banco de da
 ## MCP local de consulta da base (Sprint 2)
 
 Ferramenta de apoio ao desenvolvimento, fora da aplicação: `.mcp.json` inicia `scripts/mcp/` (`npm run mcp`), com quatro ferramentas somente leitura (`listar_assuntos`, `listar_servicos`, `consultar_fontes`, `resumir_base`) sobre a base em `services/`. Não é endpoint do chat, não consta da saúde do sistema, não existe no `dist/` e não torna o conteúdo da LAC público. Evidências em `docs/EVIDENCIAS_MCP.md`.
+
+## Blocos de conhecimento (Sprint 3)
+
+- **Modelo:** bloco do tipo `conhecimento` no vetor `blocos` de `conteudo-assistente.json` de cada versão (fonte única de verdade, versionada e congelada com a versão). Campos: `id` (gerado pelo servidor), `titulo`, `texto`, `origem: fonte`, `fonteIds`, `referencias` (`{ fonteId, localizacao }`, uma por fonte), `alertas` opcionais, `ambiente`, `statusValidacao`, `publicado`, `revisaoAtualidade`, `criadoEm` e `atualizadoEm`. Identidade auditável: `versaoId + blocoId`.
+- **Regras:** `scripts/validate-services.js` (`validarBlocoConhecimento`) e `services/schemas/service.schema.json` aceitam só combinações coerentes de estado, revisão e publicação, com limites de tamanho, referências correspondentes aos `fonteIds` e datas AAAA-MM-DD. `services/admin/conhecimento.js` reúne as funções puras (montar, alterar, remover e preparar blocos para nova versão); o id e as datas vêm de fora e as entradas nunca são modificadas.
+- **Endpoints e tela:** `/__admin/servicos/<id>/conhecimentos` (POST, PATCH e DELETE) em `services/admin/admin-endpoint.js` e a página `admin/conteudo/`, ambos só no servidor de desenvolvimento, com a mesma transação e a mesma trava de escrita do cadastro.
+- **Assistente:** `selecionarBlocosAssistente` só entrega conhecimento publicado, validado, com revisão concluída, fontes publicadas e não revogadas, origem `fonte`, `fonteIds` não vazio e referências correspondentes. O bloco nasce em rascunho e não publicado, então não chega ao chat. O chat público não foi alterado.
+- **Build:** `scripts/check-dist.js` procura no `dist/` a rota e os textos da página, os endpoints `/conhecimentos` e os módulos administrativos de conhecimento, com termos específicos que não existem no chat público.

@@ -34,6 +34,19 @@ export const NOMES_MCP = [
   'mcp/iniciar.js', 'mcp/servidor.js',
 ];
 
+// Página "Informações do chatbot" e blocos de conhecimento (Sprint 3): rotas, textos da tela e módulos administrativos.
+// Só termos específicos: nada que possa existir legitimamente no chat público (por isso não há "conhecimento" nem "informação" soltos).
+export const NOMES_CONHECIMENTO = [
+  '/admin/conteudo', 'admin/conteudo', '/conhecimentos', 'conteudo/conteudo.js',
+  'Informações do chatbot', 'Tema da informação', 'Informação que o chatbot pode usar', 'Fontes que comprovam a informação',
+  'Onde esta informação aparece na fonte', 'Conferir antes de salvar', 'Excluir informação',
+  'form-bloco', 'bloco-titulo', 'bloco-texto', 'bloco-alertas', 'bloco-fontes', 'bloco-enviar',
+  'services/admin/conhecimento', 'conhecimento.js', 'montarBlocoConhecimento', 'alterarBlocoConhecimento', 'removerBlocoConhecimento',
+  'prepararBlocosParaNovaVersao', 'validarEntradaConhecimento', 'validarBlocoConhecimento', 'LIMITES_CONHECIMENTO',
+  'gravarConhecimento', 'carregarConhecimento', 'resumirConhecimento', 'validarFormConhecimento', 'corpoDoConhecimento', 'resumoDoConhecimento',
+  'criarConhecimento', 'alterarConhecimento', 'removerConhecimento', 'estruturaDeConhecimentoValida',
+];
+
 /** Lista os arquivos de um diretório, recursivamente. */
 function listar(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -75,6 +88,7 @@ export function termosProibidos(raiz) {
   for (const nome of NOMES_INTERNOS) termos.push({ origem: 'nome interno', texto: nome });
   for (const nome of NOMES_ADMINISTRATIVOS) termos.push({ origem: 'nome administrativo', texto: nome });
   for (const nome of NOMES_MCP) termos.push({ origem: 'nome do servidor MCP', texto: nome });
+  for (const nome of NOMES_CONHECIMENTO) termos.push({ origem: 'informações do chatbot (administração)', texto: nome });
   termos.push(...termosAdministrativos(raiz));
   return termos;
 }

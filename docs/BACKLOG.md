@@ -175,3 +175,18 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [x] 2C: MCP local somente leitura (`.mcp.json`, `scripts/mcp/`) e demonstração real (`docs/EVIDENCIAS_MCP.md`).
 - [ ] 2D: hook de proteção — cancelado por decisão da usuária; não implementado.
 - [x] Fechamento: evidências e verificação final (`docs/EVIDENCIAS_SPRINT_2.md`).
+
+## Sprint 3 — Informações do chatbot (tecnicamente concluída)
+
+- [x] 3A: modelo, validador e regras dos blocos de conhecimento (`658edc1`).
+- [x] 3B1: endpoints locais de blocos de conhecimento (`81ef0c3`).
+- [x] 3B2: página `/admin/conteudo/` e conferência manual aprovada pela usuária em 13/11/2026 (`0f071d1`; `docs/TESTES_MANUAIS.md`, MC-01 a MC-09).
+- [x] 3C: `check-dist` ampliado, evidências e documentação (`docs/EVIDENCIAS_SPRINT_3.md`).
+- [ ] Melhorias futuras (Issue #7): revisão otimista no PATCH e no DELETE, proteção contra alterações externas entre ensaio e gravação, concorrência para uso multiusuário e detecção de duplicidade por conteúdo.
+- [ ] Criação automática de nova versão quando a versão atual está congelada (não implementada).
+
+## Sprint 4 — Cadastro guiado da base (planejada, Issue #8)
+
+- [ ] Assunto, serviço e fontes em um único fluxo, com ids automáticos e invisíveis.
+- [ ] Endpoint composto com gravação atômica.
+- [ ] Tela "Novo cadastro" conforme a referência visual aprovada, substituindo o nome provisório "Cadastro da base".
