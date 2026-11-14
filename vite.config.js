@@ -5,10 +5,10 @@ import { criarPluginAdminDev } from './services/admin/admin-endpoint.js';
 
 const raiz = fileURLToPath(new URL('.', import.meta.url));
 
-// A administração (pasta admin/: gestão de conteúdo e saúde do sistema) só existe no servidor de desenvolvimento:
+// A administração (pasta admin/: gestão de conteúdo, blocos de conhecimento e saúde do sistema) só existe no servidor de desenvolvimento:
 // `/admin` leva a `/admin/` e `/admin/saude` leva a `/admin/saude/`.
 // O build usa apenas o index.html da raiz, então admin/ não entra no dist/, e o preview serve só o dist/.
-const REDIRECIONAMENTOS = { '/admin': '/admin/', '/admin/saude': '/admin/saude/' };
+const REDIRECIONAMENTOS = { '/admin': '/admin/', '/admin/saude': '/admin/saude/', '/admin/conteudo': '/admin/conteudo/' };
 const redirecionarAdmin = {
   name: 'sema-orienta-admin-redirecionamento',
   apply: 'serve',

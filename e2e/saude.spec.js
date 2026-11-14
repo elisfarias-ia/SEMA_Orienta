@@ -49,13 +49,13 @@ test.describe('Saúde do sistema', () => {
 
   test('a navegação por Tab tem foco visível', async ({ page }) => {
     const alvos = [];
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press('Tab');
       const nome = await page.evaluate(() => document.activeElement?.textContent?.trim().slice(0, 40));
       alvos.push(nome);
       await expect.poll(() => focoVisivel(page), { message: `foco visível em "${nome}"` }).toBeTruthy();
     }
-    // A página tem exatamente cinco elementos focáveis, nesta ordem; o sexto Tab sairia da página.
-    expect(alvos).toEqual(['Ir para o conteúdo', 'Gestão de conteúdo', 'Saúde do sistema', 'Verificar novamente', 'Voltar para Gestão de conteúdo']);
+    // A página tem exatamente seis elementos focáveis, nesta ordem; o sétimo Tab sairia da página.
+    expect(alvos).toEqual(['Ir para o conteúdo', 'Cadastro da base', 'Informações do chatbot', 'Saúde do sistema', 'Verificar novamente', 'Voltar para Cadastro da base']);
   });
 });

@@ -5,7 +5,7 @@ const IDS_TECNICOS = /\blac-v1\b|licenciamento-ambiental|\bv1\b|hashConteudo|[0-
 test.describe('Administração local (somente leitura)', () => {
   test('/admin/ carrega catálogo e sessão, sem ids técnicos', async ({ page }) => {
     await page.goto('/admin/');
-    await expect(page.getByRole('heading', { level: 1, name: /Gestão de conteúdo/ })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /Assuntos, serviços e fontes/ })).toBeVisible();
     await expect(page.getByRole('note')).toContainText('sem autenticação');
     await expect(page.locator('#catalogo')).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('#catalogo')).toContainText('LAC');
@@ -20,7 +20,7 @@ test.describe('Administração local (somente leitura)', () => {
     await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Saúde do sistema' }).click();
     await expect(page).toHaveURL(/\/admin\/saude\/$/);
     await expect(page.getByRole('heading', { level: 1, name: /Saúde do sistema/ })).toBeVisible();
-    await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+    await page.getByRole('link', { name: 'Voltar para Cadastro da base' }).click();
     await expect(page).toHaveURL(/\/admin\/$/);
   });
 

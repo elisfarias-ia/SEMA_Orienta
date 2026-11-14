@@ -50,7 +50,7 @@ test('I4. não há dependências nem scripts além de vite, Playwright, dos test
   assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'mcp', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
   assert.equal(pacote.scripts.mcp, 'node scripts/mcp/iniciar.js');
-  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'saude', 'styles.css']);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'conteudo', 'index.html', 'saude', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.ok(lerTexto('.gitignore').split(/\r?\n/).map((l) => l.trim()).includes('data/admin-private/'));
 });

@@ -34,7 +34,7 @@ import {
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
-import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento, TIPO_CONHECIMENTO } from './conhecimento.js';
+import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento } from './conhecimento.js';
 import { verificarSaude } from './saude.js';
 import { validarVersao } from './versao.js';
 import {
@@ -357,10 +357,6 @@ export function criarManipuladorAdmin({
     return { falha: resultadoDaTransacao(r) };
   }
 
-  const tituloRepetido = (conteudo, corpo, exceto) => typeof corpo.titulo === 'string' && conteudo.blocos.some(
-    (b) => b && b.tipo === TIPO_CONHECIMENTO && b.id !== exceto && typeof b.titulo === 'string' && normalizarNome(b.titulo) === normalizarNome(corpo.titulo),
-  );
-
   function criarConhecimento(servicoId, corpo) {
     const ctx = contextoDeConhecimento(servicoId);
     const existentes = new Set(ctx.conteudo.blocos.map((b) => b && b.id));
@@ -373,7 +369,6 @@ export function criarManipuladorAdmin({
     if (id === null) return { status: 500, corpo: { erro: 'indisponivel' } };
     const r = montarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, corpo, { id, data: dataLocal(agora()) });
     if (!r.ok) return respostaDoErroPuro(r);
-    if (tituloRepetido(ctx.conteudo, corpo, null)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'titulo' } };
     const g = gravarConhecimento(ctx, r.conteudo, servicoId);
     return g.falha ?? { status: 201, corpo: { bloco: visaoDoBloco(r.bloco) } };
   }
@@ -382,7 +377,6 @@ export function criarManipuladorAdmin({
     const ctx = contextoDeConhecimento(servicoId);
     const r = alterarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, blocoId, corpo, { data: dataLocal(agora()) });
     if (!r.ok) return respostaDoErroPuro(r);
-    if (tituloRepetido(ctx.conteudo, corpo, blocoId)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'titulo' } };
     const g = gravarConhecimento(ctx, r.conteudo, servicoId);
     return g.falha ?? { status: 200, corpo: { bloco: visaoDoBloco(r.bloco) } };
   }

@@ -254,15 +254,18 @@ test('CE8. as fontes vêm só da versão atual: fonte de outro serviço não val
   });
 });
 
-test('CE9. título repetido: 409 ja_existe; alterar mantendo o próprio título é permitido', async () => {
-  await comCopia(async ({ m, token }) => {
-    const a = (await criar(m, token, { titulo: 'Título Único' })).corpo.bloco;
-    const b = (await criar(m, token, { titulo: 'Outro título' })).corpo.bloco;
-    const repetido = await criar(m, token, { titulo: '  título   único ' });
-    assert.deepEqual([repetido.status, repetido.corpo], [409, { erro: 'ja_existe', campo: 'titulo' }]);
-    const conflito = await alterar(m, token, b.id, { titulo: 'TÍTULO ÚNICO' });
-    assert.deepEqual([conflito.status, conflito.corpo], [409, { erro: 'ja_existe', campo: 'titulo' }]);
-    assert.equal((await alterar(m, token, a.id, { titulo: 'Título Único', texto: 'Texto novo.' })).status, 200);
+test('CE9. título repetido é permitido quando o conteúdo é diferente (decisão revista); a duplicidade por conteúdo não é tratada nesta etapa', async () => {
+  await comCopia(async ({ m, token, raiz }) => {
+    const a = (await criar(m, token, { titulo: 'Título Único', texto: 'Primeiro conteúdo.' })).corpo.bloco;
+    const b = await criar(m, token, { titulo: '  título   único ', texto: 'Segundo conteúdo.' });
+    assert.equal(b.status, 201);
+    assert.notEqual(b.corpo.bloco.id, a.id);
+    const c = (await criar(m, token, { titulo: 'Outro título' })).corpo.bloco;
+    const alterado = await alterar(m, token, c.id, { titulo: 'TÍTULO ÚNICO', texto: 'Terceiro conteúdo.' });
+    assert.equal(alterado.status, 200);
+    assert.equal(alterado.corpo.bloco.titulo, 'TÍTULO ÚNICO');
+    assert.equal(conteudoDe(raiz).blocos.filter((x) => x.tipo === 'conhecimento').length, 3);
+    assert.deepEqual(validarServicos(raiz), { erros: [], servicos: ['lac'] });
   });
 });
 

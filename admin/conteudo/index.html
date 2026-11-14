@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SEMA Orienta — Informações do chatbot</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <a class="pular" href="#principal">Ir para o conteúdo</a>
+
+    <header class="cabecalho">
+      <div class="cabecalho__interno">
+        <span class="cabecalho__icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></svg></span>
+        <div>
+          <h1>SEMA Orienta — Informações do chatbot</h1>
+          <p class="cabecalho__sub">Sistema administrativo de orientações ambientais</p>
+        </div>
+      </div>
+      <nav class="navegacao" aria-label="Seções da administração">
+        <a class="navegacao__link" href="../">Cadastro da base</a>
+        <a class="navegacao__link navegacao__link--atual" href="./" aria-current="page">Informações do chatbot</a>
+        <a class="navegacao__link" href="../saude/">Saúde do sistema</a>
+      </nav>
+    </header>
+
+    <p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
+
+    <main id="principal" class="pagina pagina--larga" tabindex="-1">
+      <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
+
+      <section class="cartao introducao" aria-labelledby="titulo-passos">
+        <span class="icone icone--grande" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg></span>
+        <div>
+          <h2 id="titulo-passos">Como cadastrar</h2>
+          <p class="introducao__texto">Cadastre uma informação completa e comprovada. O chatbot poderá usá-la para responder diferentes perguntas dos cidadãos.</p>
+          <ol class="passos">
+            <li>Escolha o serviço.</li>
+            <li>Escreva a informação que o chatbot pode usar.</li>
+            <li>Indique a fonte que comprova a informação.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="cartao" aria-labelledby="titulo-servico">
+        <div class="cartao__titulo">
+          <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg></span>
+          <h2 id="titulo-servico">Serviço</h2>
+        </div>
+        <p class="ajuda">Escolha o assunto e o serviço. Só é possível cadastrar, editar ou excluir informações enquanto o serviço está em elaboração (rascunho).</p>
+        <div class="campos-lado-a-lado">
+          <div class="campo">
+            <label for="assunto">Assunto</label>
+            <select id="assunto" disabled>
+              <option value="">Carregando assuntos…</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="servico">Serviço</label>
+            <select id="servico" aria-describedby="servico-situacao" disabled>
+              <option value="">Escolha primeiro o assunto</option>
+            </select>
+          </div>
+        </div>
+        <div id="servico-situacao" class="situacao" aria-live="polite" hidden>
+          <p class="situacao__linha"><span class="situacao__rotulo">Serviço:</span> <span id="situacao-nome"></span></p>
+          <p class="situacao__linha"><span class="situacao__rotulo">Versão atual:</span> <span id="situacao-versao"></span></p>
+          <p class="situacao__linha"><span class="situacao__rotulo">Estado:</span> <span id="situacao-estado"></span></p>
+          <p class="situacao__linha"><span class="situacao__rotulo">Publicação:</span> <span id="situacao-publicacao"></span></p>
+          <p id="situacao-edicao" class="situacao__aviso"></p>
+        </div>
+      </section>
+
+      <div class="duas-colunas">
+        <section class="cartao" aria-labelledby="titulo-form">
+          <div class="cartao__titulo">
+            <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg></span>
+            <h2 id="titulo-form" tabindex="-1">Nova informação</h2>
+          </div>
+          <form id="form-bloco" novalidate>
+            <div class="campo">
+              <label for="bloco-titulo">Tema da informação</label>
+              <input id="bloco-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="bloco-titulo-erro" />
+              <p id="bloco-titulo-erro" class="erro" hidden></p>
+            </div>
+            <div class="campo">
+              <label for="bloco-texto">Informação que o chatbot pode usar</label>
+              <textarea id="bloco-texto" name="texto" rows="6" maxlength="2000" aria-describedby="bloco-texto-ajuda bloco-texto-erro"></textarea>
+              <p id="bloco-texto-ajuda" class="ajuda">Escreva em linguagem simples, apenas com o que as fontes escolhidas sustentam. Não informe e-mail nem telefone.</p>
+              <p id="bloco-texto-erro" class="erro" hidden></p>
+            </div>
+            <fieldset class="campo grupo-fontes" aria-describedby="bloco-fontes-ajuda bloco-fontes-erro">
+              <legend>Fontes que comprovam a informação</legend>
+              <p id="bloco-fontes-ajuda" class="ajuda">Selecione um documento ou link já cadastrado.</p>
+              <div id="bloco-fontes"><p class="vazio">Escolha um serviço para ver as fontes.</p></div>
+              <p id="bloco-fontes-erro" class="erro" hidden></p>
+            </fieldset>
+            <div class="campo">
+              <label for="bloco-alertas">Avisos ou limitações <span class="opcional">(opcional)</span></label>
+              <textarea id="bloco-alertas" name="alertas" rows="3" aria-describedby="bloco-alertas-ajuda bloco-alertas-erro"></textarea>
+              <p id="bloco-alertas-ajuda" class="ajuda">Opcional. Escreva um aviso por linha.</p>
+              <p id="bloco-alertas-erro" class="erro" hidden></p>
+            </div>
+            <div class="acoes-form">
+              <button type="submit" class="botao" id="bloco-enviar" disabled>Conferir antes de salvar</button>
+              <button type="button" class="botao botao--secundario" id="bloco-cancelar">Cancelar</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="cartao" aria-labelledby="titulo-blocos">
+          <div class="cartao__titulo">
+            <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg></span>
+            <h2 id="titulo-blocos">Informações cadastradas</h2>
+          </div>
+          <p class="ajuda">Aqui aparecem somente as informações deste serviço. Nenhuma fica disponível no chatbot enquanto não for revisada e publicada.</p>
+          <div id="blocos" aria-busy="false">
+            <p class="vazio">Escolha um serviço para ver as informações.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">
+      <h2 id="confirmacao-titulo">Confirmar</h2>
+      <p id="confirmacao-descricao" class="ajuda">Confira os dados abaixo antes de salvar.</p>
+      <dl id="confirmacao-resumo" class="resumo"></dl>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="confirmacao-voltar">Voltar e corrigir</button>
+        <button type="button" class="botao" id="confirmacao-confirmar">Salvar informação</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="./conteudo.js"></script>
+  </body>
+</html>

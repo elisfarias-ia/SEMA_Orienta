@@ -353,12 +353,12 @@ test('AI13. sucesso: devolve só id e nome do item e o catálogo recarregado pas
 
 // ---------- Código seguro ----------
 
-test('AI14. os arquivos da interface não usam innerHTML, armazenamento do navegador, cookies, log, eval nem outros métodos além de GET e POST', () => {
+test('AI14. os arquivos da interface não usam innerHTML, armazenamento do navegador, cookies, log, eval nem outros métodos além de GET, POST, PATCH e DELETE (estes só nos blocos de conhecimento)', () => {
   for (const [nome, texto] of [['admin.js', JS], ['admin-logic.js', LOGICA]]) {
     assert.doesNotMatch(texto, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|setTimeout\(\s*['"`]/, nome);
     assert.doesNotMatch(texto, /localStorage|sessionStorage|indexedDB|document\.cookie|caches\.|navigator\.serviceWorker/, nome);
     assert.doesNotMatch(texto, /console\.|debugger/, nome);
-    assert.doesNotMatch(texto, /['"`](PUT|PATCH|DELETE)['"`]/, nome);
+    assert.doesNotMatch(texto, nome === 'admin-logic.js' ? /['"`]PUT['"`]/ : /['"`](PUT|PATCH|DELETE)['"`]/, nome);
     assert.doesNotMatch(texto, /XMLHttpRequest|WebSocket|sendBeacon|EventSource/, nome);
   }
   assert.match(JS, /textContent/);
@@ -373,19 +373,20 @@ test('AI14. os arquivos da interface não usam innerHTML, armazenamento do naveg
   assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(s\.id\)\}\/versao-atual`/);
 });
 
-test('AI15. a tela só cadastra: sem edição, exclusão, validação, decisão ou publicação', () => {
-  const todos = `${HTML}\n${JS}\n${LOGICA}`;
+test('AI15. a tela de cadastro só cadastra: sem edição, exclusão, validação, decisão ou publicação (os blocos têm página própria)', () => {
+  const todos = `${HTML}\n${JS}`;
   assert.doesNotMatch(todos, /\b(Editar|Excluir|Apagar|Remover)\b/);
   assert.doesNotMatch(todos, /Publicar|Autorizar|Validar conteúdo|Enviar para validação|decis[ãa]o/i);
   assert.doesNotMatch(LOGICA, /versao-atual['"`]\s*,\s*['"`](POST|PUT)/);
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 1, 'um único ponto de envio POST');
+  assert.equal((JS.match(/cliente\.cadastrar\(/g) ?? []).length, 1, 'um único ponto de envio na tela de cadastro');
+  assert.doesNotMatch(JS, /gravarConhecimento|PATCH|DELETE/);
 });
 
 // ---------- HTML e acessibilidade estrutural ----------
 
 test('AI16. título, identidade e aviso exigidos, sem vocabulário proibido', () => {
-  assert.match(HTML, /<title>SEMA Orienta — Gestão de conteúdo<\/title>/);
-  assert.match(HTML, /<h1>SEMA Orienta — Gestão de conteúdo<\/h1>/);
+  assert.match(HTML, /<title>SEMA Orienta — Assuntos, serviços e fontes<\/title>/);
+  assert.match(HTML, /<h1>SEMA Orienta — Assuntos, serviços e fontes<\/h1>/);
   assert.match(HTML, /<p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação<\/p>/);
   assert.match(HTML, /<html lang="pt-BR">/);
   assert.match(HTML, /<meta name="viewport" content="width=device-width, initial-scale=1" \/>/);
@@ -495,10 +496,11 @@ test('AI21. dist/ não contém a pasta admin, a tela, formulários administrativ
   }
 });
 
-test('AI22. a pasta admin/ tem só os arquivos das duas páginas (cadastro e saúde); nenhum dado real, pessoal ou credencial', () => {
-  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'saude', 'styles.css']);
+test('AI22. a pasta admin/ tem só os arquivos das três páginas (cadastro, blocos de conhecimento e saúde); nenhum dado real, pessoal ou credencial', () => {
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'conteudo', 'index.html', 'saude', 'styles.css']);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin', 'conteudo')).sort(), ['conteudo.js', 'index.html']);
   assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin', 'saude')).sort(), ['index.html', 'saude.js']);
-  for (const [nome, texto] of [['index.html', HTML], ['styles.css', CSS], ['admin.js', JS], ['admin-logic.js', LOGICA], ['saude/index.html', lerTexto('admin', 'saude', 'index.html')], ['saude/saude.js', lerTexto('admin', 'saude', 'saude.js')]]) {
+  for (const [nome, texto] of [['index.html', HTML], ['styles.css', CSS], ['admin.js', JS], ['admin-logic.js', LOGICA], ['saude/index.html', lerTexto('admin', 'saude', 'index.html')], ['saude/saude.js', lerTexto('admin', 'saude', 'saude.js')], ['conteudo/index.html', lerTexto('admin', 'conteudo', 'index.html')], ['conteudo/conteudo.js', lerTexto('admin', 'conteudo', 'conteudo.js')]]) {
     assert.doesNotMatch(texto, /[A-Za-z0-9._-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/, nome);
     assert.doesNotMatch(texto, /\b[0-9a-f]{64}\b|AIza|sk-[A-Za-z0-9]{10}/, nome);
     assert.doesNotMatch(texto, /licenciamento-ambiental|\blac\b|Licença por Adesão/i, nome);
@@ -551,8 +553,8 @@ test('AI25. /admin/ voltou a ter só catálogo, assuntos, serviços e fontes; a 
   assert.doesNotMatch(HTML, /titulo-saude|saude-verificar|saude-lista|Verificar novamente|Saúde do sistema<\/h2>/);
   assert.doesNotMatch(JS, /saude|Saúde|CAPACIDADES_SAUDE|ESTADOS_SAUDE|formatarDataHoraBr|resumoDaSaude|new Date\(/i);
   assert.deepEqual([...HTML.matchAll(/<h2 id="(titulo-[a-z]+)"/g)].map((m) => m[1]), ['titulo-catalogo', 'titulo-assunto', 'titulo-servico', 'titulo-fontes']);
-  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Gestão de conteúdo<\/a>\s*<a class="navegacao__link" href=".\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
-  assert.match(saudeHtml, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Gestão de conteúdo<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Saúde do sistema<\/a>\s*<\/nav>/);
+  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Cadastro da base<\/a>\s*<a class="navegacao__link" href=".\/conteudo\/">Informações do chatbot<\/a>\s*<a class="navegacao__link" href=".\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
+  assert.match(saudeHtml, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Cadastro da base<\/a>\s*<a class="navegacao__link" href="..\/conteudo\/">Informações do chatbot<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Saúde do sistema<\/a>\s*<\/nav>/);
   for (const pagina of [HTML, saudeHtml]) assert.equal((pagina.match(/aria-current="page"/g) ?? []).length, 1, 'uma única página atual');
   assert.match(CSS, /\.navegacao__link--atual \{[^}]*text-decoration: underline/, 'a página atual não depende só da cor');
   assert.match(CSS, /\.navegacao__link:focus-visible|:focus-visible \{[^}]*outline: 3px solid/);
@@ -561,7 +563,7 @@ test('AI25. /admin/ voltou a ter só catálogo, assuntos, serviços e fontes; a 
   assert.match(saudeHtml, /<p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação<\/p>/);
   assert.match(saudeHtml, /<link rel="stylesheet" href="..\/styles.css" \/>/);
   assert.match(saudeHtml, /<script type="module" src=".\/saude.js"><\/script>/);
-  assert.match(saudeHtml, /<a class="botao botao--secundario" href="..\/">Voltar para Gestão de conteúdo<\/a>/);
+  assert.match(saudeHtml, /<a class="botao botao--secundario" href="..\/">Voltar para Cadastro da base<\/a>/);
   assert.equal((saudeHtml.match(/<h1>/g) ?? []).length, 1);
   assert.doesNotMatch(saudeHtml, /<form|<input|<textarea|<select|<dialog|admin\.js"/i, 'a página de saúde não tem cadastro');
   assert.doesNotMatch(saudeHtml, /MVP|acad[êe]mic|\bcurso\b|prot[óo]tipo|\bMarco\b/i);
