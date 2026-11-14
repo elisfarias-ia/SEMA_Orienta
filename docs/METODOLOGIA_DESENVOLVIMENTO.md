@@ -25,9 +25,10 @@ Legenda: **COMPROVADA** (há evidência real e repetida), **PARCIALMENTE COMPROV
 | Few-shot | PARCIALMENTE COMPROVADA |
 | Plan–Act–Verify | COMPROVADA |
 | Critique–Revise | COMPROVADA |
-| Delegation prompting | NÃO DEMONSTRADA |
-| Tool-grounded prompting | NÃO DEMONSTRADA |
-| Guardrails | PARCIALMENTE COMPROVADA |
+| Delegation prompting | COMPROVADA (Sprint 2) |
+| Tool-grounded prompting | COMPROVADA (Sprint 2) |
+| Guardrails | PARCIALMENTE COMPROVADA (hook cancelado; não demonstrado) |
+| Skills do projeto | COMPROVADA (Sprint 2) |
 
 ### Role prompting — NÃO DEMONSTRADA
 - **O que seria:** atribuir um papel explícito ao assistente (por exemplo, revisor de segurança ou auditor de conteúdo) para orientar a resposta.
@@ -62,26 +63,25 @@ Legenda: **COMPROVADA** (há evidência real e repetida), **PARCIALMENTE COMPROV
 - **Como aplicamos:** auditorias somente leitura e revisão da pessoa responsável, seguidas de correção objetiva.
 - **Evidência:** a auditoria do passo 7C2 (comparação do validador com o `HEAD` anterior: 78 linhas acrescentadas e 6 trocadas por condições equivalentes e mais estritas, sem regra removida) levou à correção de uma descrição de esquema; a conferência do armazenamento no 7E1 levou à normalização dos catálogos; a revisão do reconhecimento de intenção gerou R6 e S6b; a data de publicação passou a DD-MM-AAAA no 7E3A.
 
-### Delegation prompting — NÃO DEMONSTRADA
-- **O que seria:** delegar partes do trabalho a subagentes com instruções próprias e conferir o resultado.
-- **Evidência:** nenhuma execução real de subagentes registrada no projeto. Permanece não demonstrada até que isso seja executado e documentado.
+### Delegation prompting — COMPROVADA (Sprint 2)
+- **Como aplicamos:** subagentes do projeto (`arquiteto-sema`, `auditor-sema`, `implementador-sema`, em `.claude/agents/`), com instruções próprias e escopo somente leitura para arquiteto e auditor.
+- **Evidência:** no fechamento, `arquiteto-sema` e `auditor-sema` foram invocados de fato na mesma mensagem (em paralelo) sobre o MCP local, e seus relatórios foram conferidos; ver `docs/EVIDENCIAS_SPRINT_2.md`. A execução sequencial antiga de implementador e auditor na construção do MCP continua **NÃO VERIFICADA neste fechamento** e não é apresentada como prova.
 
-### Tool-grounded prompting — NÃO DEMONSTRADA
-- **O que seria:** fundamentar a resposta em dados obtidos por uma ferramenta externa (MCP) chamada durante a tarefa.
-- **Evidência:** nenhuma chamada real de MCP registrada como técnica do projeto. Permanece não demonstrada até a chamada real.
+### Tool-grounded prompting — COMPROVADA (Sprint 2)
+- **Como aplicamos:** servidor MCP local `sema-orienta-base` (`.mcp.json`, `scripts/mcp/`), com quatro ferramentas somente leitura sobre a base de serviços.
+- **Evidência:** cinco chamadas reais pelo MCP, comparadas com os JSON da base, em `docs/EVIDENCIAS_MCP.md`. A técnica foi demonstrada no desenvolvimento; o chat público segue sem IA externa e sem conteúdo publicado.
 
-### Guardrails — PARCIALMENTE COMPROVADA
+### Guardrails — PARCIALMENTE COMPROVADA (hook cancelado; não demonstrado)
 - **O que há:**
   - restrições escritas nos pedidos e em `CLAUDE.md` (um passo por vez, sem commit ou push sem pedido, sem `--force`, sem dados reais, sem segredos);
   - guardrails em código e testes: validador da base, `scripts/check-dist.js`, endpoints administrativos só no servidor de desenvolvimento, token em memória, erros genéricos, testes só em cópias temporárias.
-- **O que falta:** nenhum hook foi configurado ou demonstrado; hoje o cumprimento das restrições depende da instrução escrita e da revisão.
+- **O que falta:** o hook de proteção (Passo 2D) foi cancelado por decisão da usuária, nunca foi implementado e **não foi demonstrado**; o cumprimento das restrições depende da instrução escrita e da revisão.
 
-## Próximos passos (ainda não executados)
+## Próximos passos
 
-1. **Skills:** transformar fluxos repetidos (fechar passo, auditar diff, registrar teste manual) em skills versionadas.
-2. **MCP:** escolher uma fonte de dados real e chamá-la por MCP numa tarefa, registrando a evidência (para demonstrar tool-grounded prompting).
-3. **Hooks:** configurar um hook que bloqueie ações fora das regras (por exemplo, commit com arquivos proibidos) e demonstrá-lo com um caso real.
-4. **Subagentes:** executar uma tarefa delegada (por exemplo, auditoria somente leitura) e registrar instruções, resultado e conferência (para demonstrar delegation prompting).
+Os itens de skills, MCP e subagentes foram executados na Sprint 2 (ver abaixo). Permanece pendente:
+
+1. **Hooks:** nenhum hook foi implementado; o Passo 2D foi cancelado por decisão da usuária. Se retomado, exigirá passo próprio, revisão e demonstração real.
 
 ## Práticas de engenharia do projeto (evidências)
 
@@ -128,3 +128,11 @@ Documentos atualizados no ciclo do passo; commits de escopo objetivo em portugu�
 - **Base:** `npm run validate:services`.
 - **Build limpo:** `npm run build` e `node scripts/check-dist.js`.
 - **Higiene:** `git diff --check` e `git status` limpos após o push.
+
+## Atualização — Sprint 2
+
+- **Skills:** demonstradas. `validar-sema-orienta`, `revisar-base-servicos` e `revisar-interface-sema` foram invocadas de fato no fechamento, em modo somente leitura.
+- **Subagentes:** demonstrados. `arquiteto-sema` e `auditor-sema` executados em paralelo, na mesma mensagem, sobre o MCP.
+- **MCP:** demonstrado, com chamadas reais registradas em `docs/EVIDENCIAS_MCP.md`.
+- **Hook:** cancelado por decisão da usuária e **não demonstrado**.
+- **Sem prova:** a execução sequencial antiga de implementador e auditor permanece NÃO VERIFICADA neste fechamento.

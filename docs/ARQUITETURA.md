@@ -129,3 +129,7 @@ services/
 ## Evolução
 
 Novos serviços serão incluídos no registro e em pastas próprias. Banco de dados, busca vetorial, autenticação e integrações institucionais só serão avaliados depois que o MVP comprovar a necessidade.
+
+## MCP local de consulta da base (Sprint 2)
+
+Ferramenta de apoio ao desenvolvimento, fora da aplicação: `.mcp.json` inicia `scripts/mcp/` (`npm run mcp`), com quatro ferramentas somente leitura (`listar_assuntos`, `listar_servicos`, `consultar_fontes`, `resumir_base`) sobre a base em `services/`. Não é endpoint do chat, não consta da saúde do sistema, não existe no `dist/` e não torna o conteúdo da LAC público. Evidências em `docs/EVIDENCIAS_MCP.md`.

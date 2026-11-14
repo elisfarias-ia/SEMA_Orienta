@@ -168,4 +168,5 @@ A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](
 - Marco 1 — interface inicial do chat concluída: conversa livre, envio por botão e Enter, reinício, layout responsivo (incluindo 390 px) e navegação por teclado. As respostas são temporárias e não trazem conteúdo da LAC.
 - Marco 2A — estrutura da base de conhecimento da LAC concluída (registro, esquemas, arquivos e validação automatizada). O conteúdo oficial segue pendente.
 - Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes) concluídos tecnicamente e em revisão na PR #4; a Issue #3 segue aberta até o merge.
+- Sprint 2 — engenharia assistida: skills, subagentes e MCP local de consulta da base, com evidências em [docs/EVIDENCIAS_SPRINT_2.md](docs/EVIDENCIAS_SPRINT_2.md). O hook de proteção (2D) foi cancelado e não foi implementado.
 - Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.

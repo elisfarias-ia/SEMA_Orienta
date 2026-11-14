@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sema-orienta-base": {
+      "command": "node",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/scripts/mcp/iniciar.js"]
+    }
+  }
+}

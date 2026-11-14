@@ -3,10 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import config from '../vite.config.js';
-import { NOMES_ADMINISTRATIVOS, NOMES_INTERNOS, termosProibidos, conferirDist } from '../scripts/check-dist.js';
+import { NOMES_ADMINISTRATIVOS, NOMES_INTERNOS, NOMES_MCP, termosProibidos, conferirDist } from '../scripts/check-dist.js';
 import { lerDadosDaBase } from '../services/assistant-endpoint.js';
 import { selecionarBlocosAssistente } from '../services/assistant-content.js';
 
@@ -42,15 +43,33 @@ test('I3. todos os plugins do Vite valem só no servidor de desenvolvimento; nã
   assert.doesNotMatch(texto, /\bdefine\b|envPrefix|VITE_|process\.env|loadEnv|server:\s*\{|host:|cors/);
 });
 
-test('I4. não há dependências nem scripts além de vite, Playwright e dos testes e2e, e a pasta administrativa pública e os dados privados não existem', () => {
+test('I4. não há dependências nem scripts além de vite, Playwright, dos testes e2e e do servidor MCP local, e a pasta administrativa pública e os dados privados não existem', () => {
   const pacote = lerJson('package.json');
   assert.deepEqual(Object.keys(pacote.devDependencies).sort(), ['@playwright/test', 'vite']);
   assert.equal(pacote.dependencies, undefined);
-  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'validate:services']);
+  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'mcp', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
+  assert.equal(pacote.scripts.mcp, 'node scripts/mcp/iniciar.js');
   assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'index.html', 'saude', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);
   assert.ok(lerTexto('.gitignore').split(/\r?\n/).map((l) => l.trim()).includes('data/admin-private/'));
+});
+
+test('I4b. a interface pública não referencia o servidor MCP, e .mcp.json só tem command/args, sem env nem caminho absoluto', () => {
+  const publicos = ['index.html', ...listar(path.join(RAIZ, 'src')).map((f) => path.relative(RAIZ, f))];
+  for (const arquivo of publicos) {
+    assert.doesNotMatch(lerTexto(arquivo), /scripts[\\/]+mcp|criarServidorMcp|sema-orienta-base/, arquivo);
+  }
+  const texto = lerTexto('.mcp.json');
+  assert.doesNotMatch(texto, /"env"/);
+  assert.doesNotMatch(texto, /[A-Za-z]:[\\/]|\/home\/|\/Users\//);
+  const mcp = JSON.parse(texto);
+  assert.deepEqual(Object.keys(mcp), ['mcpServers']);
+  assert.deepEqual(Object.keys(mcp.mcpServers), ['sema-orienta-base']);
+  const servidor = mcp.mcpServers['sema-orienta-base'];
+  assert.deepEqual(Object.keys(servidor).sort(), ['args', 'command']);
+  assert.equal(servidor.command, 'node');
+  assert.deepEqual(servidor.args, ['${CLAUDE_PROJECT_DIR:-.}/scripts/mcp/iniciar.js']);
 });
 
 test('I5. o módulo administrativo não importa o chat nem o assistente, e o assistente não importa o módulo administrativo', () => {
@@ -69,14 +88,35 @@ test('I6. o modo público do assistente continua com zero blocos; o teste local 
   assert.equal(selecionarBlocosAssistente(dados, 'teste_local').length, 5);
 });
 
-test('I7. a conferência do dist/ passou a procurar nomes administrativos, o catálogo e a versão atual', () => {
+test('I7. a conferência do dist/ passou a procurar nomes administrativos, do servidor MCP, o catálogo e a versão atual', () => {
   for (const nome of ['/__admin', 'x-admin-token', 'admin-endpoint', 'criarManipuladorAdmin', 'admin-private', 'services/admin', 'versao-atual', '/__admin/assuntos', 'executarTransacao', 'montarEsqueletoServico', 'validarCorpoAssunto', 'validarCorpoServico', 'cadastrarServico']) {
     assert.ok(NOMES_ADMINISTRATIVOS.includes(nome), nome);
   }
+  const MCP = ['scripts/mcp', 'sema-orienta-base', 'listar_assuntos', 'listar_servicos', 'consultar_fontes', 'resumir_base', 'criarServidorMcp', 'mcp/iniciar.js'];
+  for (const nome of MCP) assert.ok(NOMES_MCP.includes(nome), nome);
   const textos = termosProibidos(RAIZ).map((t) => t.texto);
   const assunto = lerJson('services', 'assuntos.json').assuntos[0];
-  for (const esperado of ['lac-v1', assunto.id, assunto.nome, assunto.descricao, ...NOMES_ADMINISTRATIVOS, ...NOMES_INTERNOS]) assert.ok(textos.includes(esperado), esperado);
+  for (const esperado of ['lac-v1', assunto.id, assunto.nome, assunto.descricao, ...NOMES_ADMINISTRATIVOS, ...NOMES_INTERNOS, ...NOMES_MCP]) assert.ok(textos.includes(esperado), esperado);
   assert.ok(textos.includes(lerJson('services', 'lac', 'versoes', 'v1', 'service.json').descricao));
+});
+
+test('I7b. conferirDist com dist/ fictício em pasta temporária: recusa nome de ferramenta MCP e arquivo em pasta mcp/', () => {
+  const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-dist-ficticio-'));
+  try {
+    fs.cpSync(path.join(RAIZ, 'services'), path.join(pai, 'services'), { recursive: true });
+    fs.mkdirSync(path.join(pai, 'dist', 'assets'), { recursive: true });
+    fs.writeFileSync(path.join(pai, 'dist', 'index.html'), '<!doctype html><title>SEMA Orienta</title>', 'utf8');
+    fs.writeFileSync(path.join(pai, 'dist', 'assets', 'index.js'), 'console.log("ok");', 'utf8');
+    assert.deepEqual(conferirDist(pai), [], 'dist/ fictício limpo passa');
+    fs.writeFileSync(path.join(pai, 'dist', 'assets', 'index.js'), 'const f = "listar_assuntos";', 'utf8');
+    fs.mkdirSync(path.join(pai, 'dist', 'mcp'));
+    fs.writeFileSync(path.join(pai, 'dist', 'mcp', 'qualquer.js'), '', 'utf8');
+    const encontrados = conferirDist(pai);
+    assert.ok(encontrados.some((e) => e.origem === 'nome do servidor MCP' && e.texto === 'listar_assuntos'));
+    assert.ok(encontrados.some((e) => e.origem === 'arquivo do servidor MCP' && e.texto === 'mcp/qualquer.js'));
+  } finally {
+    fs.rmSync(pai, { recursive: true, force: true });
+  }
 });
 
 test('I8. dist/ não tem rotas, token, catálogo, versão nem conteúdo administrativo (quando dist/ existir)', { skip: !fs.existsSync(path.join(RAIZ, 'dist')) }, () => {
