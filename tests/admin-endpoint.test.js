@@ -501,5 +501,5 @@ test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: se
   assert.match(codigo, /crypto\.timingSafeEqual/);
   assert.doesNotMatch(codigo, /console\./);
   const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro.js', './hash.js', './saude.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro.js', './conhecimento.js', './hash.js', './saude.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });
