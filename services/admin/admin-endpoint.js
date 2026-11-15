@@ -10,6 +10,7 @@
 //   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
 //   /__admin/servicos/<id>/fontes         -> cadastra uma fonte (só em versão em rascunho; revisão otimista do arquivo de fontes)
+//   /__admin/cadastro-guiado              -> assunto, serviço e fontes numa única gravação (Sprint 4); ids e revisão gerados pelo servidor
 //
 // Rotas de blocos de conhecimento (Sprint 3, Passo 3B1; exigem token; só em versão atual em rascunho; só o arquivo de conteúdo do assistente da versão):
 //   POST   /__admin/servicos/<id>/conhecimentos              -> cria um bloco (201); o id e as datas são gerados pelo servidor
@@ -34,6 +35,7 @@ import {
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
+import { prepararCadastroGuiado, validarPedidoGuiado } from './cadastro-guiado.js';
 import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento } from './conhecimento.js';
 import { verificarSaude } from './saude.js';
 import { validarVersao } from './versao.js';
@@ -47,6 +49,7 @@ export const ROTA_CATALOGO = '/__admin/catalogo';
 export const ROTA_SAUDE = '/__admin/saude';
 export const ROTA_ASSUNTOS = '/__admin/assuntos';
 export const ROTA_SERVICOS = '/__admin/servicos';
+export const ROTA_CADASTRO_GUIADO = '/__admin/cadastro-guiado';
 export const CABECALHO_TOKEN = 'x-admin-token';
 export const LIMITE_RESPOSTA = 2 * 1024 * 1024;
 export const LIMITE_TEXTO = 1024 * 1024;
@@ -180,6 +183,12 @@ export function criarManipuladorAdmin({
     }
   }
 
+  /** Nomes (sem extensão) de tudo o que já existe em services/: um id novo de serviço nunca pode coincidir com eles. */
+  function nomesDePastas() {
+    // Em minúsculas: os ids gerados são minúsculos e, em sistemas de arquivos sem distinção de caixa, "Nome" e "nome" são a mesma pasta.
+    return sistema.readdirSync(path.join(raiz, 'services')).map((n) => n.replace(/\.[^.]*$/, '').toLowerCase());
+  }
+
   function montarCatalogo() {
     const assuntos = lerJson('services/assuntos.json').assuntos;
     const registro = lerJson('services/registry.json').servicos;
@@ -267,7 +276,7 @@ export function criarManipuladorAdmin({
     const nome = normalizarNome(dados.nome);
     if (registro.servicos.some((s) => normalizarNome(nomeDoServico(s.id)) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
     // O id é gerado a partir do nome, uma única vez. Evita ids do registro, nomes de pasta já existentes em services/ e nomes reservados.
-    const pastas = sistema.readdirSync(path.join(raiz, 'services')).map((n) => n.replace(/\.[^.]*$/, ''));
+    const pastas = nomesDePastas();
     const id = gerarId(dados.nome, new Set([...registro.servicos.map((s) => s.id), ...pastas, ...IDS_RESERVADOS]));
     if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nome'] } };
 
@@ -304,6 +313,50 @@ export function criarManipuladorAdmin({
     const novo = { ...doc, fontes: [...doc.fontes, fonte] };
     const r = aplicar([{ caminho: versao.arquivos.fontes, tipo: 'json', conteudo: novo, validar: (d) => validarFontes(d) }]);
     return resultadoDaTransacao(r) ?? { status: 201, corpo: { fonte, revisao: hashConteudo(novo) } };
+  }
+
+  /**
+   * Cadastro guiado (Sprint 4): assunto, serviço e fontes numa única transação. A validação estrutural e o plano vêm de
+   * cadastro-guiado.js (que reutiliza as regras de cadastro.js); aqui só se lê o estado da base, se acrescenta o validador de
+   * cada arquivo e se grava pelo mesmo caminho dos demais cadastros (ensaio, escrita atômica, conferência final e desfazer).
+   */
+  function cadastrarGuiado(dados) {
+    const documentoAssuntos = lerJson('services/assuntos.json');
+    const registro = lerJson('services/registry.json');
+    const pastas = nomesDePastas();
+    const contexto = {
+      data: dataLocal(agora()),
+      documentoAssuntos,
+      assuntos: documentoAssuntos.assuntos,
+      servicos: registro.servicos.map((s) => ({ id: s.id, assuntoId: s.assuntoId, nome: nomeDoServico(s.id) })),
+      idsOcupados: pastas,
+      registro,
+    };
+    if (dados.servicoId !== null && registro.servicos.some((s) => s.id === dados.servicoId)) {
+      const versao = localizarVersaoAtual(raiz, dados.servicoId);
+      if (!versao.ok) throw new Error('versao');
+      contexto.servico = {
+        id: dados.servicoId,
+        assuntoId: registro.servicos.find((s) => s.id === dados.servicoId).assuntoId,
+        versaoAtualId: versao.versaoId,
+        estadoVersao: lerJson(`${versao.pasta}/${NOME_DO_MANIFESTO}`).estado,
+        caminhoFontes: versao.arquivos.fontes,
+        documentoFontes: lerJson(versao.arquivos.fontes),
+      };
+    }
+    const preparado = prepararCadastroGuiado(dados, contexto);
+    if (!preparado.ok) {
+      const { status, ok, ...corpo } = preparado;
+      return { status, corpo };
+    }
+    const { plano } = preparado;
+    const idServico = plano.resposta.servico.id;
+    const passos = plano.passos.map((p) => ({
+      ...p,
+      validar: p.caminho === 'services/assuntos.json' ? (d) => validarAssuntos(d).erros : validadorDoArquivo(p.caminho, idServico),
+    }));
+    const r = aplicar(passos);
+    return resultadoDaTransacao(r) ?? { status: 201, corpo: plano.resposta };
   }
 
   // ---------- Blocos de conhecimento (3B1) ----------
@@ -434,7 +487,7 @@ export function criarManipuladorAdmin({
     const rotaDeFontes = PADRAO_ROTA_FONTES.exec(caminho);
     const rotaDeConhecimentos = PADRAO_ROTA_CONHECIMENTOS.exec(caminho);
     const rotaDeConhecimento = PADRAO_ROTA_CONHECIMENTO.exec(caminho);
-    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || rotaDeFontes !== null || rotaDeConhecimentos !== null;
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || rotaDeFontes !== null || rotaDeConhecimentos !== null;
     const metodosPermitidos = rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
     if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
     // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
@@ -485,6 +538,12 @@ export function criarManipuladorAdmin({
             ? criarConhecimento(rotaDeConhecimentos[1], corpo)
             : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo)));
           return responderResultado(resultado);
+        }
+        if (caminho === ROTA_CADASTRO_GUIADO) {
+          // Estrutura conferida antes da trava (função pura, sem ler a base); o restante, dentro dela.
+          const pedido = validarPedidoGuiado(corpo);
+          if (!pedido.ok) return responder(pedido.status, { erro: pedido.erro, campos: pedido.campos });
+          return responderResultado(await comTrava(() => cadastrarGuiado(pedido.dados)));
         }
         const validacao = rotaDeFontes !== null ? validarCorpoFonte(corpo) : caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
         if (!validacao.ok) return responder(422, { erro: 'dados_invalidos', campos: validacao.campos });

@@ -206,7 +206,7 @@ const LIMITE_TITULO = 200;
 const LIMITE_ORGAO = 120;
 const LIMITE_URL = 500;
 const LIMITE_DISPOSITIVO = 200;
-const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
+export const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
 const PARAMETRO_SECRETO = /^(token|access_token|api[_-]?key|key|senha|password|passwd|secret|auth|authorization|sessao|session)$/i;
 
 /** URL aceitável: https, sem usuário e senha, sem parâmetro de credencial, sem e-mail nem telefone. Retorna a URL aparada ou null. */
