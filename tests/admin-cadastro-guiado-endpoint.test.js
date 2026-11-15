@@ -100,7 +100,7 @@ test('GE1. assunto existente + serviço existente: 201, só o fontes.json da LAC
   });
 });
 
-test('GE2. assunto existente + serviço novo: 201, sete arquivos novos mais o registro, com as fontes, em rascunho e não publicado', async () => {
+test('GE2. assunto existente + serviço novo: 201, oito arquivos novos (com entradas.json vazio) mais o registro, com as fontes, em rascunho e não publicado', async () => {
   await comCopia(async ({ postar, raiz, assuntoDaLac, catalogo }) => {
     const antes = retrato(raiz);
     const r = await postar({ assunto: { id: assuntoDaLac }, servico: SERVICO, fontes: [FONTE] });
@@ -118,7 +118,7 @@ test('GE2. assunto existente + serviço novo: 201, sete arquivos novos mais o re
     assert.equal(novo.publicado, false);
     assert.equal(novo.versaoPublicadaId, null);
     const mudou = diferencas(antes, retrato(raiz));
-    assert.equal(mudou.filter((l) => l.startsWith('F services/servico-guiado-ficticio/')).length, 7);
+    assert.equal(mudou.filter((l) => l.startsWith('F services/servico-guiado-ficticio/')).length, 8);
     assert.equal(mudou.filter((l) => l.startsWith('F services/registry.json')).length, 1);
     assert.equal(mudou.filter((l) => l.startsWith('F services/lac/')).length, 0);
     assert.deepEqual(validarServicos(raiz).erros, []);

@@ -82,17 +82,17 @@ test('CG1. assunto existente + serviço existente + fontes: só o fontes.json da
   });
 });
 
-test('CG2. assunto existente + serviço novo + fontes: sete arquivos novos (fontes já incluídas) e o registro por último', () => {
+test('CG2. assunto existente + serviço novo + fontes: oito arquivos novos (fontes já incluídas e entradas.json vazio) e o registro por último', () => {
   const r = preparar(pedidoEN());
   assert.equal(r.ok, true);
   const { plano } = r;
   assert.equal(plano.combinacao, COMBINACOES.EXISTENTE_NOVO);
   const caminhos = plano.passos.map((p) => p.caminho);
-  assert.equal(caminhos.length, 8);
+  assert.equal(caminhos.length, 9);
   assert.equal(caminhos.at(-1), 'services/registry.json');
   assert.equal(plano.passos.at(-1).novo, false);
   assert.ok(!caminhos.includes('services/assuntos.json'));
-  for (const p of plano.passos.slice(0, 7)) {
+  for (const p of plano.passos.slice(0, 8)) {
     assert.equal(p.novo, true);
     assert.match(p.caminho, /^services\/servico-novo-ficticio\/versoes\/v1\//);
   }
@@ -113,7 +113,7 @@ test('CG3. assunto novo + serviço novo + fontes: assuntos.json primeiro, depois
   const { plano } = r;
   assert.equal(plano.combinacao, COMBINACOES.NOVO_NOVO);
   const caminhos = plano.passos.map((p) => p.caminho);
-  assert.equal(caminhos.length, 9);
+  assert.equal(caminhos.length, 10);
   assert.equal(caminhos[0], 'services/assuntos.json');
   assert.equal(caminhos.at(-1), 'services/registry.json');
   const assuntos = plano.passos[0].conteudo.assuntos;
@@ -194,7 +194,9 @@ test('CG8. cada fonte passa pela validação existente: campos inválidos aparec
   const r = recusa(pedidoEN({ fontes: [{ ...FONTE, descricao: ['alguem', 'exemplo.test'].join('@') }] }));
   assert.deepEqual(r.campos, ['fontes[0].descricao']);
   // A validação do corpo guiado repete as regras do assunto e do serviço, com o campo prefixado.
-  assert.deepEqual(recusa(pedidoNN({ assunto: { nome: '123', descricao: '' } })).campos, ['assunto.nome', 'assunto.descricao']);
+  // A descrição do assunto é opcional (Passo 4B1): vazia vale como omitida; preenchida e inválida é recusada.
+  assert.deepEqual(recusa(pedidoNN({ assunto: { nome: '123', descricao: '' } })).campos, ['assunto.nome']);
+  assert.deepEqual(recusa(pedidoNN({ assunto: { nome: '123', descricao: 'com\ttab' } })).campos, ['assunto.nome', 'assunto.descricao']);
   assert.deepEqual(recusa(pedidoEN({ servico: { nome: '!!!', termosEquivalentes: [] } })).campos, ['servico.nome', 'servico.termosEquivalentes']);
 });
 

@@ -230,3 +230,15 @@ Para cada teste, anotar data, versão/commit, ambiente, resultado (`aprovado`, `
 - **Dados:** o dado fictício criado no teste foi excluído pela própria tela e a base foi restaurada pelo Git: o conteúdo da LAC voltou ao original (5 blocos) e não existe bloco "TESTE MANUAL". `services/` (dados) sem alterações.
 - **Cobertos só por testes automatizados:** erros do servidor (409, 404, 422, 500), clique duplo, concorrência, rollback e proteção do endpoint, todos com requisições simuladas ou cópias temporárias.
 - **Fora desta entrega:** o cadastro guiado de assunto, serviço e fontes foi transferido para a Issue #8 (Sprint 4).
+
+### Execução — gestão simples por serviço (Sprint 4, Passo 4B2)
+
+Conferência manual feita pela usuária em 15/11/2026, em `http://localhost:5173/admin/`.
+
+| Aspecto | Resultado |
+|---|---|
+| Funcionalidades | **Aprovadas** |
+| Linguagem | **Aprovada** após substituição dos textos da área "Nova informação" ("Documentos ou links usados", "Selecione onde esta informação pode ser conferida.", orientação sobre dados pessoais) |
+| Responsividade | **Reprovada inicialmente e corrigida** neste ajuste (largura mínima fixa em rem na grade de saúde e palavras longas nos rótulos de fonte alargavam a página com texto ampliado; placeholder cortado) |
+
+O que cobre a correção (executado): `e2e-real/responsivo.spec.js` (desktop 1280, 390 × 844, e 390 × 844 com texto a 150% e a 200%: sem rolagem horizontal, nada fora da tela nem cortado, textos longos quebrando e foco visível por Tab) e as especificações de `e2e/`. A nova conferência visual da usuária aprovou a responsividade em desktop e celular (15/11/2026).

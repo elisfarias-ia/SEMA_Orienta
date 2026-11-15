@@ -185,8 +185,10 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [ ] Melhorias futuras (Issue #7): revisão otimista no PATCH e no DELETE, proteção contra alterações externas entre ensaio e gravação, concorrência para uso multiusuário e detecção de duplicidade por conteúdo.
 - [ ] Criação automática de nova versão quando a versão atual está congelada (não implementada).
 
-## Sprint 4 — Cadastro guiado da base (planejada, Issue #8)
+## Sprint 4 — Gestão simples de conteúdo por serviço (concluída, Issue #8)
 
-- [ ] Assunto, serviço e fontes em um único fluxo, com ids automáticos e invisíveis.
-- [ ] Endpoint composto com gravação atômica.
-- [ ] Tela "Novo cadastro" conforme a referência visual aprovada, substituindo o nome provisório "Cadastro da base".
+- [x] 4A: cadastro guiado atômico (`e370b28`).
+- [x] 4B1: `entradas.json`, texto com hash, reutilização de link e proteção do MCP.
+- [x] 4B2: `/admin/` por serviço com entrada de demonstração, tema único, texto, link novo e link já cadastrado; teste Playwright real; conferência manual aprovada em 15/11/2026 (`docs/EVIDENCIAS_SPRINT_4.md`).
+- [ ] Melhorias futuras: achados menores da auditoria (regras de credencial, nome antigo "Cadastro da base" na navegação, validador de `reutilizadaDe`, teste de fonte textual publicada no MCP).
+- [ ] Sprints 5 a 8: revisão e publicação, links seguros e agente, busca e chat inteligente, endurecimento (`docs/SPRINTS.md`).

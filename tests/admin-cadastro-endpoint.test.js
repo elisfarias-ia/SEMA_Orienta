@@ -20,7 +20,7 @@ const HEADERS_OK = { host: 'localhost:5173' };
 const AGORA = () => new Date(2026, 10, 10, 12, 0, 0);
 const ASSUNTO = { nome: 'Assunto Fictício', descricao: 'Descrição fictícia de teste.' };
 const SERVICO = { assuntoId: 'licenciamento-ambiental', nome: 'Serviço Fictício', sigla: 'SF', termosEquivalentes: ['serviço fictício', 'SF'] };
-const ARQUIVOS_V1 = ['conteudo-assistente.json', 'documentos.json', 'fontes.json', 'perguntas-frequentes.json', 'roteiro.md', 'service.json', 'versao.json'];
+const ARQUIVOS_V1 = ['conteudo-assistente.json', 'documentos.json', 'entradas.json', 'fontes.json', 'perguntas-frequentes.json', 'roteiro.md', 'service.json', 'versao.json'];
 
 /** Requisição simulada com corpo (fluxo de leitura igual ao do servidor real). */
 async function enviar(manipulador, { url, method = 'POST', corpo, texto, headers = {}, token, remoteAddress = '127.0.0.1', localPort = 5173, tipo = 'application/json', comTamanho = true } = {}) {
@@ -188,7 +188,7 @@ test('CE6. nenhum conteúdo inventado, publicação, decisão, hash ou responsá
     const manifesto = lerJson(v1, 'versao.json');
     assert.deepEqual(manifesto, {
       id: 'servico-ficticio-v1', servicoId: 'servico-ficticio', numero: 1, baseadaEm: null, estado: 'rascunho',
-      arquivos: Object.fromEntries(['service', 'roteiro', 'documentos', 'perguntasFrequentes', 'fontes', 'conteudoAssistente'].map((k) => [k, `services/servico-ficticio/versoes/v1/${{ service: 'service.json', roteiro: 'roteiro.md', documentos: 'documentos.json', perguntasFrequentes: 'perguntas-frequentes.json', fontes: 'fontes.json', conteudoAssistente: 'conteudo-assistente.json' }[k]}`])),
+      arquivos: { entradas: 'services/servico-ficticio/versoes/v1/entradas.json', ...Object.fromEntries(['service', 'roteiro', 'documentos', 'perguntasFrequentes', 'fontes', 'conteudoAssistente'].map((k) => [k, `services/servico-ficticio/versoes/v1/${{ service: 'service.json', roteiro: 'roteiro.md', documentos: 'documentos.json', perguntasFrequentes: 'perguntas-frequentes.json', fontes: 'fontes.json', conteudoAssistente: 'conteudo-assistente.json' }[k]}`])) },
       hashConteudo: null, criadoEm: '2026-11-10', enviadaEm: null,
     });
     for (const [arquivo, chave] of [['documentos.json', 'documentos'], ['perguntas-frequentes.json', 'perguntas'], ['fontes.json', 'fontes'], ['conteudo-assistente.json', 'blocos']]) {

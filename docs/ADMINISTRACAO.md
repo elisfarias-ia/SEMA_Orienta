@@ -12,7 +12,7 @@ Este documento descreve os limites do módulo de gestão de conteúdo e validaç
 | Armazenamento local | `services/admin/armazenamento.js` | Leitura e gravação seguras; só a leitura é usada pelo endpoint. |
 | Endpoint administrativo local | `services/admin/admin-endpoint.js` | Somente no `npm run dev`: leitura e cadastro de assunto e serviço; sem interface. |
 | Cadastro e transação | `services/admin/cadastro.js`, `transacao.js` | Montagem pura do assunto e do esqueleto do serviço; gravação tudo ou nada. |
-| Tela "Gestão de conteúdo" | `admin/` (`index.html`, `styles.css`, `admin.js`, `admin-logic.js`) | Somente no `npm run dev`, em `http://localhost:5173/admin/`; só cadastra assunto e serviço. |
+| Tela "Gestão de conteúdo" | `admin/` (`index.html`, `styles.css`, `admin.js`, `admin-logic.js`) | Somente no `npm run dev`, em `http://localhost:5173/admin/`; gestão simples por serviço (seção "Gestão simples por serviço", Sprint 4). As seções antigas abaixo descrevem as telas anteriores, já substituídas. |
 | Informações do chatbot (blocos de conhecimento) | `services/admin/conhecimento.js`, `admin/conteudo/` | Funções puras, endpoints `/__admin/servicos/<id>/conhecimentos` e a página `/admin/conteudo/`; só no `npm run dev` (Sprint 3). |
 | Saúde do sistema | `services/admin/saude.js` e `admin/saude/` | Verificações reais por `GET /__admin/saude` e a página `/admin/saude/`; só no `npm run dev`. |
 
@@ -125,7 +125,7 @@ As duas rotas de cadastro exigem token, origem local, `Content-Type: application
 
 ## Informações do chatbot — blocos de conhecimento (Sprint 3)
 
-Página `http://localhost:5173/admin/conteudo/`, só no `npm run dev`. O nome "Cadastro da base" na navegação é provisório (a Sprint 4 traz o cadastro guiado, Issue #8).
+Página `http://localhost:5173/admin/conteudo/`, só no `npm run dev`. O link "Cadastro da base" da navegação leva à gestão de conteúdo (`/admin/`, Sprint 4) e mantém o nome antigo, a renomear em melhoria futura.
 
 - **O que é:** uma informação em linguagem simples, sustentada por uma ou mais fontes já cadastradas, com a indicação de onde ela aparece em cada fonte e avisos opcionais. É gravada como bloco do tipo `conhecimento` no arquivo de conteúdo do assistente da versão atual do serviço (fonte única de verdade, sem arquivo novo).
 - **Nascimento:** em elaboração (rascunho), não publicada, revisão pendente. Ela **não chega ao chat público nem ao assistente** enquanto não for validada, autorizada e publicada pelo fluxo existente.
@@ -140,3 +140,20 @@ Página `http://localhost:5173/admin/conteudo/`, só no `npm run dev`. O nome "C
 - **Tela:** escolha de assunto e serviço, situação do serviço, lista e formulário (duas colunas em tela larga), confirmação antes de salvar e de excluir, ações desabilitadas fora de rascunho, datas em DD-MM-AAAA, mensagens curtas e foco levado à mensagem. Ícones SVG, sem biblioteca; sem `innerHTML`, `localStorage`, `sessionStorage` ou cookies.
 - **Limitações:** sem criação automática de nova versão (a edição fica bloqueada quando a versão está congelada), sem IA, sem busca semântica, sem upload e sem publicação. Revisão otimista no PATCH e no DELETE e proteção contra alterações externas entre ensaio e gravação ficam como melhorias futuras.
 - **Atenção em testes manuais:** salvar ou excluir grava no arquivo real da LAC. Use dado fictício e restaure o arquivo pelo Git depois (a conferência de 13/11/2026 está em `docs/TESTES_MANUAIS.md`, MC-01 a MC-09).
+
+## Gestão simples por serviço (Sprint 4, Passo 4B2)
+
+A experiência principal de `/admin/` (só no `npm run dev`) é orientada por serviço: **entrada de demonstração** (não é autenticação real; o token vive só em memória, e recarregar ou sair exige nova entrada), pesquisar ou criar serviço (nome e um único campo "Tema") e **Adicionar informação** (texto, link novo ou "Usar link já cadastrado"), com a lista das informações em elaboração do serviço. Nada é publicado e nada fica disponível ao chat.
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `POST /__admin/servico-com-tema` | Serviço novo e, se preciso, tema novo, numa única transação. Corpo: `nome` e `tema` (`{ id }` ou `{ nome }`). Tema digitado que já existe é reutilizado. Ids gerados pelo servidor. |
+| `GET /__admin/servicos/<id>/informacoes` | Informações em elaboração do serviço (texto com prévia, links), sem hash, caminho nem ids de entrada. |
+| `POST /__admin/servicos/<id>/entradas-texto` | Grava texto pelo contrato de `entradas.json` (4B1). Corpo: `titulo`, `texto` e opcionais `descricao`, `orgaoResponsavel`. |
+| `POST /__admin/servicos/<id>/links` | Link novo (fonte). O servidor gera id e revisão; o cliente nunca os envia. |
+| `POST /__admin/servicos/<id>/links-existentes/busca` | Pesquisa somente leitura de links elegíveis de **outros** serviços. |
+| `POST /__admin/servicos/<id>/links-existentes` | Copia um link já cadastrado. O cliente envia só `servicoId` e `fonteId`; o servidor relê a fonte do disco. A cópia nasce em rascunho, com `reutilizadaDe`, e exige nova revisão. |
+
+- **Trava:** todas as gravações novas usam a mesma trava das demais (uma por vez; a segunda recebe 409 `operacao_em_andamento`). A busca não grava e não usa a trava.
+- **Credenciais:** a recusa só vale para atribuições explícitas (`senha:`, `token=`, `api_key`, `client_secret`...), `Bearer` com sequência de token e `senha` seguida de valor com dígito, e é aplicada a título, descrição e texto. Frases como "A senha deve ser trocada" são aceitas. Limitação conhecida: "senha: ..." escrito como explicação em frase corrida também é recusado; a interface avisa o motivo.
+- **Fora do escopo:** edição, exclusão, revisão, publicação, links seguros e agente (Sprints 5 a 6).

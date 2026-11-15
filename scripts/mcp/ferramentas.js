@@ -240,8 +240,11 @@ export function criarFerramentas({ raiz, sistema, limiteResposta = LIMITE_RESPOS
     if (manifesto.id !== entrada.versaoAtualId || manifesto.servicoId !== id) return null;
     const declarados = manifesto.arquivos;
     const chaves = ehObjeto(declarados) ? Object.keys(declarados) : [];
+    // "entradas" é chave opcional: só o caminho é conferido; o arquivo nunca é lido pelo MCP.
+    const temEntradas = chaves.includes('entradas');
     const coerente =
-      chaves.length === Object.keys(esperados).length && Object.keys(esperados).every((c) => tem(declarados, c) && declarados[c] === esperados[c]);
+      (!temEntradas || declarados.entradas === `${pasta}/entradas.json`) &&
+      chaves.length - (temEntradas ? 1 : 0) === Object.keys(esperados).length && Object.keys(esperados).every((c) => tem(declarados, c) && declarados[c] === esperados[c]);
     if (!coerente) return null;
     const s = leitura.lerJson(esperados.service);
     if (!s.ok || !ehObjeto(s.dados) || s.dados.id !== id) return null;
@@ -376,7 +379,8 @@ export function criarFerramentas({ raiz, sistema, limiteResposta = LIMITE_RESPOS
     const r = leitura.lerJson(v.arquivos.fontes);
     if (!r.ok || !ehObjeto(r.dados) || !Array.isArray(r.dados.fontes)) return falhar('versao_indisponivel');
     const doc = r.dados;
-    let fontes = doc.fontes.filter(ehObjeto);
+    // Fonte textual ainda não publicada é omitida por completo (título, descrição e existência); o texto original nunca é lido aqui.
+    let fontes = doc.fontes.filter((f) => ehObjeto(f) && !((f.formaEntrada === 'texto' || f.tipo === 'texto_cadastrado') && f.publicado !== true));
     if (fonteId !== undefined) {
       fontes = fontes.filter((f) => f.id === fonteId);
       if (fontes.length === 0) return falhar('fonte_nao_encontrada');

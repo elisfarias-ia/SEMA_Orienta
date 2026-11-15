@@ -4,7 +4,7 @@
 import { test as base, expect } from '@playwright/test';
 import { focoVisivel, semRolagemHorizontal } from './base.js';
 
-const ORIGEM_LOCAL = 'http://localhost:5173';
+const ORIGEM_LOCAL = `http://localhost:${process.env.E2E_PORTA ?? '5173'}`;
 const TOKEN = 'ab'.repeat(32);
 const IDS_TECNICOS = /\bbc-[0-9a-f]{6,}|\bservico-ficticio\b|assunto-ficticio|\bf-um\b|\bf-dois\b|\bf-velha\b|hashConteudo|[0-9a-f]{64}|X-Admin-Token|teste_local/i;
 const FONTES = [
@@ -107,7 +107,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.getByRole('listitem').filter({ hasText: 'Indique a fonte que comprova a informação.' })).toBeVisible();
     await expect(page.getByLabel('Tema da informação', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Informação que o chatbot pode usar')).toBeVisible();
-    await expect(page.getByText('Selecione um documento ou link já cadastrado.')).toBeVisible();
+    await expect(page.getByText('Selecione onde esta informação pode ser conferida.')).toBeVisible();
     await expect(page.getByText('Opcional. Escreva um aviso por linha.')).toBeVisible();
     await expect(page.locator('svg[aria-hidden="true"]')).toHaveCount(5);
     for (const tamanho of await page.locator('.icone svg').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)))) expect([20, 28]).toContain(tamanho);
@@ -142,7 +142,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     const lista = await page.locator('#blocos').boundingBox();
     expect(lista.x).toBeGreaterThan(form.x + form.width - 1);
     await page.getByLabel('Fonte Um (Página oficial)').check();
-    await expect(page.getByLabel(/Onde esta informação aparece na fonte\? \(Fonte Um\)/)).toHaveAttribute('placeholder', 'Ex.: página 3, item 2.1 ou seção Como solicitar.');
+    await expect(page.getByLabel(/Onde esta informação aparece na fonte\? \(Fonte Um\)/)).toHaveAttribute('placeholder', 'Ex.: página 3');
     expect(await semRolagemHorizontal(page)).toBe(true);
   });
 
@@ -151,7 +151,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     const lista = page.locator('#blocos');
     await expect(lista).toContainText('Bloco existente');
     await expect(lista).toContainText('Fonte Um — Seção 2');
-    await expect(lista).toContainText('Fontes que comprovam a informação');
+    await expect(lista).toContainText('Documentos ou links usados');
     await expect(lista).toContainText('Avisos ou limitações');
     await expect(lista).toContainText('Pode estar desatualizado.');
     await expect(lista).toContainText('Situação: Em elaboração (rascunho)');

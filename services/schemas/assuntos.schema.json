@@ -12,12 +12,12 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "nome", "descricao", "ativo", "criadoEm", "atualizadoEm"],
+        "required": ["id", "nome", "ativo", "criadoEm", "atualizadoEm"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
           "nome": { "type": "string", "minLength": 1 },
-          "descricao": { "type": "string", "minLength": 1 },
+          "descricao": { "type": "string", "minLength": 1, "description": "Opcional: um assunto novo pode nascer sem descrição (a chave é omitida, nunca PENDENTE)." },
           "ativo": { "type": "boolean", "description": "Só assunto ativo aceita serviços vinculados." },
           "criadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
           "atualizadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Não pode ser anterior a criadoEm." }

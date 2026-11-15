@@ -12,7 +12,8 @@
     "validate:services": "node scripts/validate-services.js",
     "mcp": "node scripts/mcp/iniciar.js",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:real": "playwright test -c playwright.real.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

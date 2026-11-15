@@ -124,7 +124,7 @@ function renderizarBlocos() {
     item.append(criar('p', 'bloco__texto', b.texto));
     const fontes = criar('ul', 'bloco__fontes');
     for (const r of b.referencias) fontes.append(criar('li', '', `${r.fonteTitulo} — ${r.localizacao}`));
-    item.append(criar('p', 'bloco__rotulo', 'Fontes que comprovam a informação'));
+    item.append(criar('p', 'bloco__rotulo', 'Documentos ou links usados'));
     item.append(fontes);
     if (b.alertas.length > 0) {
       item.append(criar('p', 'bloco__rotulo', 'Avisos ou limitações'));
@@ -185,7 +185,7 @@ function renderizarFontes(selecionadas = []) {
     local.id = `fonte-local-${i}`;
     local.maxLength = 200;
     local.autocomplete = 'off';
-    local.placeholder = 'Ex.: página 3, item 2.1 ou seção Como solicitar.';
+    local.placeholder = 'Ex.: página 3';
     local.value = mapa.get(f.id) ?? '';
     local.disabled = !marca.checked;
     local.setAttribute('aria-describedby', `fonte-local-${i}-ajuda fonte-local-${i}-erro`);
@@ -361,7 +361,7 @@ function pedirExclusao(bloco, gatilho) {
     linhas: [
       { rotulo: 'Serviço', valor: contexto.nomeServico },
       { rotulo: 'Tema da informação', valor: bloco.titulo },
-      { rotulo: 'Fontes que comprovam', valor: bloco.referencias.map((r) => `${r.fonteTitulo} — ${r.localizacao}`).join('; ') },
+      { rotulo: 'Documentos ou links usados', valor: bloco.referencias.map((r) => `${r.fonteTitulo} — ${r.localizacao}`).join('; ') },
       { rotulo: 'Atenção', valor: 'A informação é removida da lista. Esta ação não pode ser desfeita por esta tela.' },
     ],
   });

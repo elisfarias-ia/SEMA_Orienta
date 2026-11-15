@@ -71,7 +71,7 @@ test('A4. falha com ids de assunto duplicados', () => {
 
 test('A5. falha com campos obrigatórios ausentes ou inválidos', () => {
   temErro(validarAssuntos(catalogo(assuntoOk({ nome: '' }))).erros, /"nome" obrigatório/);
-  temErro(validarAssuntos(catalogo(assuntoOk({ descricao: '   ' }))).erros, /"descricao" obrigatório/);
+  temErro(validarAssuntos(catalogo(assuntoOk({ descricao: '   ' }))).erros, /"descricao", se informada, deve ser um texto preenchido/);
   temErro(validarAssuntos(catalogo(assuntoOk({ ativo: 'sim' }))).erros, /"ativo" deve ser booleano/);
   temErro(validarAssuntos(catalogo(assuntoOk({ id: 'Licenciamento Ambiental' }))).erros, /id inválido/);
   temErro(validarAssuntos(catalogo(assuntoOk({ criadoEm: '09/11/2026' }))).erros, /criadoEm deve ser uma data válida/);
@@ -131,7 +131,8 @@ test('A11. os esquemas documentam assuntoId e o catálogo, com os mesmos campos 
   assert.ok(servico.required.includes('assuntoId'));
   assert.ok(servico.properties.assuntoId);
   const schema = lerJson('services', 'schemas', 'assuntos.schema.json');
-  assert.deepEqual(schema.properties.assuntos.items.required, ['id', 'nome', 'descricao', 'ativo', 'criadoEm', 'atualizadoEm']);
+  assert.deepEqual(schema.properties.assuntos.items.required, ['id', 'nome', 'ativo', 'criadoEm', 'atualizadoEm']);
+  assert.ok('descricao' in schema.properties.assuntos.items.properties, 'descricao continua documentada, como opcional');
 });
 
 test('A12. assunto e serviço são conceitos distintos: o registro de serviços não guarda dados do assunto', () => {

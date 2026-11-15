@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validarVersao } from '../services/admin/versao.js';
+import { CAMPOS_FONTE_TEXTO, CHAVE_ENTRADAS, NOME_ARQUIVO_ENTRADAS, validarArquivoEntradas } from '../services/admin/entradas.js';
 import { ARQUIVOS_DA_VERSAO, NOME_DO_MANIFESTO, caminhosDaVersao, pastaDaVersao } from '../services/versao-atual.js';
 
 export const STATUS_VALIDOS = ['rascunho', 'em_validacao', 'validado'];
@@ -16,6 +17,8 @@ export const TIPOS_FONTE = [
   'sistema',
   'canal_atendimento',
   'outro',
+  // Fonte textual (Sprint 4, Passo 4B1): o texto fica em entradas.json; nunca tem URL nem vigência.
+  'texto_cadastrado',
 ];
 export const SITUACOES_VIGENCIA = ['vigente', 'alterada', 'revogada', 'a_confirmar', 'nao_se_aplica'];
 export const GRUPOS_DOCUMENTO = [
@@ -177,13 +180,38 @@ export function validarFontes(doc, rotulo = 'fontes') {
     if (!TIPOS_FONTE.includes(fonte.tipo)) {
       erros.push(`${ref}: tipo desconhecido ${JSON.stringify(fonte.tipo)}`);
     }
-    if (!textoPreenchido(fonte.orgaoResponsavel)) erros.push(`${ref}: orgaoResponsavel obrigatório`);
+    // formaEntrada: ausente = "link" (fontes anteriores continuam válidas sem migração).
+    const forma = 'formaEntrada' in fonte ? fonte.formaEntrada : 'link';
+    if (forma !== 'link' && forma !== 'texto') erros.push(`${ref}: formaEntrada deve ser "link" ou "texto"`);
     if (typeof fonte.descricao !== 'string') erros.push(`${ref}: descricao deve ser texto`);
 
-    const url = analisarUrl(fonte.url);
-    if (!url.ok) erros.push(`${ref}: ${url.erro}`);
-    else if (urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
-    else urls.add(url.normalizada);
+    if (forma === 'texto') {
+      // Fonte textual: sem URL, apontando para a entrada, sem origem oficial e fora da publicação neste passo.
+      if (fonte.tipo !== 'texto_cadastrado') erros.push(`${ref}: fonte textual deve ser do tipo texto_cadastrado`);
+      if (fonte.orgaoResponsavel !== null && !textoPreenchido(fonte.orgaoResponsavel)) erros.push(`${ref}: orgaoResponsavel deve ser null ou texto`);
+      if (fonte.url !== null) erros.push(`${ref}: fonte textual não tem url (deve ser null)`);
+      if (typeof fonte.entradaId !== 'string' || !PADRAO_ID.test(fonte.entradaId)) erros.push(`${ref}: entradaId obrigatório e válido na fonte textual`);
+      if (fonte.origemOficial !== false) erros.push(`${ref}: fonte textual deve ter origemOficial false`);
+      if (fonte.statusValidacao !== 'rascunho') erros.push(`${ref}: fonte textual deve estar em rascunho`);
+      if (!ehObjeto(fonte.vigencia) || fonte.vigencia.situacao !== 'nao_se_aplica') erros.push(`${ref}: fonte textual deve ter vigencia nao_se_aplica`);
+      if (fonte.publicado !== false) erros.push(`${ref}: fonte textual não pode estar publicada`);
+      if (Object.keys(fonte).some((k) => !CAMPOS_FONTE_TEXTO.includes(k))) erros.push(`${ref}: fonte textual com campo não previsto`);
+    } else {
+      if (!textoPreenchido(fonte.orgaoResponsavel)) erros.push(`${ref}: orgaoResponsavel obrigatório`);
+      if (fonte.tipo === 'texto_cadastrado') erros.push(`${ref}: tipo texto_cadastrado exige formaEntrada "texto"`);
+      if ('entradaId' in fonte) erros.push(`${ref}: link não tem entradaId`);
+      // reutilizadaDe (opcional): linhagem de um link copiado de outro serviço; só os três ids, nada herdado.
+      if ('reutilizadaDe' in fonte) {
+        const r = fonte.reutilizadaDe;
+        if (!ehObjeto(r) || Object.keys(r).length !== 3 || !['servicoId', 'versaoId', 'fonteId'].every((k) => typeof r[k] === 'string' && PADRAO_ID.test(r[k]))) {
+          erros.push(`${ref}: reutilizadaDe deve ter somente servicoId, versaoId e fonteId válidos`);
+        }
+      }
+      const url = analisarUrl(fonte.url);
+      if (!url.ok) erros.push(`${ref}: ${url.erro}`);
+      else if (urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
+      else urls.add(url.normalizada);
+    }
 
     for (const campo of ['dataConsulta', 'dataPublicacao']) {
       if (!(campo in fonte) || !dataNulaOuValida(fonte[campo])) {
@@ -918,9 +946,9 @@ export function validarAssuntos(doc, rotulo = 'assuntos') {
       return;
     }
     assuntos.set(a.id, a);
-    for (const campo of ['nome', 'descricao']) {
-      if (!textoPreenchido(a[campo])) erros.push(`${nome}: "${campo}" obrigatório`);
-    }
+    if (!textoPreenchido(a.nome)) erros.push(`${nome}: "nome" obrigatório`);
+    // A descrição é opcional; se existir, deve ser um texto preenchido.
+    if ('descricao' in a && !textoPreenchido(a.descricao)) erros.push(`${nome}: "descricao", se informada, deve ser um texto preenchido`);
     if (typeof a.ativo !== 'boolean') erros.push(`${nome}: "ativo" deve ser booleano`);
     for (const campo of ['criadoEm', 'atualizadoEm']) {
       if (!dataValida(a[campo])) erros.push(`${nome}: ${campo} deve ser uma data válida AAAA-MM-DD`);
@@ -981,7 +1009,8 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
     const esperados = caminhosDaVersao(pasta);
     const declarados = ehObjeto(manifesto.arquivos) ? manifesto.arquivos : {};
     for (const chave of Object.keys(declarados)) {
-      if (!(chave in esperados)) erros.push(`${rotulo} versão: arquivos.${chave} não faz parte da versão`);
+      // "entradas" é opcional (Passo 4B1); sua conferência está em validarEntradasDaVersao.
+      if (!(chave in esperados) && chave !== CHAVE_ENTRADAS) erros.push(`${rotulo} versão: arquivos.${chave} não faz parte da versão`);
     }
     for (const [chave, caminho] of Object.entries(esperados)) {
       if (declarados[chave] !== caminho) {
@@ -1017,6 +1046,35 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
       if (`services/${id}/versoes/${nome}` !== pasta) erros.push(`${rotulo}: pasta de versão não registrada: services/${id}/versoes/${nome}`);
     }
   }
+}
+
+/**
+ * entradas.json da versão (Passo 4B1): só existe se `arquivos.entradas` estiver no manifesto, no caminho
+ * `<pasta da versão>/entradas.json`; o conteúdo é conferido por validarArquivoEntradas, junto com as fontes textuais.
+ * Sem o arquivo, qualquer fonte textual é erro (fonte sem entrada).
+ */
+function validarEntradasDaVersao(raiz, pasta, id, rotulo, fontes, erros) {
+  const manifesto = lerJson(raiz, `${pasta}/${NOME_DO_MANIFESTO}`, [], '');
+  const esperado = `${pasta}/${NOME_ARQUIVO_ENTRADAS}`;
+  const declarado = ehObjeto(manifesto) && ehObjeto(manifesto.arquivos) ? manifesto.arquivos[CHAVE_ENTRADAS] : undefined;
+  const absoluto = resolverDentro(raiz, esperado);
+  const existe = Boolean(absoluto && fs.existsSync(absoluto));
+  const lista = fontes && Array.isArray(fontes.fontes) ? fontes.fontes : [];
+  if (declarado === undefined) {
+    if (existe) erros.push(`${rotulo}: ${NOME_ARQUIVO_ENTRADAS} existe sem arquivos.entradas no manifesto da versão`);
+    erros.push(...validarArquivoEntradas({ servicoId: id, entradas: [] }, { servicoId: id, fontes: lista, rotulo: `${rotulo} entradas` }));
+    return;
+  }
+  if (declarado !== esperado) {
+    erros.push(`${rotulo} versão: arquivos.entradas deve ser ${esperado}`);
+    return;
+  }
+  if (!existe) {
+    erros.push(`${rotulo} versão: arquivo não encontrado: ${esperado}`);
+    return;
+  }
+  const doc = lerJson(raiz, esperado, erros, `${rotulo} entradas`);
+  if (doc) erros.push(...validarArquivoEntradas(doc, { servicoId: id, fontes: lista, rotulo: `${rotulo} entradas` }));
 }
 
 export function validarServicos(raiz) {
@@ -1136,6 +1194,7 @@ export function validarServicos(raiz) {
         });
       }
     }
+    if (pastaVersao !== null) validarEntradasDaVersao(raiz, pastaVersao, id, rotulo, fontes, erros);
     for (const campo of ['links', 'legislacao']) {
       if (Array.isArray(servico[campo])) {
         for (const refFonte of servico[campo]) {

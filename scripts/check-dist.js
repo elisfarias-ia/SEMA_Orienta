@@ -38,7 +38,7 @@ export const NOMES_MCP = [
 // Só termos específicos: nada que possa existir legitimamente no chat público (por isso não há "conhecimento" nem "informação" soltos).
 export const NOMES_CONHECIMENTO = [
   '/admin/conteudo', 'admin/conteudo', '/conhecimentos', 'conteudo/conteudo.js',
-  'Informações do chatbot', 'Tema da informação', 'Informação que o chatbot pode usar', 'Fontes que comprovam a informação',
+  'Informações do chatbot', 'Tema da informação', 'Informação que o chatbot pode usar', 'Documentos ou links usados', 'Fontes que comprovam a informação',
   'Onde esta informação aparece na fonte', 'Conferir antes de salvar', 'Excluir informação',
   'form-bloco', 'bloco-titulo', 'bloco-texto', 'bloco-alertas', 'bloco-fontes', 'bloco-enviar',
   'services/admin/conhecimento', 'conhecimento.js', 'montarBlocoConhecimento', 'alterarBlocoConhecimento', 'removerBlocoConhecimento',
@@ -46,6 +46,32 @@ export const NOMES_CONHECIMENTO = [
   'gravarConhecimento', 'carregarConhecimento', 'resumirConhecimento', 'validarFormConhecimento', 'corpoDoConhecimento', 'resumoDoConhecimento',
   'criarConhecimento', 'alterarConhecimento', 'removerConhecimento', 'estruturaDeConhecimentoValida',
 ];
+
+// Entradas de texto (Sprint 4, Passo 4B1): arquivo, módulos e funções administrativas. O texto de cada entrada também é termo proibido.
+export const NOMES_ENTRADAS = [
+  'entradas.json', 'entradas-gravacao', 'services/admin/entradas', 'services/schemas/entradas', 'validarCorpoEntradaTexto', 'prepararEntradaTexto',
+  'validarArquivoEntradas', 'copiarEntradasParaNovaVersao', 'acrescentarEntradasAoEsqueleto', 'gravarEntradaTexto', 'hashTexto',
+  'texto_cadastrado', 'formaEntrada', 'entradaId',
+];
+
+/** Textos de todos os entradas.json de services/ (qualquer serviço e versão), inteiros e em trechos de frase. */
+function termosDeEntradas(raiz) {
+  const termos = [];
+  const servicos = path.join(raiz, 'services');
+  if (!fs.existsSync(servicos)) return termos;
+  for (const arquivo of listar(servicos)) {
+    if (path.basename(arquivo) !== 'entradas.json') continue;
+    let doc;
+    try { doc = JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch { continue; }
+    for (const e of Array.isArray(doc?.entradas) ? doc.entradas : []) {
+      if (typeof e?.texto !== 'string' || e.texto.trim() === '') continue;
+      // Texto muito curto daria falso positivo permanente (ocorreria em qualquer arquivo): só entra a partir de 30 caracteres.
+      if (e.texto.trim().length >= 30) termos.push({ origem: 'texto de entrada', texto: e.texto });
+      for (const frase of e.texto.split(/(?<=[.:;!?])\s+|\n+/)) if (frase.trim().length > 30) termos.push({ origem: 'trecho de texto de entrada', texto: frase.trim() });
+    }
+  }
+  return termos;
+}
 
 /** Lista os arquivos de um diretório, recursivamente. */
 function listar(dir) {
@@ -60,7 +86,7 @@ function termosAdministrativos(raiz) {
   const lerJson = (...p) => JSON.parse(fs.readFileSync(path.join(raiz, ...p), 'utf8'));
   const termos = [];
   for (const a of lerJson('services', 'assuntos.json').assuntos) {
-    termos.push({ origem: 'assunto (id)', texto: a.id }, { origem: 'assunto (nome)', texto: a.nome }, { origem: 'assunto (descrição)', texto: a.descricao });
+    termos.push({ origem: 'assunto (id)', texto: a.id }, { origem: 'assunto (nome)', texto: a.nome }, ...(typeof a.descricao === 'string' && a.descricao !== '' ? [{ origem: 'assunto (descrição)', texto: a.descricao }] : []));
   }
   for (const s of lerJson('services', 'registry.json').servicos) {
     termos.push({ origem: 'versão atual (id)', texto: s.versaoAtualId });
@@ -89,7 +115,8 @@ export function termosProibidos(raiz) {
   for (const nome of NOMES_ADMINISTRATIVOS) termos.push({ origem: 'nome administrativo', texto: nome });
   for (const nome of NOMES_MCP) termos.push({ origem: 'nome do servidor MCP', texto: nome });
   for (const nome of NOMES_CONHECIMENTO) termos.push({ origem: 'informações do chatbot (administração)', texto: nome });
-  termos.push(...termosAdministrativos(raiz));
+  for (const nome of NOMES_ENTRADAS) termos.push({ origem: 'entradas de texto (administração)', texto: nome });
+  termos.push(...termosAdministrativos(raiz), ...termosDeEntradas(raiz));
   return termos;
 }
 

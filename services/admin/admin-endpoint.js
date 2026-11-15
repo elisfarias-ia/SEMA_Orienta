@@ -31,13 +31,16 @@ import { criarArmazenamento } from './armazenamento.js';
 import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
 import { executarTransacao } from './transacao.js';
 import {
-  gerarId, IDS_RESERVADOS, LIMITE_CORPO, montarAssunto, montarEsqueletoServico, montarFonte, normalizarNome, urlNormalizada, validarCorpoAssunto, validarCorpoFonte,
+  gerarId, IDS_RESERVADOS, LIMITE_CORPO, PENDENTE, montarAssunto, montarEsqueletoServico, montarFonte, normalizarNome, urlNormalizada, validarCorpoAssunto, validarCorpoFonte,
   validarCorpoServico,
 } from './cadastro.js';
 import { hashConteudo } from './hash.js';
 import { prepararCadastroGuiado, validarPedidoGuiado } from './cadastro-guiado.js';
 import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento } from './conhecimento.js';
 import { verificarSaude } from './saude.js';
+import { criarGravadorEntradas } from './entradas-gravacao.js';
+import { buscarLinksReutilizaveis, criarCopiaDeLink } from './reutilizacao.js';
+import { validarBuscaLink, validarCamposLinkNovo, validarCorpoServicoSimples, validarIdentidadeLink } from './gestao-simples.js';
 import { validarVersao } from './versao.js';
 import {
   validarAssuntos, validarConteudoAssistente, validarDocumentos, validarFontes, validarPerguntas, validarServicos,
@@ -50,6 +53,7 @@ export const ROTA_SAUDE = '/__admin/saude';
 export const ROTA_ASSUNTOS = '/__admin/assuntos';
 export const ROTA_SERVICOS = '/__admin/servicos';
 export const ROTA_CADASTRO_GUIADO = '/__admin/cadastro-guiado';
+export const ROTA_SERVICO_COM_TEMA = '/__admin/servico-com-tema';
 export const CABECALHO_TOKEN = 'x-admin-token';
 export const LIMITE_RESPOSTA = 2 * 1024 * 1024;
 export const LIMITE_TEXTO = 1024 * 1024;
@@ -60,6 +64,11 @@ const PADRAO_ROTA_VERSAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/versao-atua
 const PADRAO_ROTA_FONTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes$/;
 const PADRAO_ROTA_CONHECIMENTOS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/conhecimentos$/;
 const PADRAO_ROTA_CONHECIMENTO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/conhecimentos\/([a-z][a-z0-9-]{0,59})$/;
+const PADRAO_ROTA_ENTRADAS_TEXTO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/entradas-texto$/;
+const PADRAO_ROTA_LINKS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links$/;
+const PADRAO_ROTA_LINKS_EXISTENTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links-existentes$/;
+const PADRAO_ROTA_BUSCA_LINKS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links-existentes\/busca$/;
+const PADRAO_ROTA_INFORMACOES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/informacoes$/;
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
@@ -157,6 +166,7 @@ export function criarManipuladorAdmin({
   let token = null;
   let escrevendo = false;
   const armazenamento = criarArmazenamento({ raiz, sistema });
+  const gravadorEntradas = criarGravadorEntradas({ raiz, sistema, agora, verificarFinal });
 
   const tokenValido = (recebido) => {
     if (token === null || typeof recebido !== 'string' || !PADRAO_TOKEN.test(recebido)) return false;
@@ -359,6 +369,102 @@ export function criarManipuladorAdmin({
     return resultadoDaTransacao(r) ?? { status: 201, corpo: plano.resposta };
   }
 
+  // ---------- Gestão simples por serviço (4B2) ----------
+
+  /** Serviço novo com tema (existente ou novo) numa única transação. O cliente envia só o nome e o tema; os ids são do servidor. */
+  function cadastrarServicoComTema(dados) {
+    const documentoAssuntos = lerJson('services/assuntos.json');
+    const registro = lerJson('services/registry.json');
+    const nomeNormalizado = normalizarNome(dados.nome);
+    if (registro.servicos.some((s) => normalizarNome(nomeDoServico(s.id)) === nomeNormalizado)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
+    const data = dataLocal(agora());
+    let assunto;
+    let passoAssunto = null;
+    if (dados.temaId !== undefined) {
+      assunto = documentoAssuntos.assuntos.find((a) => a.id === dados.temaId);
+      if (!assunto || assunto.ativo !== true) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['tema'] } };
+    } else {
+      // Tema digitado: se já existe com o mesmo nome (sem acento nem maiúsculas), é reutilizado em vez de duplicado.
+      assunto = documentoAssuntos.assuntos.find((a) => normalizarNome(a.nome) === normalizarNome(dados.temaNome));
+      if (assunto && assunto.ativo !== true) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['tema'] } };
+      if (!assunto) {
+        const id = gerarId(dados.temaNome, new Set(documentoAssuntos.assuntos.map((a) => a.id)));
+        if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['tema'] } };
+        assunto = montarAssunto({ id, nome: dados.temaNome }, data);
+        passoAssunto = { caminho: 'services/assuntos.json', tipo: 'json', conteudo: { ...documentoAssuntos, assuntos: [...documentoAssuntos.assuntos, assunto] }, validar: (d) => validarAssuntos(d).erros };
+      }
+    }
+    const id = gerarId(dados.nome, new Set([...registro.servicos.map((s) => s.id), ...nomesDePastas(), ...IDS_RESERVADOS]));
+    if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nome'] } };
+    const esqueleto = montarEsqueletoServico({ id, assuntoId: assunto.id, nome: dados.nome, sigla: PENDENTE, termosEquivalentes: [dados.nome] }, assunto, data);
+    const passos = [
+      ...(passoAssunto ? [passoAssunto] : []),
+      ...esqueleto.arquivos.map((a) => ({ caminho: a.caminho, tipo: a.tipo, conteudo: a.conteudo, novo: true, validar: validadorDoArquivo(a.caminho, id) })),
+      { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro, servicos: [...registro.servicos, esqueleto.entradaRegistro] }, validar: () => [] },
+    ];
+    const falha = resultadoDaTransacao(aplicar(passos));
+    if (falha) return falha;
+    return { status: 201, corpo: { servico: { id, nome: dados.nome, assuntoId: assunto.id, temaNome: assunto.nome, estado: 'rascunho', publicado: false }, temaCriado: passoAssunto !== null } };
+  }
+
+  /** Link novo: id e revisão são gerados aqui; o corpo do cliente nunca os traz. Reaproveita cadastrarFonte (mesmas regras de duplicidade). */
+  function cadastrarLinkNovo(servicoId, corpo) {
+    const versao = localizarVersaoAtual(raiz, servicoId);
+    if (!versao.ok) throw new Error('versao');
+    const doc = lerJson(versao.arquivos.fontes);
+    const id = gerarId(typeof corpo.titulo === 'string' ? corpo.titulo : '', new Set(doc.fontes.map((f) => f.id)));
+    if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['titulo'] } };
+    const validacao = validarCorpoFonte({ ...corpo, id, revisao: hashConteudo(doc) });
+    if (!validacao.ok) return { status: 422, corpo: { erro: 'dados_invalidos', campos: validacao.campos.filter((c) => c !== 'id' && c !== 'revisao') } };
+    return cadastrarFonte(servicoId, validacao.dados);
+  }
+
+  /** "Usar link já cadastrado": o cliente envia só a identidade; a fonte é relida do disco e a cópia nasce em rascunho. */
+  function usarLinkExistente(destinoId, identidade) {
+    const origem = localizarVersaoAtual(raiz, identidade.servicoId);
+    if (!origem.ok || !lerJson('services/registry.json').servicos.some((s) => s.id === identidade.servicoId)) return { status: 404, corpo: { erro: 'nao_encontrado', campo: 'servicoId' } };
+    const fonteOrigem = lerJson(origem.arquivos.fontes).fontes.find((f) => f && f.id === identidade.fonteId);
+    if (!fonteOrigem) return { status: 404, corpo: { erro: 'nao_encontrado', campo: 'fonteId' } };
+    const destino = localizarVersaoAtual(raiz, destinoId);
+    if (!destino.ok) throw new Error('versao');
+    const documentoFontes = lerJson(destino.arquivos.fontes);
+    const r = criarCopiaDeLink(
+      { servicoId: origem.servicoId, versaoId: origem.versaoId, fonte: fonteOrigem },
+      { servicoId: destinoId, estadoVersao: lerJson(`${destino.pasta}/${NOME_DO_MANIFESTO}`).estado, documentoFontes },
+    );
+    if (!r.ok) {
+      if (r.erro === 'versao_nao_editavel') return { status: 409, corpo: { erro: 'versao_nao_editavel' } };
+      if (r.erro === 'url_duplicada') return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
+      return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['fonteId'] } };
+    }
+    const falha = resultadoDaTransacao(aplicar([{ caminho: destino.arquivos.fontes, tipo: 'json', conteudo: r.documentoFontes, validar: (d) => validarFontes(d) }]));
+    return falha ?? { status: 201, corpo: { fonte: { id: r.fonte.id, titulo: r.fonte.titulo, url: r.fonte.url, statusValidacao: r.fonte.statusValidacao, publicado: r.fonte.publicado, reutilizadaDe: r.fonte.reutilizadaDe } } };
+  }
+
+  const LIMITE_PREVIA = 1000;
+  /** Informações em elaboração do serviço (texto e links), em linguagem de tela: sem hash, caminho nem ids de entrada. */
+  function montarInformacoes(servicoId) {
+    const versao = localizarVersaoAtual(raiz, servicoId);
+    if (!versao.ok) throw new Error('versao');
+    const manifesto = lerJson(`${versao.pasta}/${NOME_DO_MANIFESTO}`);
+    const fontes = lerJson(versao.arquivos.fontes).fontes;
+    const textos = new Map();
+    if (manifesto.arquivos && manifesto.arquivos.entradas === `${versao.pasta}/entradas.json`) {
+      for (const e of lerJson(manifesto.arquivos.entradas).entradas) textos.set(e.id, e);
+    }
+    const itens = fontes.map((f) => {
+      if (f.formaEntrada === 'texto') {
+        const e = textos.get(f.entradaId);
+        const letras = e ? Array.from(e.texto) : [];
+        return { tipo: 'texto', titulo: f.titulo, descricao: f.descricao, texto: letras.slice(0, LIMITE_PREVIA).join(''), textoCortado: letras.length > LIMITE_PREVIA, criadoEm: e ? e.criadoEm : null, situacao: f.statusValidacao };
+      }
+      const item = { tipo: 'link', titulo: f.titulo, descricao: f.descricao, url: f.url, orgaoResponsavel: f.orgaoResponsavel, situacao: f.statusValidacao };
+      if (f.reutilizadaDe && typeof f.reutilizadaDe.servicoId === 'string') item.reutilizadoDe = nomeDoServico(f.reutilizadaDe.servicoId);
+      return item;
+    });
+    return { servicoId, estadoVersao: manifesto.estado, itens };
+  }
+
   // ---------- Blocos de conhecimento (3B1) ----------
 
   /** Versão atual, manifesto, conteúdo do assistente e fontes (somente da versão atual). Lança erro se algo não puder ser lido. */
@@ -487,7 +593,13 @@ export function criarManipuladorAdmin({
     const rotaDeFontes = PADRAO_ROTA_FONTES.exec(caminho);
     const rotaDeConhecimentos = PADRAO_ROTA_CONHECIMENTOS.exec(caminho);
     const rotaDeConhecimento = PADRAO_ROTA_CONHECIMENTO.exec(caminho);
-    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || rotaDeFontes !== null || rotaDeConhecimentos !== null;
+    const rotaEntradasTexto = PADRAO_ROTA_ENTRADAS_TEXTO.exec(caminho);
+    const rotaLinks = PADRAO_ROTA_LINKS.exec(caminho);
+    const rotaLinksExistentes = PADRAO_ROTA_LINKS_EXISTENTES.exec(caminho);
+    const rotaBuscaLinks = PADRAO_ROTA_BUSCA_LINKS.exec(caminho);
+    const rotaInformacoes = PADRAO_ROTA_INFORMACOES.exec(caminho);
+    const rotaSimples = rotaEntradasTexto ?? rotaLinks ?? rotaLinksExistentes ?? rotaBuscaLinks;
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || caminho === ROTA_SERVICO_COM_TEMA || rotaDeFontes !== null || rotaDeConhecimentos !== null || rotaSimples !== null;
     const metodosPermitidos = rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
     if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
     // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
@@ -509,7 +621,7 @@ export function criarManipuladorAdmin({
       }
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
-      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento)?.[1];
+      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes)?.[1];
       if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {
         return responder(404, { erro: 'nao_encontrado' });
       }
@@ -539,6 +651,38 @@ export function criarManipuladorAdmin({
             : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo)));
           return responderResultado(resultado);
         }
+        if (caminho === ROTA_SERVICO_COM_TEMA) {
+          const v = validarCorpoServicoSimples(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => cadastrarServicoComTema(v.dados)));
+        }
+        if (rotaBuscaLinks !== null) {
+          // Somente leitura: não usa a trava e nunca altera o serviço de origem.
+          const v = validarBuscaLink(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          const r = buscarLinksReutilizaveis(raiz, rotaBuscaLinks[1], v.dados.consulta);
+          if (!r.ok) return responder(500, { erro: 'indisponivel' });
+          return responderJson({ itens: r.itens, truncado: r.truncado });
+        }
+        if (rotaEntradasTexto !== null) {
+          // Campos e limites são conferidos pelo gravador (funções puras de entradas.js); a trava é a comum.
+          const r = await comTrava(() => {
+            const g = gravadorEntradas.gravar(rotaEntradasTexto[1], corpo);
+            if (g.ok) return { status: 201, corpo: { criado: true } };
+            return { status: g.status, corpo: { erro: g.erro, ...(g.campos ? { campos: g.campos } : {}), ...(g.campo ? { campo: g.campo } : {}) } };
+          });
+          return responderResultado(r);
+        }
+        if (rotaLinks !== null) {
+          const v = validarCamposLinkNovo(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => cadastrarLinkNovo(rotaLinks[1], v.dados)));
+        }
+        if (rotaLinksExistentes !== null) {
+          const v = validarIdentidadeLink(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => usarLinkExistente(rotaLinksExistentes[1], v.dados)));
+        }
         if (caminho === ROTA_CADASTRO_GUIADO) {
           // Estrutura conferida antes da trava (função pura, sem ler a base); o restante, dentro dela.
           const pedido = validarPedidoGuiado(corpo);
@@ -565,6 +709,7 @@ export function criarManipuladorAdmin({
 
       if (caminho === ROTA_CATALOGO) return responderJson(montarCatalogo());
       if (caminho === ROTA_SAUDE) return responderJson(verificarSaude({ raiz, sistema, agora, diretorioTemporario }));
+      if (rotaInformacoes !== null) return responderJson(montarInformacoes(rotaInformacoes[1]));
       const m = PADRAO_ROTA_VERSAO.exec(caminho);
       if (m) {
         const versao = montarVersaoAtual(m[1]);

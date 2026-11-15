@@ -135,7 +135,7 @@ test('IC5. corpo enviado: só os cinco campos permitidos; nada de id, datas, est
   assert.deepEqual(Object.keys(corpoDoConhecimento(dados)).sort(), ['alertas', 'fonteIds', 'referencias', 'texto', 'titulo']);
   assert.deepEqual(Object.keys(corpoDoConhecimento({ ...dados, alertas: [] })).sort(), ['fonteIds', 'referencias', 'texto', 'titulo'], 'alertas só quando houver');
   const linhas = resumoDoConhecimento(dados, fontes, 'Serviço Fictício');
-  assert.deepEqual(linhas.map((l) => l.rotulo), ['Serviço', 'Tema da informação', 'Informação que o chatbot pode usar', 'Fontes que comprovam', 'Avisos ou limitações', 'Situação inicial']);
+  assert.deepEqual(linhas.map((l) => l.rotulo), ['Serviço', 'Tema da informação', 'Informação que o chatbot pode usar', 'Documentos ou links usados', 'Avisos ou limitações', 'Situação inicial']);
   const texto = linhas.map((l) => l.valor).join('|');
   assert.ok(texto.includes('Fonte Um — p. 3'));
   assert.equal(texto.includes('f-um'), false, 'a fonte aparece pelo título, não pelo id');
@@ -258,7 +258,7 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1">/);
   assert.match(HTML, /<dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">/);
   for (const id of ['assunto', 'servico', 'bloco-titulo', 'bloco-texto', 'bloco-alertas']) assert.match(HTML, new RegExp(`<label for="${id}">`), id);
-  assert.match(HTML, /<fieldset[^>]*>\s*<legend>Fontes que comprovam a informação<\/legend>/);
+  assert.match(HTML, /<fieldset[^>]*>\s*<legend>Documentos ou links usados<\/legend>/);
   for (const id of ['bloco-titulo', 'bloco-texto', 'bloco-alertas']) assert.match(HTML, new RegExp(`<p id="${id}-erro" class="erro" hidden>`), id);
   assert.match(HTML, /<h2 id="titulo-form" tabindex="-1">Nova informação<\/h2>/);
   // Linguagem e apresentação aprovadas: introdução, rótulos, ajudas e ícones decorativos
@@ -266,7 +266,7 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(HTML, /<label for="bloco-titulo">Tema da informação<\/label>/);
   assert.match(HTML, /<label for="bloco-texto">Informação que o chatbot pode usar<\/label>/);
   assert.match(HTML, /<label for="bloco-alertas">Avisos ou limitações <span class="opcional">\(opcional\)<\/span><\/label>/);
-  assert.match(HTML, /Selecione um documento ou link já cadastrado./);
+  assert.match(HTML, /Selecione onde esta informação pode ser conferida./);
   assert.match(HTML, /Opcional. Escreva um aviso por linha./);
   assert.ok((HTML.match(/class="icone[^"]*" aria-hidden="true"/g) ?? []).length >= 4, 'ícones só decorativos, ocultos para leitores de tela');
   assert.match(HTML, /<div class="duas-colunas">/);
@@ -279,7 +279,7 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(CSS, /\.icone svg \{[^}]*width: 1\.25rem;[^}]*height: 1\.25rem;/);
   assert.match(CSS, /\.icone \{[^}]*color: var\(--verde-800\);/);
   assert.match(JS, /Onde esta informação aparece na fonte\?/);
-  assert.match(JS, /placeholder = 'Ex\.: página 3, item 2\.1 ou seção Como solicitar\.'/);
+  assert.match(JS, /placeholder = 'Ex\.: página 3'/);
   assert.match(CSS, /@media \(min-width: 62rem\)[\s\S]*\.duas-colunas/);
   assert.doesNotMatch(HTML, /Título da informação|Orientação ao cidadão|Conteúdo orientativo|Localização/);
   assert.match(HTML, /id="bloco-enviar" disabled/);
@@ -309,7 +309,7 @@ test('IC12. o código da página: sem innerHTML, armazenamento do navegador, coo
 
 test('IC13. nenhuma gravação ao abrir: gravarConhecimento só é chamado depois da confirmação, com trava e foco na mensagem', () => {
   assert.equal((JS.match(/cliente\.gravarConhecimento\(/g) ?? []).length, 1);
-  const confirmar = /async function confirmar\(\) \{[\s\S]*?\n\}\n/.exec(JS)[0];
+  const confirmar = /async function confirmar\(\) \{[\s\S]*?\r?\n\}\r?\n/.exec(JS)[0];
   assert.match(confirmar, /cliente\.gravarConhecimento\(operacao, servicoId, blocoId, corpo\)/);
   assert.match(confirmar, /if \(pendente === null \|\| cliente\.gravando\(\)\) return;/);
   assert.match(confirmar, /botaoConfirmar\.disabled = true;/);
@@ -317,9 +317,9 @@ test('IC13. nenhuma gravação ao abrir: gravarConhecimento só é chamado depoi
   assert.match(confirmar, /mostrarStatus\(r\.mensagem, 'erro', true\)/, 'erro: foco na mensagem');
   assert.match(confirmar, /await carregarServico\(servicoId\)/, 'recarrega a lista depois do sucesso');
   assert.match(confirmar, /r\.recarregar/);
-  const iniciar = /async function iniciar\(\) \{[\s\S]*?\n\}\n/.exec(JS)[0];
+  const iniciar = /async function iniciar\(\) \{[\s\S]*?\r?\n\}\r?\n/.exec(JS)[0];
   assert.doesNotMatch(iniciar, /gravarConhecimento|cadastrar|confirmar\(/);
-  assert.doesNotMatch(/async function carregarServico\([\s\S]*?\n\}\n/.exec(JS)[0], /gravarConhecimento/);
+  assert.doesNotMatch(/async function carregarServico\([\s\S]*?\r?\n\}\r?\n/.exec(JS)[0], /gravarConhecimento/);
   // confirmação antes de criar, alterar e excluir; Voltar e Cancelar não gravam; Esc não fecha durante a gravação
   assert.match(JS, /abrirConfirmacao\(\{[\s\S]*?operacao: criando \? 'criar' : 'alterar'/);
   assert.match(JS, /operacao: 'excluir'/);
