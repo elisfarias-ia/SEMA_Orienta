@@ -6,6 +6,7 @@
 // sigla e termos equivalentes) entra no esqueleto.
 
 import { criarVersao } from './versao.js';
+import { acrescentarEntradasAoEsqueleto } from './entradas.js';
 import { caminhosDaVersao } from '../versao-atual.js';
 import { analisarUrl, dataValida, TIPOS_FONTE } from '../../scripts/validate-services.js';
 
@@ -24,8 +25,9 @@ const LIMITE_DESCRICAO = 1000;
 const LIMITE_TERMOS = 20;
 const PADRAO_SIGLA = /^[\p{L}\p{N}][\p{L}\p{N} ./-]{0,19}$/u;
 const CONTROLE = /[\u0000-\u001f\u007f]/;
-const PADRAO_EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/;
-const PADRAO_TELEFONE = /(\(\d{2}\)|\b\d{2})\s?\d{4,5}[-\s]?\d{4}\b/;
+// Parte local limitada a 64 caracteres (limite de e-mail): evita custo quadrático em textos longos sem arroba.
+export const PADRAO_EMAIL = /[\w.+-]{1,64}@[\w-]+(\.[\w-]+)+/;
+export const PADRAO_TELEFONE = /(\(\d{2}\)|\b\d{2})\s?\d{4,5}[-\s]?\d{4}\b/;
 
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -39,8 +41,29 @@ export function normalizarNome(texto) {
     .trim();
 }
 
+/**
+ * Credencial com ALTA CONFIANÇA (só a ocorrência da palavra não basta): (1) atribuição explícita de senha, password, token,
+ * secret, api_key ou chave_api (inclui refresh_token, client_secret, db_password...) com ":" ou "=" e valor; (2) "Bearer"
+ * seguido de sequência com aparência de token; (3) "senha" seguida diretamente de valor alfanumérico com algum dígito.
+ * Frases como "A senha deve ser trocada" ou "Informe login e senha" não são recusadas. Não retorna o trecho encontrado.
+ */
+const PADROES_CREDENCIAL = Object.freeze([
+  /(?<![A-Za-z0-9])(?:senha|password|passwd|token|secret|api[_-]?key|chave[_-]?api) {0,3}[:=] {0,3}\S/i,
+  /(?<![A-Za-z0-9])Bearer +[A-Za-z0-9._~+/=-]{12,}/i,
+  /(?<![A-Za-z0-9])senha +(?=[A-Za-z0-9]{0,30}\d)[A-Za-z0-9]{4,31}(?![A-Za-z0-9])/i,
+]);
+export function contemCredencial(texto) {
+  return typeof texto === 'string' && PADROES_CREDENCIAL.some((p) => p.test(texto));
+}
+
+/** Texto com dado pessoal ou credencial: e-mail, telefone ou credencial de alta confiança. Retorna booleano. */
+export function contemDadoSensivel(texto) {
+  if (typeof texto !== 'string') return false;
+  return PADRAO_EMAIL.test(texto) || PADRAO_TELEFONE.test(texto) || contemCredencial(texto);
+}
+
 /** Texto livre aceitável: string, sem caracteres de controle, sem e-mail nem telefone e dentro do limite. Retorna o texto aparado ou null. */
-function textoLivre(valor, limite) {
+export function textoLivre(valor, limite) {
   if (typeof valor !== 'string' || CONTROLE.test(valor)) return null;
   const t = valor.trim().replace(/ {2,}/g, ' ');
   if (t === '' || t.length > limite || PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) return null;
@@ -96,10 +119,12 @@ export function validarCorpoAssunto(corpo) {
   const campos = [];
   if (camposExtras(corpo, CAMPOS_ASSUNTO)) campos.push('extras');
   const nome = textoLivre(corpo.nome, LIMITE_NOME);
-  const descricao = textoLivre(corpo.descricao, LIMITE_DESCRICAO);
+  // A descrição é OPCIONAL: ausente, null ou vazia = omitida (nunca vira "PENDENTE"). Se vier preenchida, segue a regra de texto livre.
+  const omitida = corpo.descricao === undefined || corpo.descricao === null || corpo.descricao === '';
+  const descricao = omitida ? undefined : textoLivre(corpo.descricao, LIMITE_DESCRICAO);
   if (nome === null || baseDoId(nome) === null) campos.push('nome');
   if (descricao === null) campos.push('descricao');
-  return campos.length ? { ok: false, campos } : { ok: true, dados: { nome, descricao } };
+  return campos.length ? { ok: false, campos } : { ok: true, dados: descricao === undefined ? { nome } : { nome, descricao } };
 }
 
 /**
@@ -141,7 +166,8 @@ export function validarCorpoServico(corpo) {
 
 /** Novo assunto: sempre ativo, com as datas informadas (geradas pelo servidor). */
 export function montarAssunto({ id, nome, descricao }, data) {
-  return { id, nome, descricao, ativo: true, criadoEm: data, atualizadoEm: data };
+  // Sem descrição, a chave é omitida (o catálogo aceita assunto sem descricao).
+  return { id, nome, ...(typeof descricao === 'string' ? { descricao } : {}), ativo: true, criadoEm: data, atualizadoEm: data };
 }
 
 /** Roteiro inicial: somente as seções obrigatórias, todas PENDENTE. */
@@ -180,7 +206,8 @@ export function montarEsqueletoServico({ id, assuntoId, nome, sigla, termosEquiv
       'sistemaInicio', 'documentos', 'perguntasFrequentes', 'fontes', 'publicacao'],
   };
 
-  return {
+  // Serviço novo nasce com entradas.json vazio e arquivos.entradas no manifesto (Passo 4B1).
+  return acrescentarEntradasAoEsqueleto({
     pasta,
     versaoId,
     entradaRegistro: {
@@ -196,7 +223,7 @@ export function montarEsqueletoServico({ id, assuntoId, nome, sigla, termosEquiv
       { caminho: caminhos.fontes, tipo: 'json', conteudo: { ...cabecalho(id, 'nenhuma fonte cadastrada.'), fontes: [] } },
       { caminho: caminhos.conteudoAssistente, tipo: 'json', conteudo: { ...cabecalho(id, 'nenhum bloco cadastrado.'), blocos: [] } },
     ],
-  };
+  }, id);
 }
 
 // ---------- Fontes (Passo 7E3A) ----------
@@ -206,8 +233,8 @@ const LIMITE_TITULO = 200;
 const LIMITE_ORGAO = 120;
 const LIMITE_URL = 500;
 const LIMITE_DISPOSITIVO = 200;
-const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
-const PARAMETRO_SECRETO = /^(token|access_token|api[_-]?key|key|senha|password|passwd|secret|auth|authorization|sessao|session)$/i;
+export const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
+export const PARAMETRO_SECRETO = /^(token|access_token|api[_-]?key|key|senha|password|passwd|secret|auth|authorization|sessao|session)$/i;
 
 /** URL aceitável: https, sem usuário e senha, sem parâmetro de credencial, sem e-mail nem telefone. Retorna a URL aparada ou null. */
 function urlAceitavel(valor) {
@@ -239,14 +266,15 @@ export function validarCorpoFonte(corpo) {
   if (typeof corpo.revisao !== 'string' || !PADRAO_REVISAO.test(corpo.revisao)) campos.push('revisao');
   if (!idAceitavel(corpo.id)) campos.push('id');
   const titulo = textoLivre(corpo.titulo, LIMITE_TITULO);
-  if (titulo === null) campos.push('titulo');
-  if (typeof corpo.tipo !== 'string' || !TIPOS_FONTE.includes(corpo.tipo)) campos.push('tipo');
+  if (titulo === null || contemCredencial(titulo)) campos.push('titulo');
+  // texto_cadastrado só nasce pela entrada de texto (entradas.js); a rota de fonte-link não o aceita.
+  if (typeof corpo.tipo !== 'string' || !TIPOS_FONTE.includes(corpo.tipo) || corpo.tipo === 'texto_cadastrado') campos.push('tipo');
   const orgao = textoLivre(corpo.orgaoResponsavel, LIMITE_ORGAO);
   if (orgao === null) campos.push('orgaoResponsavel');
   const url = urlAceitavel(corpo.url);
   if (url === null) campos.push('url');
   const descricao = textoLivre(corpo.descricao, LIMITE_DESCRICAO);
-  if (descricao === null) campos.push('descricao');
+  if (descricao === null || contemCredencial(descricao)) campos.push('descricao');
   if (typeof corpo.origemOficial !== 'boolean') campos.push('origemOficial');
 
   let dataPublicacao = null;

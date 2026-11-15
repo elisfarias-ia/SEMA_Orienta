@@ -50,7 +50,10 @@ export function localizarVersaoAtual(raiz, servicoId) {
     const esperados = caminhosDaVersao(pasta);
     const declarados = manifesto.arquivos;
     const chaves = declarados && typeof declarados === 'object' && !Array.isArray(declarados) ? Object.keys(declarados) : [];
-    const coerente = chaves.length === Object.keys(esperados).length && Object.entries(esperados).every(([chave, caminho]) => declarados[chave] === caminho);
+    // "entradas" é chave OPCIONAL (entradas de texto da administração): só o caminho é conferido, o arquivo nunca é lido aqui.
+    const temEntradas = chaves.includes('entradas');
+    const entradasOk = !temEntradas || declarados.entradas === `${pasta}/entradas.json`;
+    const coerente = entradasOk && chaves.length - (temEntradas ? 1 : 0) === Object.keys(esperados).length && Object.entries(esperados).every(([chave, caminho]) => declarados[chave] === caminho);
     if (!coerente) return { ok: false, erro: 'manifesto_incoerente' };
     return { ok: true, servicoId, versaoId: entrada.versaoAtualId, pasta, manifesto, arquivos: esperados };
   } catch {

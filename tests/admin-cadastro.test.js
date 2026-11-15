@@ -74,8 +74,10 @@ test('K2. corpo de assunto: aceita só nome e descricao (o id é do servidor); d
   // O cliente não envia id: qualquer valor no campo id (válido ou não) é um campo extra.
   for (const id of ['', 'A1', '1a', 'a b', 'a_b', 'a'.repeat(61), undefined, 5, null, '../x', 'a/b', 'assunto-valido']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, id }), ['extras'], String(id));
   for (const nome of ['', '   ', undefined, 5, 'a'.repeat(121), 'linha\ninvalida', 'nul\u0000o', '123', '2026', '!!! ---', '___', '12 34']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, nome }), ['nome'], String(nome));
-  for (const descricao of ['', undefined, 'a'.repeat(1001), 'tab\tinvalida']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, descricao }), ['descricao']);
-  assert.deepEqual(campos({}), ['nome', 'descricao']);
+  for (const descricao of ['a'.repeat(1001), 'tab\tinvalida', 5, '   ']) assert.deepEqual(campos({ ...CORPO_ASSUNTO, descricao }), ['descricao']);
+  // Descrição opcional (Passo 4B1): ausente, null ou vazia = omitida (a chave não existe nos dados).
+  for (const descricao of ['', undefined, null]) assert.deepEqual(validarCorpoAssunto({ nome: 'Nome', descricao }), { ok: true, dados: { nome: 'Nome' } });
+  assert.deepEqual(campos({}), ['nome']);
   for (const corpo of [null, undefined, [], 'texto', 5]) assert.deepEqual(campos(corpo), ['corpo']);
 });
 
@@ -135,7 +137,9 @@ test('K6. esqueleto do serviço: versão 1 em rascunho, não publicado, tudo PEN
   assert.equal(e.versao.criadoEm, '2026-11-10');
   assert.deepEqual(validarVersao(e.versao), []);
   assert.deepEqual(e.arquivos.map((a) => path.posix.basename(a.caminho)),
-    ['versao.json', 'service.json', 'roteiro.md', 'documentos.json', 'perguntas-frequentes.json', 'fontes.json', 'conteudo-assistente.json']);
+    ['versao.json', 'service.json', 'roteiro.md', 'documentos.json', 'perguntas-frequentes.json', 'fontes.json', 'conteudo-assistente.json', 'entradas.json']);
+  assert.deepEqual(e.arquivos.find((a) => a.caminho.endsWith('/entradas.json')).conteudo, { servicoId: 'servico-ficticio', entradas: [] });
+  assert.equal(e.versao.arquivos.entradas, 'services/servico-ficticio/versoes/v1/entradas.json');
   assert.ok(e.arquivos.every((a) => a.caminho.startsWith(`${e.pasta}/`)));
   const service = e.arquivos.find((a) => a.caminho.endsWith('/service.json')).conteudo;
   assert.equal(service.statusValidacao, 'rascunho');

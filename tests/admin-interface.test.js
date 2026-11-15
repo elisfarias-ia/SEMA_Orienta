@@ -240,25 +240,6 @@ test('AI8. o corpo enviado tem somente os campos permitidos, nunca o id (sigla s
 
 // ---------- Confirmação, duplicidade, sucesso e erros ----------
 
-test('AI9. nada é gravado sem confirmação: validar e resumir não chamam o endpoint, e Voltar descarta os dados', async () => {
-  const { cliente, chamadas } = await clienteComSessao();
-  const antes = chamadas.length;
-  const r = validarFormAssunto({ nome: 'Novo Fictício', descricao: 'Descrição.' });
-  resumoDoAssunto(r.dados);
-  assert.equal(chamadas.length, antes, 'validar e resumir não fazem requisição');
-  assert.equal(chamadas.some((c) => c.method === 'POST'), false, '"Voltar" não grava');
-  // O código da tela só grava dentro da confirmação, acionada pelo botão "Confirmar cadastro".
-  assert.equal((JS.match(/cliente\.cadastrar\(/g) ?? []).length, 1);
-  assert.match(JS, /async function confirmar\(\)[\s\S]*?cliente\.cadastrar\([\s\S]*?\n\}/);
-  assert.match(JS, /botaoConfirmar\.addEventListener\('click', confirmar\)/);
-  assert.match(JS, /botaoVoltar\.addEventListener\('click', fecharConfirmacao\)/);
-  assert.equal((JS.match(/function confirmar\(/g) ?? []).length, 1, 'confirmar é definida uma única vez');
-  // Depois de confirmar, grava uma vez.
-  const g = await cliente.cadastrar('assunto', corpoDoAssunto(r.dados));
-  assert.equal(g.ok, true);
-  assert.equal(chamadas.filter((c) => c.method === 'POST').length, 1);
-});
-
 test('AI10. envio duplicado é bloqueado enquanto há gravação em andamento e liberado ao fim, com sucesso ou falha', async () => {
   let abrir;
   const portao = new Promise((r) => { abrir = r; });
@@ -353,108 +334,6 @@ test('AI13. sucesso: devolve só id e nome do item e o catálogo recarregado pas
 
 // ---------- Código seguro ----------
 
-test('AI14. os arquivos da interface não usam innerHTML, armazenamento do navegador, cookies, log, eval nem outros métodos além de GET, POST, PATCH e DELETE (estes só nos blocos de conhecimento)', () => {
-  for (const [nome, texto] of [['admin.js', JS], ['admin-logic.js', LOGICA]]) {
-    assert.doesNotMatch(texto, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|setTimeout\(\s*['"`]/, nome);
-    assert.doesNotMatch(texto, /localStorage|sessionStorage|indexedDB|document\.cookie|caches\.|navigator\.serviceWorker/, nome);
-    assert.doesNotMatch(texto, /console\.|debugger/, nome);
-    assert.doesNotMatch(texto, nome === 'admin-logic.js' ? /['"`]PUT['"`]/ : /['"`](PUT|PATCH|DELETE)['"`]/, nome);
-    assert.doesNotMatch(texto, /XMLHttpRequest|WebSocket|sendBeacon|EventSource/, nome);
-  }
-  assert.match(JS, /textContent/);
-  assert.match(JS, /document\.createElement/);
-  assert.match(JS, /replaceChildren/);
-  assert.deepEqual([...JS.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]), ['./admin-logic.js']);
-  assert.deepEqual([...LOGICA.matchAll(/^import /gm)], []);
-  assert.doesNotMatch(LOGICA, /\bdocument\b|\bwindow\b|\blocation\b|Date\.now|new Date\(|Math\.random/);
-  // Só as quatro rotas administrativas são usadas.
-  const rotas = new Set([...LOGICA.matchAll(/['"`](\/__admin\/[^'"`]*)['"`]/g)].map((m) => m[1]));
-  assert.deepEqual([...rotas].sort(), ['/__admin/assuntos', '/__admin/catalogo', '/__admin/saude', '/__admin/servicos', '/__admin/sessao']);
-  assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(s\.id\)\}\/versao-atual`/);
-});
-
-test('AI15. a tela de cadastro só cadastra: sem edição, exclusão, validação, decisão ou publicação (os blocos têm página própria)', () => {
-  const todos = `${HTML}\n${JS}`;
-  assert.doesNotMatch(todos, /\b(Editar|Excluir|Apagar|Remover)\b/);
-  assert.doesNotMatch(todos, /Publicar|Autorizar|Validar conteúdo|Enviar para validação|decis[ãa]o/i);
-  assert.doesNotMatch(LOGICA, /versao-atual['"`]\s*,\s*['"`](POST|PUT)/);
-  assert.equal((JS.match(/cliente\.cadastrar\(/g) ?? []).length, 1, 'um único ponto de envio na tela de cadastro');
-  assert.doesNotMatch(JS, /gravarConhecimento|PATCH|DELETE/);
-});
-
-// ---------- HTML e acessibilidade estrutural ----------
-
-test('AI16. título, identidade e aviso exigidos, sem vocabulário proibido', () => {
-  assert.match(HTML, /<title>SEMA Orienta — Assuntos, serviços e fontes<\/title>/);
-  assert.match(HTML, /<h1>SEMA Orienta — Assuntos, serviços e fontes<\/h1>/);
-  assert.match(HTML, /<p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação<\/p>/);
-  assert.match(HTML, /<html lang="pt-BR">/);
-  assert.match(HTML, /<meta name="viewport" content="width=device-width, initial-scale=1" \/>/);
-  assert.match(HTML, /<meta name="robots" content="noindex, nofollow" \/>/);
-  for (const [nome, texto] of [['index.html', HTML], ['styles.css', CSS], ['admin.js', JS], ['admin-logic.js', LOGICA]]) {
-    assert.doesNotMatch(texto, /MVP|acad[êe]mic|\bcurso\b|prot[óo]tipo|prototipo|\bMarco\b/i, nome);
-  }
-  assert.match(CSS, /--verde-800: #166534/);
-});
-
-test('AI17. rótulos associados, ids únicos, descrições existentes, status ao vivo e diálogo acessível', () => {
-  const ids = [...HTML.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
-  assert.equal(new Set(ids).size, ids.length, 'ids únicos');
-  const controles = [...HTML.matchAll(/<(input|select|textarea)\b[^>]*\sid="([^"]+)"[^>]*>/g)].map((m) => m[2]);
-  assert.deepEqual(controles.sort(), ['assunto-descricao', 'assunto-nome', 'fonte-data', 'fonte-descricao', 'fonte-dispositivo', 'fonte-id', 'fonte-oficial', 'fonte-orgao', 'fonte-tipo', 'fonte-titulo', 'fonte-url', 'fontes-servico', 'servico-assunto', 'servico-nome', 'servico-sigla', 'servico-termos']);
-  for (const id of controles) assert.match(HTML, new RegExp(`<label for="${id}">`), `label de ${id}`);
-  for (const m of HTML.matchAll(/aria-(?:describedby|labelledby)="([^"]+)"/g)) {
-    for (const ref of m[1].split(' ')) assert.ok(ids.includes(ref), `aria referencia ${ref}`);
-  }
-  assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
-  for (const id of controles.filter((c) => c !== 'fontes-servico')) assert.match(HTML, new RegExp(`id="${id}-erro"[^>]*hidden`), `erro de ${id}`);
-  assert.match(HTML, /<dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">/);
-  assert.match(HTML, />Voltar<\/button>/);
-  assert.match(HTML, />Confirmar cadastro<\/button>/);
-  assert.equal((HTML.match(/<button\b/g) ?? []).length, 5);
-  for (const m of HTML.matchAll(/<button\b([^>]*)>/g)) assert.match(m[1], /type="(submit|button)"/);
-  assert.equal((HTML.match(/<form\b[^>]*novalidate/g) ?? []).length, 3);
-  assert.match(HTML, /id="fonte-enviar" disabled/);
-  assert.match(HTML, /id="assunto-enviar" disabled/);
-  assert.match(HTML, /id="servico-enviar" disabled/);
-  assert.match(HTML, /<main id="principal"/);
-  assert.match(HTML, /<a class="pular" href="#principal">/);
-  assert.equal((HTML.match(/<h1>/g) ?? []).length, 1);
-  assert.doesNotMatch(HTML, /\son[a-z]+=|<script(?![^>]*\ssrc=)|javascript:|<iframe|<object|<embed|style="/i);
-  assert.match(HTML, /<script type="module" src="\.\/admin\.js"><\/script>/);
-  assert.match(HTML, /aria-busy="true"/);
-});
-
-test('AI18. foco e foco visível, teclado, rolagem horizontal, tela estreita e movimento reduzido', () => {
-  assert.match(CSS, /:focus-visible\s*\{[^}]*outline: 3px solid/);
-  assert.match(CSS, /@media \(prefers-reduced-motion: reduce\)[\s\S]*transition: none !important[\s\S]*animation: none !important/);
-  assert.match(CSS, /@media \(max-width: 30rem\)/);
-  assert.match(CSS, /@media \(min-width: 48rem\)/);
-  assert.match(CSS, /overflow-x: hidden/);
-  assert.match(CSS, /overflow-wrap: anywhere/);
-  assert.match(CSS, /max-width: 100%/);
-  assert.match(CSS, /min-height: 2\.75rem/, 'alvos de toque confortáveis');
-  assert.match(CSS, /width: min\(32rem, calc\(100vw - 2rem\)\)/, 'o diálogo cabe em 390 px');
-  assert.match(CSS, /\.erro\[hidden\]\s*\{\s*display: none/);
-  assert.doesNotMatch(CSS, /outline:\s*none(?!;?\s*\}\s*\.status:focus)/.source ? /outline:\s*0\b/ : /x^/);
-  for (const chamada of [/status\.focus\(\)/, /primeiro\.focus\(\)/, /botaoVoltar\.focus\(\)/, /pendente\.gatilho\.focus\(\)/]) assert.match(JS, chamada);
-  assert.match(JS, /showModal/);
-  assert.match(JS, /addEventListener\('cancel'/);
-  assert.match(JS, /aria-invalid/);
-  assert.match(JS, /aria-busy/);
-});
-
-test('AI19. a tela bloqueia o envio sem sessão ou catálogo e durante a gravação (botões desabilitados)', () => {
-  assert.match(JS, /const pronto = cliente\.sessaoPronta\(\) && catalogo !== null && !cliente\.gravando\(\)/);
-  assert.match(JS, /\.disabled = !pronto/);
-  assert.match(JS, /if \(!\(cliente\.sessaoPronta\(\) && catalogo !== null\) \|\| cliente\.gravando\(\)\) return;/);
-  assert.match(JS, /botaoConfirmar\.disabled = true/);
-  assert.match(JS, /if \(pendente === null \|\| cliente\.gravando\(\)\) return;/);
-  assert.match(JS, /if \(cliente\.gravando\(\)\) evento\.preventDefault\(\)/);
-});
-
-// ---------- Isolamento do build ----------
-
 test('AI20. /admin só existe no servidor de desenvolvimento: redirecionamento no serve, nenhum link no público e dist/ sem a tela', () => {
   const plugin = config.plugins.find((p) => p.name === 'sema-orienta-admin-redirecionamento');
   assert.ok(plugin);
@@ -513,25 +392,6 @@ test('AI22. a pasta admin/ tem só os arquivos das três páginas (cadastro, blo
 
 // ---------- Interface simplificada (Passo 7E3B) ----------
 
-test('AI23. ids técnicos ausentes na tela: sem campo Identificador em assunto e serviço, sem ids e versões no catálogo nem no painel de confirmação', () => {
-  const formAssunto = HTML.slice(HTML.indexOf('id="form-assunto"'), HTML.indexOf('</form>', HTML.indexOf('id="form-assunto"')));
-  const formServico = HTML.slice(HTML.indexOf('id="form-servico"'), HTML.indexOf('</form>', HTML.indexOf('id="form-servico"')));
-  assert.deepEqual([...formAssunto.matchAll(/<label for="([^"]+)"/g)].map((m) => m[1]), ['assunto-nome', 'assunto-descricao']);
-  assert.deepEqual([...formServico.matchAll(/<label for="([^"]+)"/g)].map((m) => m[1]), ['servico-assunto', 'servico-nome', 'servico-sigla', 'servico-termos']);
-  assert.doesNotMatch(formAssunto + formServico, /Identificador|name="id"|-id"|maxlength="60"/);
-  assert.doesNotMatch(HTML, /id="assunto-id|id="servico-id/);
-  assert.match(JS, /assunto: \{ nome: 'assunto-nome', descricao: 'assunto-descricao' \}/);
-  assert.match(JS, /servico: \{ assuntoId: 'servico-assunto', nome: 'servico-nome', sigla: 'servico-sigla', termosEquivalentes: 'servico-termos' \}/);
-  // O desenho do catálogo mostra só nome, descrição, situação e publicação.
-  const catalogo = JS.slice(JS.indexOf('function renderizarCatalogo'), JS.indexOf('function preencherAssuntos'));
-  assert.doesNotMatch(catalogo, /\.id\b|versaoAtualId|Identificador|Versão atual|criar\('code'/);
-  assert.match(catalogo, /Situação: \$\{s\.situacao\}/);
-  assert.match(catalogo, /grupo\.assunto\.descricao/);
-  // O texto das fontes e das listas de serviços também não mostra ids nem versões.
-  const fontes = JS.slice(JS.indexOf('function preencherServicosDasFontes'), JS.indexOf('/** Os botões de envio'));
-  assert.doesNotMatch(fontes, /Versão atual|\$\{fontes\.versaoId\}|\(\$\{s\.id\}\)/, 'o id de versão não é mostrado (só fica no estado interno)');
-});
-
 test('AI24. estados técnicos viram textos amigáveis; ids, versões e hashes continuam só nos dados internos e na API', async () => {
   assert.deepEqual(['rascunho', 'em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado'].map(rotuloEstado),
     ['Rascunho', 'Em análise', 'Precisa de ajustes', 'Conteúdo validado', 'Pronto para publicação', 'Publicado']);
@@ -547,26 +407,3 @@ test('AI24. estados técnicos viram textos amigáveis; ids, versões e hashes co
 });
 
 // ---------- Páginas separadas e navegação (Passo 8B, ajuste) ----------
-
-test('AI25. /admin/ voltou a ter só catálogo, assuntos, serviços e fontes; a saúde fica em /admin/saude/; ambas têm a mesma navegação', () => {
-  const saudeHtml = lerTexto('admin', 'saude', 'index.html');
-  assert.doesNotMatch(HTML, /titulo-saude|saude-verificar|saude-lista|Verificar novamente|Saúde do sistema<\/h2>/);
-  assert.doesNotMatch(JS, /saude|Saúde|CAPACIDADES_SAUDE|ESTADOS_SAUDE|formatarDataHoraBr|resumoDaSaude|new Date\(/i);
-  assert.deepEqual([...HTML.matchAll(/<h2 id="(titulo-[a-z]+)"/g)].map((m) => m[1]), ['titulo-catalogo', 'titulo-assunto', 'titulo-servico', 'titulo-fontes']);
-  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Cadastro da base<\/a>\s*<a class="navegacao__link" href=".\/conteudo\/">Informações do chatbot<\/a>\s*<a class="navegacao__link" href=".\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
-  assert.match(saudeHtml, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Cadastro da base<\/a>\s*<a class="navegacao__link" href="..\/conteudo\/">Informações do chatbot<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Saúde do sistema<\/a>\s*<\/nav>/);
-  for (const pagina of [HTML, saudeHtml]) assert.equal((pagina.match(/aria-current="page"/g) ?? []).length, 1, 'uma única página atual');
-  assert.match(CSS, /\.navegacao__link--atual \{[^}]*text-decoration: underline/, 'a página atual não depende só da cor');
-  assert.match(CSS, /\.navegacao__link:focus-visible|:focus-visible \{[^}]*outline: 3px solid/);
-  assert.match(saudeHtml, /<title>SEMA Orienta — Saúde do sistema<\/title>/);
-  assert.match(saudeHtml, /<h1>SEMA Orienta — Saúde do sistema<\/h1>/);
-  assert.match(saudeHtml, /<p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação<\/p>/);
-  assert.match(saudeHtml, /<link rel="stylesheet" href="..\/styles.css" \/>/);
-  assert.match(saudeHtml, /<script type="module" src=".\/saude.js"><\/script>/);
-  assert.match(saudeHtml, /<a class="botao botao--secundario" href="..\/">Voltar para Cadastro da base<\/a>/);
-  assert.equal((saudeHtml.match(/<h1>/g) ?? []).length, 1);
-  assert.doesNotMatch(saudeHtml, /<form|<input|<textarea|<select|<dialog|admin\.js"/i, 'a página de saúde não tem cadastro');
-  assert.doesNotMatch(saudeHtml, /MVP|acad[êe]mic|\bcurso\b|prot[óo]tipo|\bMarco\b/i);
-  const ids = [...saudeHtml.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
-  assert.equal(new Set(ids).size, ids.length);
-});

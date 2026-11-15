@@ -2,7 +2,7 @@
 // seja GET (por exemplo um POST administrativo) é bloqueada e faz o teste falhar.
 import { test as base, expect } from '@playwright/test';
 
-const ORIGEM_LOCAL = 'http://localhost:5173';
+const ORIGEM_LOCAL = `http://localhost:${process.env.E2E_PORTA ?? '5173'}`;
 
 export const test = base.extend({
   violacoes: async ({}, usar) => {

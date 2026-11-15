@@ -256,41 +256,9 @@ test('FI10. envio duplicado de fonte é bloqueado enquanto há gravação em and
 
 // ---------- HTML, código e isolamento ----------
 
-test('FI11. a seção "Fontes do serviço": serviço da lista, formulário com rótulos, explicação da origem oficial e confirmação', () => {
-  assert.match(HTML, /<h2 id="titulo-fontes">Fontes do serviço<\/h2>/);
-  assert.match(HTML, /<h3 class="subtitulo">Nova fonte<\/h3>/);
-  assert.match(HTML, /<label for="fontes-servico">Serviço<\/label>/);
-  assert.match(HTML, /<p id="fontes-situacao" class="ajuda" aria-live="polite">/);
-  assert.match(HTML, /<div id="fontes-lista" aria-busy="false"><\/div>/);
-  for (const id of ['fonte-id', 'fonte-titulo', 'fonte-tipo', 'fonte-orgao', 'fonte-url', 'fonte-descricao', 'fonte-oficial', 'fonte-data', 'fonte-dispositivo']) {
-    assert.match(HTML, new RegExp(`<label for="${id}">`), `label de ${id}`);
-    assert.match(HTML, new RegExp(`id="${id}-erro" class="erro" hidden`), `erro de ${id}`);
-  }
-  // Explicação ao lado de "origem oficial", ligada ao campo por aria-describedby.
-  assert.match(HTML, /<input id="fonte-oficial" name="origemOficial" type="checkbox" aria-describedby="fonte-oficial-ajuda fonte-oficial-erro" \/>/);
-  assert.match(HTML, /<p id="fonte-data-ajuda" class="ajuda">Formato DD-MM-AAAA\.<\/p>/);
-  assert.doesNotMatch(HTML, /AAAA-MM-DD/);
-  assert.match(HTML, /<p id="fonte-oficial-ajuda" class="ajuda">Origem oficial identifica a procedência, mas não significa que o conteúdo foi validado\.<\/p>/);
-  const opcoes = [...HTML.slice(HTML.indexOf('id="fonte-tipo"'), HTML.indexOf('id="fonte-tipo-erro"')).matchAll(/<option value="([^"]*)">([^<]+)<\/option>/g)].map((m) => [m[1], m[2]]);
-  assert.deepEqual(opcoes.slice(1), TIPOS_FONTE.map((t) => [t, ROTULOS_TIPO_FONTE[t]]));
-  assert.match(HTML, /<button type="submit" class="botao" id="fonte-enviar" disabled>Revisar cadastro<\/button>/);
-  assert.match(HTML, /não valida nem publica fontes/);
-  // Os campos que o servidor define não existem no formulário.
-  assert.doesNotMatch(HTML, /name="(statusValidacao|publicado|dataConsulta|vigencia|normasRelacionadas|observacao|revisao)"/);
-});
-
-test('FI12. o código da tela usa a revisão lida, só cadastra com versão em rascunho e não oferece editar, excluir, validar nem publicar fontes', () => {
-  assert.match(JS, /const fontesPodeGravar = \(\) => fontes\.servicoId !== null && fontes\.estado === 'rascunho' && fontes\.revisao !== null;/);
-  assert.match(JS, /corpoDaFonte\(dados, fontes\.revisao\)/);
-  assert.match(JS, /cliente\.carregarFontes\(servicoId\)/);
-  assert.match(JS, /if \(!fontesPodeGravar\(\)\) \$\(BOTOES\.fonte\)\.disabled = true;/);
-  assert.match(JS, /sequenciaDeFontes/);
-  assert.match(JS, /r\.recarregar/);
-  assert.equal((JS.match(/cliente\.cadastrar\(/g) ?? []).length, 1);
+test('FI12. o cliente administrativo só usa os métodos esperados e não usa APIs inseguras', () => {
   // A tela de cadastro (index.html e admin.js) não oferece edição nem exclusão; os blocos de conhecimento têm página própria (/admin/conteudo/).
-  const textos = `${HTML}\n${JS}`;
-  assert.doesNotMatch(textos, /\b(Editar|Excluir|Apagar|Remover)\b|Publicar|Autorizar|Validar conteúdo|Enviar para validação|decis[ãa]o/i);
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 2, 'cadastrar e gravarConhecimento (criar)');
+  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 4, 'cadastrar, gravarConhecimento (criar), e na gestão por serviço: gravar e buscarLinks');
   assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 2, 'só em gravarConhecimento');
   assert.doesNotMatch(LOGICA, /['"`]PUT['"`]/);
   assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(contexto\.servicoId\)\}\/fontes`/);

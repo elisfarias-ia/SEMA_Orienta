@@ -104,7 +104,12 @@ body {
   margin: 0 auto;
   padding: 1rem;
   display: grid;
+  /* Coluna única que pode encolher: sem isto, a largura mínima do conteúdo (texto ampliado, palavras longas) alarga a página. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
+}
+.pagina > * {
+  min-width: 0;
 }
 .pagina:focus {
   outline: none;
@@ -310,6 +315,7 @@ textarea:focus-visible {
   background: rgba(20, 40, 29, 0.55);
 }
 .dialogo h2 {
+  overflow-wrap: anywhere;
   margin: 0 0 0.25rem;
   color: var(--verde-900);
 }
@@ -372,6 +378,8 @@ textarea:focus-visible {
 }
 .caixa label {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 input[type='checkbox'] {
   width: 1.5rem;
@@ -517,7 +525,7 @@ a.botao {
   text-decoration: none;
 }
 .pagina--compacta .saude {
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
 }
 
 /* Página "Blocos de conhecimento" (Sprint 3, Passo 3B2) */
@@ -604,6 +612,10 @@ a.botao {
 }
 .fonte-opcao__local {
   margin: 0.4rem 0 0 1.75rem;
+}
+.fonte-opcao label,
+.grupo-fontes legend {
+  overflow-wrap: anywhere;
 }
 @media (max-width: 30rem) {
   .bloco__acoes .botao,
@@ -700,8 +712,12 @@ a.botao {
 }
 .duas-colunas {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
+}
+.duas-colunas > * {
+  min-width: 0;
 }
 .bloco {
   border-color: var(--borda);
@@ -723,4 +739,124 @@ a.botao {
   .introducao {
     flex-direction: column;
   }
+}
+
+/* Área administrativa por serviço (Passo 4B2). O atributo hidden é respeitado só onde o display é definido aqui. */
+.introducao[hidden],
+.barra-sessao[hidden],
+.painel[hidden] {
+  display: none;
+}
+.barra-sessao {
+  max-width: 56rem;
+  margin: 0.6rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.barra-sessao__quem {
+  margin: 0;
+  padding: 0.25rem 0.8rem;
+  font-weight: 700;
+  color: var(--verde-900);
+  background: var(--verde-100);
+  border-radius: 999px;
+}
+.barra-sessao__links {
+  margin: 0;
+  flex: 1 1 auto;
+}
+.cartao__titulo {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.servicos--escolha .servico {
+  padding: 0;
+}
+.servico__botao {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  text-align: left;
+  color: var(--texto);
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.servico__botao:hover {
+  background: var(--verde-100);
+}
+.maneiras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.maneiras .botao[aria-expanded='true'] {
+  color: #fff;
+  background: var(--verde-800);
+}
+.maneiras .botao[aria-expanded='true']:hover:not(:disabled) {
+  background: var(--verde-900);
+}
+.painel {
+  margin-top: 0.9rem;
+  padding: 0.9rem;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  background: var(--verde-50);
+}
+.aviso-dados {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.75rem;
+  color: #422006;
+  font-weight: 600;
+  background: var(--aviso-fundo);
+  border: 2px solid var(--aviso-borda);
+  border-radius: 10px;
+}
+.voltar {
+  margin: 0 0 0.75rem;
+}
+.servico__acoes {
+  margin: 0.5rem 0 0;
+}
+.informacao__texto {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.link-externo {
+  color: var(--verde-800);
+  overflow-wrap: anywhere;
+}
+.campo--caixa {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.campo--caixa label {
+  margin: 0;
+}
+@media (max-width: 30rem) {
+  .maneiras .botao,
+  .acoes-form .botao,
+  .barra-sessao .botao {
+    width: 100%;
+  }
+}
+
+.barra-sessao .navegacao__link {
+  min-height: 2.75rem;
+}
+.campo--caixa label {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
 }

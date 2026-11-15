@@ -127,11 +127,11 @@ npm run build
 
 Só existe no servidor de desenvolvimento (`npm run dev`), sem autenticação, e não entra no build:
 
-- `http://localhost:5173/admin/`: **Cadastro da base** (catálogo, cadastro de assunto, serviço e fonte; nome provisório, o cadastro guiado fica para a Sprint 4);
+- `http://localhost:5173/admin/`: **Gestão de conteúdo por serviço**, com entrada de demonstração (não é autenticação real): criar ou escolher um serviço e adicionar informação como texto, link novo ou link já cadastrado; tudo em rascunho, sem publicar nada e sem chegar ao chat público;
 - `http://localhost:5173/admin/conteudo/`: **Informações do chatbot** (cadastro, edição e exclusão de informações em rascunho, com fontes que as comprovam; nada chega ao chat público);
 - `http://localhost:5173/admin/saude/`: **Saúde do sistema**, com verificações reais da aplicação, da base, do armazenamento e do conteúdo publicado. Banco de dados, IA externa e processamento de fontes aparecem como "Não implementados", em contagem separada: isso não é falha.
 
-Detalhes em [docs/ADMINISTRACAO.md](docs/ADMINISTRACAO.md) e evidências da Sprint 1 em [docs/EVIDENCIAS_SPRINT_1.md](docs/EVIDENCIAS_SPRINT_1.md).
+Detalhes em [docs/ADMINISTRACAO.md](docs/ADMINISTRACAO.md) e evidências das Sprints 1 e 4 em [docs/EVIDENCIAS_SPRINT_1.md](docs/EVIDENCIAS_SPRINT_1.md) e [docs/EVIDENCIAS_SPRINT_4.md](docs/EVIDENCIAS_SPRINT_4.md).
 
 ## Base de serviços
 

@@ -443,7 +443,7 @@ export function resumoDoConhecimento(dados, fontes = [], servico = null) {
     { rotulo: 'Serviço', valor: servico ?? 'não identificado' },
     { rotulo: 'Tema da informação', valor: dados.titulo },
     { rotulo: 'Informação que o chatbot pode usar', valor: dados.texto },
-    { rotulo: 'Fontes que comprovam', valor: dados.referencias.map((r) => `${titulos.get(r.fonteId) ?? 'Fonte'} — ${r.localizacao}`).join('; ') },
+    { rotulo: 'Documentos ou links usados', valor: dados.referencias.map((r) => `${titulos.get(r.fonteId) ?? 'Fonte'} — ${r.localizacao}`).join('; ') },
     { rotulo: 'Avisos ou limitações', valor: dados.alertas.length ? dados.alertas.join('; ') : 'nenhum' },
     { rotulo: 'Situação inicial', valor: 'Em elaboração (rascunho); ainda não disponível no chatbot' },
   ];
@@ -687,5 +687,340 @@ export function criarClienteAdmin({ fetchImpl }) {
         gravando = false;
       }
     },
+  };
+}
+
+// ---------- Gestão por serviço (Passo 4B2): entrada de demonstração, serviço com tema e informações ----------
+// Tudo aqui é lógica pura mais um cliente com `fetch` injetável. O token de demonstração fica só numa variável do cliente.
+
+export const ROTAS_GESTAO = Object.freeze({
+  sessao: '/__admin/sessao',
+  catalogo: '/__admin/catalogo',
+  servicoComTema: '/__admin/servico-com-tema',
+});
+export const LIMITES_GESTAO = Object.freeze({ nome: 120, tema: 120, titulo: 200, texto: 20000, descricao: 1000, orgao: 120, url: 500, consulta: 100 });
+export const TIPOS_LINK = Object.freeze([
+  ['pagina_oficial', 'Página de um site oficial'],
+  ['legislacao', 'Lei, decreto ou norma'],
+  ['manual', 'Manual ou guia'],
+  ['outro', 'Outro'],
+]);
+export const AVISO_DADOS_PESSOAIS = 'Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.';
+export const MENSAGENS_GESTAO = Object.freeze({
+  rede: 'Não foi possível falar com o servidor local. Confira se ele está ativo e tente de novo.',
+  entrada: 'Não foi possível entrar na demonstração. Tente de novo.',
+  catalogo: 'Não foi possível carregar os serviços. Tente de novo.',
+  informacoes: 'Não foi possível carregar as informações deste serviço. Tente de novo.',
+  busca: 'Não foi possível buscar os links cadastrados. Tente de novo.',
+  semEntrada: 'Entre na demonstração para continuar.',
+  expirada: 'Sua entrada expirou. Saia e entre de novo.',
+  acessoLocal: 'Acesso recusado. Esta área só funciona neste computador.',
+  ocupado: 'Há outra gravação em andamento, tente de novo.',
+  generica: 'Não foi possível concluir. Nada foi salvo.',
+  naoEditavel: 'Este serviço não está em elaboração e não aceita novas informações.',
+  naoEncontrado: 'Não encontramos o serviço ou o link escolhido. A lista foi atualizada.',
+  nomeRepetido: 'Já existe um serviço com este nome.',
+  urlRepetida: 'Este link já está cadastrado neste serviço.',
+  linkRepetido: 'Este link já está neste serviço.',
+});
+const MENSAGEM_DO_CAMPO = Object.freeze({
+  nome: 'Revise o nome do serviço.',
+  tema: 'Revise o tema.',
+  titulo: 'Revise o título.',
+  texto: 'Revise o texto. Ele precisa ter conteúdo e não pode ter dados pessoais nem senhas.',
+  descricao: 'Revise a descrição.',
+  orgaoResponsavel: 'Revise o órgão responsável.',
+  tipo: 'Escolha o tipo do link.',
+  url: 'Revise o endereço do link. Use um endereço que comece com https://.',
+  origemOficial: 'Revise a indicação de site oficial.',
+});
+
+/** Temas (assuntos ativos) em ordem alfabética: só id e nome. */
+export function temasAtivos(catalogo) {
+  const lista = ehObjeto(catalogo) && Array.isArray(catalogo.assuntos) ? catalogo.assuntos : [];
+  return lista
+    .filter((a) => ehObjeto(a) && a.ativo !== false && ehTexto(a.id) && ehTexto(a.nome) && a.nome !== '')
+    .map((a) => ({ id: a.id, nome: a.nome }))
+    .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+}
+
+/** Serviços para a lista (com busca por nome ou tema, sem acento nem maiúscula): só id, nome e tema. */
+export function servicosDaLista(catalogo, consulta = '') {
+  const servicos = ehObjeto(catalogo) && Array.isArray(catalogo.servicos) ? catalogo.servicos : [];
+  const nomesDosTemas = new Map(temasAtivos(catalogo).map((t) => [t.id, t.nome]));
+  const termo = normalizar(consulta);
+  return servicos
+    .filter((s) => ehObjeto(s) && ehTexto(s.id) && PADRAO_ID.test(s.id) && ehTexto(s.nome) && s.nome !== '')
+    .map((s) => ({ id: s.id, nome: s.nome, temaNome: nomesDosTemas.get(s.assuntoId) ?? '' }))
+    .filter((s) => termo === '' || normalizar(`${s.nome} ${s.temaNome}`).includes(termo))
+    .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+}
+
+/** Se o texto digitado é um tema existente (sem diferença de acento ou maiúscula), usa o existente; senão, é um tema novo. */
+export function resolverTema(texto, temas) {
+  const alvo = normalizar(texto);
+  const achado = (Array.isArray(temas) ? temas : []).find((t) => normalizar(t.nome) === alvo);
+  return achado ? { id: achado.id } : { nome: String(texto ?? '').trim().replace(/\s+/g, ' ') };
+}
+
+/** Verdadeiro se o texto parece ter e-mail, telefone, CPF ou credencial (a conferência definitiva é do servidor). */
+export function pareceDadoPessoal(texto) {
+  const t = String(texto ?? '');
+  return PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t)
+    || /\b(senha|password|token|api[ _-]?key|chave de acesso)\s*[:=]/i.test(t);
+}
+
+const textoAparado = (v) => (ehTexto(v) ? v.trim().replace(/\s+/g, ' ') : '');
+
+function validarTitulo(valores, erros, dados) {
+  const titulo = textoAparado(valores.titulo);
+  if (titulo === '') erros.titulo = 'Escreva um título.';
+  else if (titulo.length > LIMITES_GESTAO.titulo) erros.titulo = `Use até ${LIMITES_GESTAO.titulo} caracteres no título.`;
+  else if (pareceDadoPessoal(titulo)) erros.titulo = 'O título não pode ter dados pessoais nem senhas.';
+  dados.titulo = titulo;
+}
+
+/** Novo serviço: só nome e tema. Retorna { ok, erros, corpo } (corpo só com nome e tema). */
+export function validarNovoServico(valores, temas) {
+  const v = ehObjeto(valores) ? valores : {};
+  const erros = {};
+  const nome = textoAparado(v.nome);
+  if (nome === '') erros.nome = 'Escreva o nome do serviço.';
+  else if (nome.length > LIMITES_GESTAO.nome) erros.nome = `Use até ${LIMITES_GESTAO.nome} caracteres no nome.`;
+  else if (!/[\p{L}\p{N}]/u.test(nome)) erros.nome = 'O nome precisa ter letras ou números.';
+  const tema = textoAparado(v.tema);
+  if (tema === '') erros.tema = 'Escolha um tema da lista ou escreva um novo.';
+  else if (tema.length > LIMITES_GESTAO.tema) erros.tema = `Use até ${LIMITES_GESTAO.tema} caracteres no tema.`;
+  else if (!/[\p{L}\p{N}]/u.test(tema)) erros.tema = 'O tema precisa ter letras ou números.';
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, erros: {}, corpo: { nome, tema: resolverTema(tema, temas) } };
+}
+
+/** Informação em texto: título e texto obrigatórios; descrição e órgão opcionais. */
+export function validarEntradaTexto(valores) {
+  const v = ehObjeto(valores) ? valores : {};
+  const erros = {};
+  const dados = {};
+  validarTitulo(v, erros, dados);
+  const texto = ehTexto(v.texto) ? v.texto.trim() : '';
+  if (texto === '') erros.texto = 'Escreva o texto da informação.';
+  else if (Array.from(texto).length > LIMITES_GESTAO.texto) erros.texto = `Use até ${LIMITES_GESTAO.texto.toLocaleString('pt-BR')} caracteres no texto.`;
+  else if (pareceDadoPessoal(texto)) erros.texto = 'O texto parece ter dado pessoal, telefone, e-mail ou senha. Retire essa parte e tente de novo.';
+  const descricao = textoAparado(v.descricao);
+  if (descricao.length > LIMITES_GESTAO.descricao) erros.descricao = `Use até ${LIMITES_GESTAO.descricao} caracteres na descrição.`;
+  else if (pareceDadoPessoal(descricao)) erros.descricao = 'A descrição não pode ter dados pessoais nem senhas.';
+  const orgao = textoAparado(v.orgaoResponsavel);
+  if (orgao.length > LIMITES_GESTAO.orgao) erros.orgaoResponsavel = `Use até ${LIMITES_GESTAO.orgao} caracteres no órgão.`;
+  if (Object.keys(erros).length) return { ok: false, erros };
+  const corpo = { titulo: dados.titulo, texto };
+  if (descricao !== '') corpo.descricao = descricao;
+  if (orgao !== '') corpo.orgaoResponsavel = orgao;
+  return { ok: true, erros: {}, corpo };
+}
+
+/** Link novo: título, tipo, órgão, endereço https e descrição obrigatórios. */
+export function validarLinkNovo(valores) {
+  const v = ehObjeto(valores) ? valores : {};
+  const erros = {};
+  const dados = {};
+  validarTitulo(v, erros, dados);
+  const tipo = ehTexto(v.tipo) ? v.tipo : '';
+  if (!TIPOS_LINK.some(([valor]) => valor === tipo)) erros.tipo = 'Escolha o tipo do link.';
+  const orgao = textoAparado(v.orgaoResponsavel);
+  if (orgao === '') erros.orgaoResponsavel = 'Informe o órgão responsável.';
+  else if (orgao.length > LIMITES_GESTAO.orgao) erros.orgaoResponsavel = `Use até ${LIMITES_GESTAO.orgao} caracteres no órgão.`;
+  const descricao = textoAparado(v.descricao);
+  if (descricao === '') erros.descricao = 'Escreva uma descrição curta do link.';
+  else if (descricao.length > LIMITES_GESTAO.descricao) erros.descricao = `Use até ${LIMITES_GESTAO.descricao} caracteres na descrição.`;
+  else if (pareceDadoPessoal(descricao)) erros.descricao = 'A descrição não pode ter dados pessoais nem senhas.';
+  const url = ehTexto(v.url) ? v.url.trim() : '';
+  if (url === '') erros.url = 'Informe o endereço do link.';
+  else if (url.length > LIMITES_GESTAO.url) erros.url = `Use até ${LIMITES_GESTAO.url} caracteres no endereço.`;
+  else {
+    let objeto = null;
+    try { objeto = new URL(url); } catch { /* endereço inválido, tratado abaixo */ }
+    if (objeto === null || objeto.protocol !== 'https:' || !objeto.hostname.includes('.')) erros.url = 'Use um endereço completo que comece com https://.';
+    else if (objeto.username !== '' || objeto.password !== '' || /\s/.test(url)) erros.url = 'O endereço não pode ter usuário, senha nem espaços.';
+    else if (pareceDadoPessoal(url)) erros.url = 'O endereço parece ter dado pessoal ou senha. Use o endereço público da página.';
+  }
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, erros: {}, corpo: { titulo: dados.titulo, tipo, orgaoResponsavel: orgao, url, descricao, origemOficial: v.origemOficial === true } };
+}
+
+const ROTULO_SITUACAO_INFORMACAO = Object.freeze({ rascunho: 'Em elaboração', em_validacao: 'Em análise', validado: 'Validada' });
+const httpsOuNulo = (v) => {
+  if (!ehTexto(v)) return null;
+  try { return new URL(v).protocol === 'https:' ? v : null; } catch { return null; }
+};
+
+/** Lista de informações de um serviço, só com o que é exibido (nada de identificadores). */
+export function resumirInformacoes(corpo) {
+  if (!ehObjeto(corpo) || !Array.isArray(corpo.itens)) return null;
+  const itens = corpo.itens.filter(ehObjeto).filter((i) => ehTexto(i.titulo) && (i.tipo === 'texto' || i.tipo === 'link')).map((i) => ({
+    tipo: i.tipo,
+    titulo: i.titulo,
+    descricao: ehTexto(i.descricao) ? i.descricao : '',
+    texto: i.tipo === 'texto' && ehTexto(i.texto) ? i.texto : '',
+    textoCortado: i.textoCortado === true,
+    data: ehTexto(i.criadoEm) ? formatarDataBr(i.criadoEm.slice(0, 10)) : '',
+    url: i.tipo === 'link' ? httpsOuNulo(i.url) : null,
+    orgao: ehTexto(i.orgaoResponsavel) ? i.orgaoResponsavel : '',
+    situacao: Object.hasOwn(ROTULO_SITUACAO_INFORMACAO, i.situacao) ? ROTULO_SITUACAO_INFORMACAO[i.situacao] : 'Em elaboração',
+    reutilizado: ehObjeto(i.reutilizadoDe) || (ehTexto(i.reutilizadoDe) && i.reutilizadoDe !== ''),
+  }));
+  return { editavel: corpo.estadoVersao === 'rascunho' || corpo.estadoVersao === undefined, itens };
+}
+
+/** Resultado da busca por links já cadastrados. A identidade (servicoId e fonteId) fica só para o envio; nunca é exibida. */
+export function resumirLinksExistentes(corpo) {
+  if (!ehObjeto(corpo) || !Array.isArray(corpo.itens)) return null;
+  const itens = corpo.itens.filter(ehObjeto)
+    .filter((i) => ehTexto(i.servicoId) && PADRAO_ID.test(i.servicoId) && ehTexto(i.fonteId) && PADRAO_ID.test(i.fonteId) && ehTexto(i.titulo))
+    .map((i) => ({
+      identidade: { servicoId: i.servicoId, fonteId: i.fonteId },
+      titulo: i.titulo,
+      descricao: ehTexto(i.descricao) ? i.descricao : '',
+      orgao: ehTexto(i.orgaoResponsavel) ? i.orgaoResponsavel : '',
+      url: httpsOuNulo(i.url),
+      jaNoServico: i.jaNoServico === true,
+    }));
+  return { itens, truncado: corpo.truncado === true };
+}
+
+/** Corpo do uso de um link já cadastrado: SÓ a identidade, nunca o objeto da fonte. */
+export const corpoDoLinkExistente = (item) => ({ servicoId: item.identidade.servicoId, fonteId: item.identidade.fonteId });
+
+/** Mensagem curta por código. Nunca usa texto da resposta. Em 422, `erros` traz mensagens por campo. */
+export function mensagemDaGestao(status, corpo, contexto = 'geral') {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
+  if (status === 401) return { mensagem: MENSAGENS_GESTAO.expirada };
+  if (status === 403) return { mensagem: MENSAGENS_GESTAO.acessoLocal };
+  if (status === 404) return { mensagem: MENSAGENS_GESTAO.naoEncontrado, recarregar: true };
+  if (status === 409) {
+    if (erro === 'operacao_em_andamento') return { mensagem: MENSAGENS_GESTAO.ocupado, emAndamento: true };
+    if (erro === 'versao_nao_editavel') return { mensagem: MENSAGENS_GESTAO.naoEditavel, recarregar: true };
+    if (campo === 'nome') return { mensagem: MENSAGENS_GESTAO.nomeRepetido, erros: { nome: MENSAGENS_GESTAO.nomeRepetido } };
+    if (campo === 'url') return { mensagem: MENSAGENS_GESTAO.urlRepetida, erros: { url: MENSAGENS_GESTAO.urlRepetida } };
+    if (contexto === 'link-existente') return { mensagem: MENSAGENS_GESTAO.linkRepetido, recarregar: true };
+    return { mensagem: MENSAGENS_GESTAO.generica };
+  }
+  if (status === 413) return { mensagem: 'O texto enviado é grande demais. Reduza o tamanho e tente de novo.' };
+  if (status === 422) {
+    const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos.filter((c) => ehTexto(c) && Object.hasOwn(MENSAGEM_DO_CAMPO, c)) : [];
+    const erros = {};
+    for (const c of campos) erros[c] = MENSAGEM_DO_CAMPO[c];
+    return campos.length ? { mensagem: 'Revise os campos indicados e tente de novo.', erros } : { mensagem: 'Revise os dados e tente de novo.' };
+  }
+  if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi salvo; tente de novo.' };
+  return { mensagem: MENSAGENS_GESTAO.generica };
+}
+
+/**
+ * Cliente da gestão por serviço. O token vem de GET /__admin/sessao ao entrar e fica só nesta variável (memória).
+ * Gravações são uma por vez: com uma em andamento, a seguinte nem é enviada.
+ */
+export function criarClienteGestao({ fetchImpl }) {
+  let token = null;
+  let gravando = false;
+
+  async function chamar(metodo, caminho, corpo, comToken = true) {
+    const cabecalhos = { Accept: 'application/json' };
+    if (comToken) cabecalhos[CABECALHO_TOKEN] = token;
+    const opcoes = { method: metodo, headers: cabecalhos, cache: 'no-store', credentials: 'omit', redirect: 'error' };
+    if (corpo !== undefined) {
+      cabecalhos['Content-Type'] = 'application/json';
+      opcoes.body = JSON.stringify(corpo);
+    }
+    let resposta;
+    try {
+      resposta = await fetchImpl(caminho, opcoes);
+    } catch {
+      return { falhaDeRede: true };
+    }
+    let json = null;
+    try { json = await resposta.json(); } catch { /* sem corpo legível: vale só o status */ }
+    return { status: resposta.status, corpo: json, ok: resposta.status >= 200 && resposta.status < 300 };
+  }
+  const rotaDoServico = (id, final) => `/__admin/servicos/${encodeURIComponent(id)}/${final}`;
+  const idOk = (id) => ehTexto(id) && PADRAO_ID.test(id);
+  const recusa = () => Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.generica });
+  const falha = (r, contexto) => (r.falhaDeRede ? { ok: false, mensagem: MENSAGENS_GESTAO.rede } : { ok: false, ...mensagemDaGestao(r.status, r.corpo, contexto) });
+
+  // Única porta de gravação: uma por vez, sempre POST JSON.
+  async function gravar(caminho, corpo, aoCriar, contexto) {
+    if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+    if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+    gravando = true;
+    try {
+      const r = await chamar('POST', caminho, corpo);
+      if (r.status === 201 && ehObjeto(r.corpo)) {
+        const resultado = aoCriar(r.corpo);
+        if (resultado !== null) return { ok: true, ...resultado };
+      }
+      return falha(r, contexto);
+    } finally {
+      gravando = false;
+    }
+  }
+
+  return {
+    entrou: () => token !== null,
+    gravando: () => gravando,
+    sair() { token = null; },
+
+    async entrar() {
+      const r = await chamar('GET', ROTAS_GESTAO.sessao, undefined, false);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      if (r.status === 403) return { ok: false, mensagem: MENSAGENS_GESTAO.acessoLocal };
+      if (!r.ok || !ehObjeto(r.corpo) || !ehTexto(r.corpo.token) || !/^[0-9a-f]{64}$/.test(r.corpo.token)) return { ok: false, mensagem: MENSAGENS_GESTAO.entrada };
+      token = r.corpo.token;
+      return { ok: true };
+    },
+
+    async carregarCatalogo() {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      const r = await chamar('GET', ROTAS_GESTAO.catalogo);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      if (!r.ok || !catalogoValido(r.corpo)) return { ok: false, mensagem: r.status === 401 ? MENSAGENS_GESTAO.expirada : MENSAGENS_GESTAO.catalogo };
+      return { ok: true, catalogo: { assuntos: r.corpo.assuntos, servicos: r.corpo.servicos } };
+    },
+
+    async carregarInformacoes(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const r = await chamar('GET', rotaDoServico(servicoId, 'informacoes'));
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirInformacoes(r.corpo) : null;
+      if (resumo === null) return { ok: false, mensagem: r.status === 401 ? MENSAGENS_GESTAO.expirada : MENSAGENS_GESTAO.informacoes };
+      return { ok: true, ...resumo };
+    },
+
+    async buscarLinks(servicoId, consulta) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const corpo = {};
+      const c = textoAparado(consulta);
+      if (c !== '') corpo.consulta = c.slice(0, LIMITES_GESTAO.consulta);
+      const r = await chamar('POST', rotaDoServico(servicoId, 'links-existentes/busca'), corpo);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirLinksExistentes(r.corpo) : null;
+      if (resumo === null) return { ok: false, mensagem: r.status === 401 ? MENSAGENS_GESTAO.expirada : MENSAGENS_GESTAO.busca };
+      return { ok: true, ...resumo };
+    },
+
+    criarServico: (corpo) => gravar(ROTAS_GESTAO.servicoComTema, corpo, (c) => (
+      ehObjeto(c.servico) && ehTexto(c.servico.id) && PADRAO_ID.test(c.servico.id) && ehTexto(c.servico.nome)
+        ? { servico: { id: c.servico.id, nome: c.servico.nome, temaNome: ehTexto(c.servico.temaNome) ? c.servico.temaNome : '' }, temaCriado: c.temaCriado === true }
+        : null), 'servico'),
+    adicionarTexto: (servicoId, corpo) => (idOk(servicoId)
+      ? gravar(rotaDoServico(servicoId, 'entradas-texto'), corpo, (c) => (c.criado === true ? {} : null), 'texto')
+      : recusa()),
+    adicionarLink: (servicoId, corpo) => (idOk(servicoId)
+      ? gravar(rotaDoServico(servicoId, 'links'), corpo, (c) => (ehObjeto(c.fonte) ? {} : null), 'link')
+      : recusa()),
+    usarLinkExistente: (servicoId, item) => (idOk(servicoId) && ehObjeto(item) && ehObjeto(item.identidade)
+      ? gravar(rotaDoServico(servicoId, 'links-existentes'), corpoDoLinkExistente(item), (c) => (ehObjeto(c.fonte) ? {} : null), 'link-existente')
+      : recusa()),
   };
 }

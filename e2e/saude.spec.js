@@ -56,6 +56,6 @@ test.describe('Saúde do sistema', () => {
       await expect.poll(() => focoVisivel(page), { message: `foco visível em "${nome}"` }).toBeTruthy();
     }
     // A página tem exatamente seis elementos focáveis, nesta ordem; o sétimo Tab sairia da página.
-    expect(alvos).toEqual(['Ir para o conteúdo', 'Cadastro da base', 'Informações do chatbot', 'Saúde do sistema', 'Verificar novamente', 'Voltar para Cadastro da base']);
+    expect(alvos).toEqual(['Ir para o conteúdo', 'Cadastro da base', 'Informações do chatbot', 'Saúde do sistema', 'Verificar novamente', 'Voltar para Gestão de conteúdo']);
   });
 });

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entradas de texto de uma versão de serviço do SEMA Orienta (Sprint 4, Passo 4B1)",
+  "description": "Documentação de services/<serviço>/versoes/vN/entradas.json, tratado por services/admin/entradas.js e conferido por scripts/validate-services.js. O arquivo só existe se arquivos.entradas estiver no manifesto versao.json (caminho <pasta da versão>/entradas.json). Cada entrada corresponde 1:1 a uma fonte textual em fontes.json (formaEntrada 'texto', tipo 'texto_cadastrado', url null, entradaId igual ao id da entrada). Id, datas e hash são gerados pelo servidor. O hash é o SHA-256 hexadecimal dos bytes UTF-8 do texto exatamente como submetido (sem trim e sem normalização) e fica SOMENTE aqui, nunca em fontes.json. O texto é simples; limites: 20.000 caracteres e 80.000 bytes UTF-8 por entrada; 100.000 caracteres e 400.000 bytes por versão. Recusa-se texto vazio, byte nulo, controles C0 exceto tabulação, quebra de linha e retorno de carro, e e-mail, telefone ou credencial. Este arquivo NÃO é lido pelo chat, pelo assistente nem pelo servidor MCP e não entra no build. Alterações só em versão em rascunho.",
+  "type": "object",
+  "required": ["servicoId", "entradas"],
+  "additionalProperties": false,
+  "properties": {
+    "servicoId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "entradas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "fonteId", "texto", "hash", "criadoEm", "atualizadoEm"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Gerado pelo servidor. Único no arquivo." },
+          "fonteId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Fonte textual correspondente em fontes.json (1:1)." },
+          "texto": { "type": "string", "minLength": 1, "maxLength": 20000, "description": "Texto simples, preservado exatamente como enviado." },
+          "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 dos bytes UTF-8 de 'texto'." },
+          "criadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "atualizadoEm": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Não pode ser anterior a criadoEm." }
+        }
+      }
+    }
+  }
+}

@@ -86,6 +86,38 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Transferido:** o cadastro guiado de assunto, serviço e fontes foi para a Sprint 4 (Issue #8).
 - **Evidências:** `docs/EVIDENCIAS_SPRINT_3.md`.
 
-## Sprint 4 — Cadastro guiado da base (planejada)
+## Sprint 4 — Gestão simples de conteúdo por serviço (concluída em 15/11/2026, Issue #8)
 
-Assunto, serviço e fontes em um único fluxo guiado, com ids automáticos e invisíveis, endpoint composto e gravação atômica. Apenas planejamento na Issue #8; nada foi implementado.
+- **Objetivo:** cadastrar informação por serviço em um único caminho: escolher ou criar o serviço e adicionar texto, link novo ou fonte existente.
+- **Fechamento (15/11/2026):** conferência manual aprovada e verificações finais executadas; evidências em `docs/EVIDENCIAS_SPRINT_4.md`. Nada foi publicado e o chat público não mudou.
+- **Situação durante o replanejamento (15/11/2026):** o núcleo transacional do 4A (`e370b28`) é mantido. O 4B (interface do cadastro guiado) foi **reprovado na avaliação manual**; suas alterações não commitadas estão preservadas até decidir o que será reaproveitado ou substituído.
+- **Escopo:** reproduzir as falhas contra o servidor real e registrar a causa; teste de integração real sem simular todas as rotas; entrada de demonstração ("Entrar como servidor de demonstração", token só em memória, aviso de que não é autenticação real); lista de serviços; serviço existente reutiliza o assunto relacionado; serviço novo tem o campo único "Tema" (selecionar ou digitar, sem identificador e sem etapa separada); sigla e termos equivalentes não são pedidos; tarefa "Adicionar informação" com texto original preservado, versionado e com hash; remoção do modo avançado, dos formulários paralelos, dos radios grandes e dos identificadores visíveis.
+- **Fora do escopo:** revisão e publicação, links seguros, agente, busca, JSON público, "Mais opções", provedor de IA, upload, autenticação real, refatoração obrigatória das rotas.
+- **Regras:** o texto ou link submetido não chega ao chatbot antes da revisão, autorização e publicação; o texto original é preservado internamente, versionado e com hash, e origina só sugestões de blocos; a interface orienta a não inserir dados pessoais nem conteúdo restrito; a forma de entrada é `formaEntrada: "texto" | "link"`.
+- **A aprovar antes de implementar:** contrato de armazenamento do texto original (mudança de esquema, manifesto ou dados) e aproveitamento final das peças do 4B.
+- **Passo 4B1 (modelo de dados e gravação de entradas de texto; sem interface, rotas ou reutilização de fonte):** `entradas.json` por versão, `formaEntrada` nas fontes (`texto_cadastrado`), módulos `services/admin/entradas.js` e `entradas-gravacao.js`, validador e testes `tests/entradas-*.test.js`; `descricao` do assunto opcional. Também: `arquivos.entradas` opcional em `versao-atual.js` e no MCP, `service.schema.json` atualizado e serviço novo nasce com `entradas.json` vazio. Registrado em docs/ARQUITETURA.md.
+- **4B1, correção:** reutilização de links entre serviços (busca somente leitura, cópia em rascunho com `reutilizadaDe`, só link validado e não revogado; texto nunca) e proteção do MCP contra fonte textual não publicada. Reauditoria obrigatória antes de aprovar o 4B1. **Pendência impeditiva de commit:** o teste L23 (lista exata de `admin/`) depende da interface do 4B2.
+- **Passo 4B2 (gestão simples por serviço):** `/admin/` com entrada de demonstração (não é autenticação real; token só em memória), serviços, tema único, Adicionar informação (texto, link novo, link já cadastrado), rotas novas com a trava comum, detecção de credenciais de alta confiança, interface do 4B reprovado removida e teste Playwright real (`npm run test:e2e:real`, Vite na porta 5183 com cópia temporária de `services/`). Conferência manual: funcionalidades e linguagem aprovadas; responsividade reprovada e corrigida (texto ampliado: grade da saúde com largura mínima em rem, rótulos de fonte sem quebra); conferência visual aprovada e Sprint fechada com a bateria completa, o build e o `check-dist`.
+- **Aceite, testes e DoD:** na Issue #8.
+
+## Sprint 5 — Revisão, aprovação humana e publicação (planejada)
+
+- **Objetivo:** revisar blocos, concluir a revisão (versão e hash congelados) e publicar em ação humana separada.
+- **Regras:** só a versão expressamente aprovada, com os blocos aceitos e suas fontes, é publicada; a versão publicada anterior permanece ativa até a troca atômica; alteração posterior muda o hash e invalida análise e aprovação; "Servidor de demonstração" não comprova identidade.
+- **Texto cadastrado:** o bloqueio atual das fontes textuais no assistente é provisório; blocos revisados e publicados derivados de texto poderão fundamentar respostas, sempre pelos blocos publicados (nunca `entradas.json`); o texto original continua isolado; resposta baseada só em texto não mostra fonte; resposta baseada em link mostra somente os links usados.
+- **Exige:** atualizar `CLAUDE.md`, a documentação e os testes de isolamento (hoje não há publicação pela interface) e promover blocos, fontes e registro na mesma transação.
+
+## Sprint 6 — Links seguros e agente integrado (planejada)
+
+- **Objetivo:** verificar links de forma determinística (https, sem rede privada, localhost ou metadados, inclusive após redirecionamentos; limites de tempo, tamanho e tentativas) e analisar texto e links por agente que só sugere.
+- **Antes:** estudo técnico curto do provedor de IA (custo, privacidade, limites, infraestrutura). Sem adaptador falso apresentado como agente real. Análise assíncrona em duas fases, sem fila ou banco, se justificada.
+
+## Sprint 7 — Busca e respostas inteligentes (planejada)
+
+- **Objetivo:** o chat localiza blocos publicados e formula respostas, informando quando a base não basta.
+- **Origem:** só os links efetivamente usados; texto cadastrado sem fonte pública; rastreabilidade interna (versão, hash, origem, blocos) obrigatória.
+- **Entrega:** JSON público gerado somente com a versão publicada; cada nova publicação exige nova geração do build.
+
+## Sprint 8 — Endurecimento e evidências (planejada)
+
+- **Objetivo:** saúde com estado "não aplicável", acessibilidade, evidências e demonstração confiável do MVP.

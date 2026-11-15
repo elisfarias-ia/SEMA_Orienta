@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>SEMA Orienta — Assuntos, serviços e fontes</title>
+    <title>SEMA Orienta — Área administrativa</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -12,167 +12,183 @@
 
     <header class="cabecalho">
       <div class="cabecalho__interno">
-        <span class="cabecalho__icone" aria-hidden="true">🌿</span>
+        <span class="cabecalho__icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></svg></span>
         <div>
-          <h1>SEMA Orienta — Assuntos, serviços e fontes</h1>
-          <p class="cabecalho__sub">Cadastre os assuntos, os serviços e os documentos ou links que comprovam as informações.</p>
+          <h1>SEMA Orienta — Administração</h1>
+          <p class="cabecalho__sub">Cadastro de serviços e das informações que o chatbot poderá usar</p>
         </div>
       </div>
-      <nav class="navegacao" aria-label="Seções da administração">
-        <a class="navegacao__link navegacao__link--atual" href="./" aria-current="page">Cadastro da base</a>
-        <a class="navegacao__link" href="./conteudo/">Informações do chatbot</a>
-        <a class="navegacao__link" href="./saude/">Saúde do sistema</a>
-      </nav>
+      <div id="barra-sessao" class="barra-sessao" hidden>
+        <p class="barra-sessao__quem">Servidor de demonstração</p>
+        <nav class="navegacao barra-sessao__links" aria-label="Seções da administração">
+          <a class="navegacao__link" href="./conteudo/">Informações do chatbot</a>
+          <a class="navegacao__link" href="./saude/">Saúde do sistema</a>
+        </nav>
+        <button type="button" class="botao botao--secundario" id="botao-sair">Sair</button>
+      </div>
     </header>
 
-    <p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
+    <p id="aviso-demo" class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
 
     <main id="principal" class="pagina" tabindex="-1">
       <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
 
-      <section class="cartao" aria-labelledby="titulo-catalogo">
-        <h2 id="titulo-catalogo">Catálogo</h2>
-        <p class="ajuda">Assuntos e serviços cadastrados. Todo serviço novo nasce como versão 1, em rascunho, sem conteúdo e não publicado.</p>
-        <div id="catalogo" aria-busy="true">
-          <p class="vazio">Carregando o catálogo…</p>
+      <section id="entrada" class="cartao introducao" aria-labelledby="titulo-entrada">
+        <div>
+          <h2 id="titulo-entrada">Área administrativa — ambiente local de demonstração</h2>
+          <p class="introducao__texto">Aqui você cadastra serviços e as informações que o chatbot poderá usar depois de revisadas. Nada é publicado nesta área.</p>
+          <p class="introducao__texto">Esta entrada é só uma demonstração: não pede usuário nem senha e não confirma quem você é.</p>
+          <button type="button" class="botao" id="botao-entrar">Entrar como servidor de demonstração</button>
         </div>
       </section>
 
-      <section class="cartao" aria-labelledby="titulo-assunto">
-        <h2 id="titulo-assunto">Novo assunto</h2>
-        <form id="form-assunto" novalidate>
-          <div class="campo">
-            <label for="assunto-nome">Nome</label>
-            <input id="assunto-nome" name="nome" type="text" maxlength="120" autocomplete="off" aria-describedby="assunto-nome-erro" />
-            <p id="assunto-nome-erro" class="erro" hidden></p>
+      <div id="gestao" hidden>
+        <section id="vista-lista" class="cartao" aria-labelledby="titulo-lista">
+          <div class="cartao__titulo">
+            <h2 id="titulo-lista">Serviços</h2>
+            <button type="button" class="botao" id="botao-novo-servico">Novo serviço</button>
           </div>
           <div class="campo">
-            <label for="assunto-descricao">Descrição</label>
-            <textarea id="assunto-descricao" name="descricao" rows="3" maxlength="1000" aria-describedby="assunto-descricao-erro"></textarea>
-            <p id="assunto-descricao-erro" class="erro" hidden></p>
+            <label for="busca-servico">Pesquisar serviço</label>
+            <input id="busca-servico" type="search" autocomplete="off" maxlength="100" aria-describedby="lista-resumo" />
           </div>
-          <button type="submit" class="botao" id="assunto-enviar" disabled>Revisar cadastro</button>
-        </form>
-      </section>
+          <p id="lista-resumo" class="ajuda" aria-live="polite"></p>
+          <ul id="lista-servicos" class="servicos servicos--escolha" aria-busy="false"></ul>
+        </section>
 
-      <section class="cartao" aria-labelledby="titulo-servico">
-        <h2 id="titulo-servico">Novo serviço</h2>
-        <form id="form-servico" novalidate>
-          <div class="campo">
-            <label for="servico-assunto">Assunto</label>
-            <select id="servico-assunto" name="assuntoId" aria-describedby="servico-assunto-erro">
-              <option value="">Carregando assuntos…</option>
-            </select>
-            <p id="servico-assunto-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="servico-nome">Nome</label>
-            <input id="servico-nome" name="nome" type="text" maxlength="120" autocomplete="off" aria-describedby="servico-nome-erro" />
-            <p id="servico-nome-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="servico-sigla">Sigla <span class="opcional">(opcional)</span></label>
-            <input id="servico-sigla" name="sigla" type="text" maxlength="20" autocomplete="off" aria-describedby="servico-sigla-erro" />
-            <p id="servico-sigla-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="servico-termos">Termos equivalentes</label>
-            <textarea id="servico-termos" name="termosEquivalentes" rows="4" aria-describedby="servico-termos-ajuda servico-termos-erro"></textarea>
-            <p id="servico-termos-ajuda" class="ajuda">Um termo por linha: nomes e expressões pelos quais o cidadão pode procurar o serviço.</p>
-            <p id="servico-termos-erro" class="erro" hidden></p>
-          </div>
-          <button type="submit" class="botao" id="servico-enviar" disabled>Revisar cadastro</button>
-        </form>
-      </section>
-
-      <section class="cartao" aria-labelledby="titulo-fontes">
-        <h2 id="titulo-fontes">Fontes do serviço</h2>
-        <p class="ajuda">Fontes oficiais que sustentam o conteúdo de um serviço. Toda fonte nova nasce em rascunho e não publicada; este cadastro não valida nem publica fontes.</p>
-        <div class="campo">
-          <label for="fontes-servico">Serviço</label>
-          <select id="fontes-servico" name="servicoId" aria-describedby="fontes-situacao">
-            <option value="">Carregando serviços…</option>
-          </select>
-        </div>
-        <p id="fontes-situacao" class="ajuda" aria-live="polite">Escolha um serviço para ver as fontes.</p>
-        <div id="fontes-lista" aria-busy="false"></div>
-
-        <h3 class="subtitulo">Nova fonte</h3>
-        <form id="form-fonte" novalidate>
-          <div class="campo">
-            <label for="fonte-id">Identificador</label>
-            <input id="fonte-id" name="id" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="fonte-id-ajuda fonte-id-erro" />
-            <p id="fonte-id-ajuda" class="ajuda">Letras minúsculas sem acento, números e hífen; começa por uma letra.</p>
-            <p id="fonte-id-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-titulo">Título</label>
-            <input id="fonte-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="fonte-titulo-erro" />
-            <p id="fonte-titulo-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-tipo">Tipo</label>
-            <select id="fonte-tipo" name="tipo" aria-describedby="fonte-tipo-erro">
-              <option value="">Escolha o tipo</option>
-              <option value="legislacao">Legislação</option>
-              <option value="pagina_oficial">Página oficial</option>
-              <option value="manual">Manual</option>
-              <option value="formulario">Formulário</option>
-              <option value="sistema">Sistema</option>
-              <option value="canal_atendimento">Canal de atendimento</option>
-              <option value="outro">Outro</option>
-            </select>
-            <p id="fonte-tipo-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-orgao">Órgão responsável</label>
-            <input id="fonte-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="fonte-orgao-erro" />
-            <p id="fonte-orgao-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-url">URL</label>
-            <input id="fonte-url" name="url" type="text" inputmode="url" maxlength="500" autocomplete="off" spellcheck="false" aria-describedby="fonte-url-ajuda fonte-url-erro" />
-            <p id="fonte-url-ajuda" class="ajuda">Endereço completo, começando por https://.</p>
-            <p id="fonte-url-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-descricao">Descrição</label>
-            <textarea id="fonte-descricao" name="descricao" rows="3" maxlength="1000" aria-describedby="fonte-descricao-erro"></textarea>
-            <p id="fonte-descricao-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo campo--caixa">
-            <div class="caixa">
-              <input id="fonte-oficial" name="origemOficial" type="checkbox" aria-describedby="fonte-oficial-ajuda fonte-oficial-erro" />
-              <label for="fonte-oficial">Origem oficial</label>
+        <section id="vista-novo" class="cartao" aria-labelledby="titulo-novo" hidden>
+          <h2 id="titulo-novo" tabindex="-1">Novo serviço</h2>
+          <form id="form-novo" novalidate>
+            <div class="campo">
+              <label for="novo-nome">Nome do serviço</label>
+              <input id="novo-nome" name="nome" type="text" maxlength="120" autocomplete="off" aria-describedby="novo-nome-erro" />
+              <p id="novo-nome-erro" class="erro" hidden></p>
             </div>
-            <p id="fonte-oficial-ajuda" class="ajuda">Origem oficial identifica a procedência, mas não significa que o conteúdo foi validado.</p>
-            <p id="fonte-oficial-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-data">Data de publicação <span class="opcional">(opcional)</span></label>
-            <input id="fonte-data" name="dataPublicacao" type="text" inputmode="numeric" maxlength="10" autocomplete="off" aria-describedby="fonte-data-ajuda fonte-data-erro" />
-            <p id="fonte-data-ajuda" class="ajuda">Formato DD-MM-AAAA.</p>
-            <p id="fonte-data-erro" class="erro" hidden></p>
-          </div>
-          <div class="campo">
-            <label for="fonte-dispositivo">Dispositivo relevante <span class="opcional">(opcional)</span></label>
-            <input id="fonte-dispositivo" name="dispositivoRelevante" type="text" maxlength="200" autocomplete="off" aria-describedby="fonte-dispositivo-erro" />
-            <p id="fonte-dispositivo-erro" class="erro" hidden></p>
-          </div>
-          <button type="submit" class="botao" id="fonte-enviar" disabled>Revisar cadastro</button>
-        </form>
-      </section>
-    </main>
+            <div class="campo">
+              <label for="novo-tema">Tema</label>
+              <input id="novo-tema" name="tema" type="text" maxlength="120" autocomplete="off" list="temas-lista" aria-describedby="novo-tema-ajuda novo-tema-erro" />
+              <datalist id="temas-lista"></datalist>
+              <p id="novo-tema-ajuda" class="ajuda">Escolha um tema da lista ou escreva um novo.</p>
+              <p id="novo-tema-erro" class="erro" hidden></p>
+            </div>
+            <div class="acoes-form">
+              <button type="submit" class="botao" id="novo-enviar">Criar serviço</button>
+              <button type="button" class="botao botao--secundario" id="novo-cancelar">Cancelar</button>
+            </div>
+          </form>
+        </section>
 
-    <dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">
-      <h2 id="confirmacao-titulo">Confirmar cadastro</h2>
-      <p id="confirmacao-descricao" class="ajuda">Confira os dados abaixo. Depois de confirmado, o cadastro é gravado como rascunho.</p>
-      <dl id="confirmacao-resumo" class="resumo"></dl>
-      <div class="dialogo__acoes">
-        <button type="button" class="botao botao--secundario" id="confirmacao-voltar">Voltar</button>
-        <button type="button" class="botao" id="confirmacao-confirmar">Confirmar cadastro</button>
+        <section id="vista-servico" class="cartao" aria-labelledby="titulo-servico" hidden>
+          <p class="voltar"><button type="button" class="botao botao--secundario" id="botao-voltar">Voltar para os serviços</button></p>
+          <h2 id="titulo-servico" tabindex="-1"></h2>
+          <p id="servico-tema" class="ajuda"></p>
+
+          <h3 class="subtitulo" id="titulo-adicionar">Adicionar informação</h3>
+          <div class="maneiras" role="group" aria-labelledby="titulo-adicionar">
+            <button type="button" class="botao botao--secundario" id="maneira-texto" aria-expanded="false" aria-controls="painel-texto">Texto</button>
+            <button type="button" class="botao botao--secundario" id="maneira-link" aria-expanded="false" aria-controls="painel-link">Link novo</button>
+            <button type="button" class="botao botao--secundario" id="maneira-existente" aria-expanded="false" aria-controls="painel-existente">Usar link já cadastrado</button>
+          </div>
+
+          <div id="painel-texto" class="painel" hidden>
+            <p class="aviso-dados" role="note">Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.</p>
+            <form id="form-texto" novalidate>
+              <div class="campo">
+                <label for="texto-titulo">Título</label>
+                <input id="texto-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="texto-titulo-erro" />
+                <p id="texto-titulo-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="texto-texto">Texto</label>
+                <textarea id="texto-texto" name="texto" rows="8" aria-describedby="texto-texto-ajuda texto-texto-erro"></textarea>
+                <p id="texto-texto-ajuda" class="ajuda">Escreva a informação com as suas palavras. Até 20.000 caracteres.</p>
+                <p id="texto-texto-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="texto-descricao">Descrição <span class="opcional">(opcional)</span></label>
+                <input id="texto-descricao" name="descricao" type="text" maxlength="1000" autocomplete="off" aria-describedby="texto-descricao-erro" />
+                <p id="texto-descricao-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="texto-orgao">Órgão responsável <span class="opcional">(opcional)</span></label>
+                <input id="texto-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="texto-orgao-erro" />
+                <p id="texto-orgao-erro" class="erro" hidden></p>
+              </div>
+              <div class="acoes-form">
+                <button type="submit" class="botao" id="texto-enviar">Adicionar texto</button>
+                <button type="button" class="botao botao--secundario" id="texto-cancelar">Cancelar</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="painel-link" class="painel" hidden>
+            <p class="aviso-dados" role="note">Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.</p>
+            <form id="form-link" novalidate>
+              <div class="campo">
+                <label for="link-titulo">Título</label>
+                <input id="link-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="link-titulo-erro" />
+                <p id="link-titulo-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="link-url">Endereço do link</label>
+                <input id="link-url" name="url" type="url" inputmode="url" maxlength="500" autocomplete="off" spellcheck="false" aria-describedby="link-url-ajuda link-url-erro" />
+                <p id="link-url-ajuda" class="ajuda">Precisa começar com https://</p>
+                <p id="link-url-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="link-tipo">Tipo</label>
+                <select id="link-tipo" name="tipo" aria-describedby="link-tipo-erro">
+                  <option value="pagina_oficial">Página de um site oficial</option>
+                  <option value="legislacao">Lei, decreto ou norma</option>
+                  <option value="manual">Manual ou guia</option>
+                  <option value="outro">Outro</option>
+                </select>
+                <p id="link-tipo-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="link-orgao">Órgão responsável</label>
+                <input id="link-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="link-orgao-erro" />
+                <p id="link-orgao-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo">
+                <label for="link-descricao">Descrição</label>
+                <input id="link-descricao" name="descricao" type="text" maxlength="1000" autocomplete="off" aria-describedby="link-descricao-ajuda link-descricao-erro" />
+                <p id="link-descricao-ajuda" class="ajuda">Em uma frase, diga o que a pessoa encontra nesse link.</p>
+                <p id="link-descricao-erro" class="erro" hidden></p>
+              </div>
+              <div class="campo campo--caixa">
+                <input id="link-oficial" name="origemOficial" type="checkbox" />
+                <label for="link-oficial">É um site ou documento oficial</label>
+              </div>
+              <div class="acoes-form">
+                <button type="submit" class="botao" id="link-enviar">Adicionar link</button>
+                <button type="button" class="botao botao--secundario" id="link-cancelar">Cancelar</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="painel-existente" class="painel" hidden>
+            <p class="ajuda">O link é copiado para este serviço como rascunho e precisa de uma nova revisão.</p>
+            <form id="form-busca" novalidate>
+              <div class="campo">
+                <label for="existente-consulta">Pesquisar links cadastrados</label>
+                <input id="existente-consulta" type="search" maxlength="100" autocomplete="off" aria-describedby="existente-resumo" />
+              </div>
+              <div class="acoes-form">
+                <button type="submit" class="botao" id="existente-buscar">Pesquisar</button>
+                <button type="button" class="botao botao--secundario" id="existente-cancelar">Fechar</button>
+              </div>
+            </form>
+            <p id="existente-resumo" class="ajuda" aria-live="polite"></p>
+            <ul id="existente-lista" class="servicos" aria-busy="false"></ul>
+          </div>
+
+          <h3 class="subtitulo" id="titulo-informacoes" tabindex="-1">Informações em elaboração</h3>
+          <p id="informacoes-resumo" class="ajuda" aria-live="polite"></p>
+          <ul id="informacoes-lista" class="servicos" aria-busy="false" aria-labelledby="titulo-informacoes"></ul>
+        </section>
       </div>
-    </dialog>
+    </main>
 
     <script type="module" src="./admin.js"></script>
   </body>

@@ -67,7 +67,7 @@
   "$defs": {
     "statusValidacao": { "enum": ["rascunho", "em_validacao", "validado"] },
     "tipoFonte": {
-      "enum": ["legislacao", "pagina_oficial", "manual", "formulario", "sistema", "canal_atendimento", "outro"]
+      "enum": ["legislacao", "pagina_oficial", "manual", "formulario", "sistema", "canal_atendimento", "outro", "texto_cadastrado"]
     },
     "pontoDeAcesso": {
       "type": "object",
@@ -89,8 +89,21 @@
         "id": { "type": "string", "minLength": 1 },
         "titulo": { "type": "string", "minLength": 1 },
         "tipo": { "$ref": "#/$defs/tipoFonte" },
-        "orgaoResponsavel": { "type": "string", "minLength": 1 },
-        "url": { "type": "string", "pattern": "^https://", "description": "Somente https; sem duplicidade no arquivo." },
+        "formaEntrada": { "enum": ["link", "texto"], "description": "Ausente = link (fontes anteriores). 'texto' = fonte textual: tipo texto_cadastrado, url null, entradaId obrigatório, origemOficial false, não publicada; o texto fica em entradas.json (ver entradas.schema.json). Link nunca tem entradaId." },
+        "entradaId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Somente fonte textual: id da entrada correspondente em entradas.json (1:1)." },
+        "reutilizadaDe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["servicoId", "versaoId", "fonteId"],
+          "properties": {
+            "servicoId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+            "versaoId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+            "fonteId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+          },
+          "description": "Somente link, opcional: linhagem de um link copiado de outro serviço (a fonte efetivamente selecionada). A cópia nasce em rascunho, não publicada, com dataConsulta e vigência reiniciadas; não herda validação nem autorização."
+        },
+        "orgaoResponsavel": { "type": ["string", "null"], "minLength": 1, "description": "Obrigatório em link; pode ser null só em fonte textual." },
+        "url": { "type": ["string", "null"], "pattern": "^https://", "description": "Link: somente https, sem duplicidade no arquivo. Fonte textual: null." },
         "descricao": { "type": "string" },
         "origemOficial": {
           "type": "boolean",

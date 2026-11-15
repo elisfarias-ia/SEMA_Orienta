@@ -141,7 +141,7 @@ test('SI7. a página é acessível e compacta: título, resumo, botão "Verifica
   assert.match(HTML, /<p id="saude-quando" class="ajuda" aria-live="polite">Ainda não verificado\.<\/p>/);
   assert.match(HTML, /<div id="saude-lista" aria-busy="false"><\/div>/);
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
-  assert.match(HTML, /<a class="botao botao--secundario" href="..\/">Voltar para Cadastro da base<\/a>/);
+  assert.match(HTML, /<a class="botao botao--secundario" href="..\/">Voltar para Gestão de conteúdo<\/a>/);
   assert.match(HTML, /sem fingir funcionamento/);
   // A página de saúde tem só os elementos de saúde: nada de formulário de cadastro.
   assert.doesNotMatch(HTML, /<form|<input|<textarea|<select|<dialog/);
