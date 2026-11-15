@@ -31,13 +31,17 @@ Funcionalidades aprovadas; linguagem aprovada após a substituição dos textos;
 | Verificação | Resultado | Evidência |
 |---|---|---|
 | `npm run validate:services` | PASSOU | sem erros (serviço lac) |
-| `npm test` | PASSOU | 736 testes, 732 passaram, 0 falharam, 4 ignorados (link simbólico: o Windows negou `EPERM`; marcados "NÃO TESTADO" nos próprios testes) |
+| `npm test` | PASSOU, com 4 testes NÃO TESTADOS | 736 testes, 732 passaram, 0 falharam, 4 ignorados (NÃO TESTADO no Windows: veja a seção abaixo) |
 | `npm run test:e2e` | PASSOU | 29 de 29 |
 | `npm run test:e2e:real` | PASSOU | 24 de 24 (fluxos reais e responsividade em desktop, 390 px e texto a 150% e 200%) |
 | `npm run build` | PASSOU | `dist/` gerado |
 | `node scripts/check-dist.js` | PASSOU | "dist/ limpo: 151 termos verificados, nenhuma ocorrência" |
-| Testes de isolamento que dependem do `dist/` | PASSOU | 149 testes, 148 passaram, 1 ignorado (link simbólico) |
+| Testes de isolamento que dependem do `dist/` | PASSOU, com 1 teste NÃO TESTADO | 149 testes, 148 passaram, 1 ignorado (um dos 4 abaixo) |
 | `git diff --check` | PASSOU | sem problemas (só avisos de LF/CRLF) |
+
+### Testes NÃO TESTADOS no Windows
+
+Quatro testes de link simbólico ficaram **NÃO TESTADOS no Windows** (três em `tests/mcp-seguranca.test.js` e um em `tests/admin-armazenamento.test.js`). Motivo: o sistema operacional negou a criação do link simbólico (`EPERM`, falta de permissão). **Não são falhas da aplicação**: o próprio teste se marca como ignorado quando não consegue criar o link. A proteção contra link simbólico segue coberta por leitura de código e pelos demais testes de confinamento, mas esses quatro casos específicos precisam de um ambiente com permissão (por exemplo, Linux ou Windows com modo de desenvolvedor).
 
 Falhas encontradas e corrigidas no fechamento (todas causadas pela Sprint 4): três testes com listas exatas ou varredura de dados pessoais (`AD21`, `V18`, `C1`) e uma quebra de linha do título do diálogo de confirmação a 200% de texto.
 
