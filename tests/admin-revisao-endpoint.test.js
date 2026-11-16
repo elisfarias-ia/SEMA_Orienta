@@ -217,6 +217,28 @@ test('E7. rollback pela rota: falha na conferência final deixa a base e o hist�
   }, { verificarFinal: (r) => (recusar ? ['recusado'] : validarServicos(r).erros) });
 });
 
+test('E9. reabrir bloco pela rota: 200 antes de concluir, 422 se não está aceito, 409 depois de concluir; corpo só com blocoId e revisao', async () => {
+  await comCopia(async ({ post, situacao }) => {
+    let s = await situacao();
+    assert.deepEqual([(await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao })).status], [422]);
+    await post('revisao/fontes', { fonteId: MANUAL, revisao: s.revisao });
+    s = await situacao();
+    await post('revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao });
+    s = await situacao();
+    assert.equal(s.blocos[0].podeReabrir, true);
+    assert.equal((await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao, x: 1 })).status, 422);
+    const r = await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao });
+    assert.deepEqual([r.status, typeof r.corpo.revisao], [200, 'string']);
+    s = await situacao();
+    assert.deepEqual([s.blocos[0].aceito, s.resumo.informacoesPendentes, s.rotulo], [false, 1, 'Em elaboração']);
+    await post('revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao });
+    s = await situacao();
+    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    const x = await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao });
+    assert.deepEqual([x.status, x.corpo.erro], [409, 'versao_congelada']);
+  });
+});
+
 test('E8. a LAC real e o armazenamento privado real não foram alterados por nenhum teste deste arquivo', () => {
   assert.deepEqual(retrato(RAIZ), RETRATO_REAL_ANTES);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), EXISTIA_DATA);

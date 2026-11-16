@@ -119,7 +119,7 @@ test('IC4. a localização é obrigatória para cada fonte marcada e as demais r
   assert.ok(erros(VALORES({ selecionadas: [{ fonteId: 'f-um', localizacao: 'a' }, { fonteId: 'f-um', localizacao: 'b' }] })).fontes.includes('uma só vez'));
   assert.ok(erros(VALORES({ titulo: '' })).titulo.includes('tema da informação'));
   assert.ok(erros(VALORES({ titulo: 'a'.repeat(LIMITES_CONHECIMENTO.titulo + 1) })).titulo.includes('200'));
-  assert.ok(erros(VALORES({ texto: '  ' })).texto.includes('informação que o chatbot pode usar'));
+  assert.ok(erros(VALORES({ texto: '  ' })).texto.includes('o que o chatbot deve informar ao cidadão'));
   assert.ok(erros(VALORES({ texto: 'a'.repeat(LIMITES_CONHECIMENTO.texto + 1) })).texto.includes('2000'));
   assert.ok(erros(VALORES({ texto: `fale com ${EMAIL}` })).texto.includes('e-mail'));
   assert.ok(erros(VALORES({ texto: `ligue ${TELEFONE}` })).texto.includes('telefone'));
@@ -135,7 +135,7 @@ test('IC5. corpo enviado: só os cinco campos permitidos; nada de id, datas, est
   assert.deepEqual(Object.keys(corpoDoConhecimento(dados)).sort(), ['alertas', 'fonteIds', 'referencias', 'texto', 'titulo']);
   assert.deepEqual(Object.keys(corpoDoConhecimento({ ...dados, alertas: [] })).sort(), ['fonteIds', 'referencias', 'texto', 'titulo'], 'alertas só quando houver');
   const linhas = resumoDoConhecimento(dados, fontes, 'Serviço Fictício');
-  assert.deepEqual(linhas.map((l) => l.rotulo), ['Serviço', 'Tema da informação', 'Informação que o chatbot pode usar', 'Documentos ou links usados', 'Avisos ou limitações', 'Situação inicial']);
+  assert.deepEqual(linhas.map((l) => l.rotulo), ['Serviço', 'Tema da informação', 'O que o chatbot deve informar ao cidadão?', 'Documentos ou links usados', 'Avisos ou limitações', 'Situação inicial']);
   const texto = linhas.map((l) => l.valor).join('|');
   assert.ok(texto.includes('Fonte Um — p. 3'));
   assert.equal(texto.includes('f-um'), false, 'a fonte aparece pelo título, não pelo id');
@@ -151,7 +151,7 @@ test('IC6. mensagens curtas por código, sem usar a resposta bruta', () => {
   assert.ok(m(409, { erro: 'operacao_em_andamento' }).includes('em andamento'));
   assert.equal(m(409, { erro: 'qualquer' }), MENSAGENS.generica);
   assert.ok(m(404, { erro: 'nao_encontrado' }).includes('não foi encontrado'));
-  assert.ok(m(422, { erro: 'dados_invalidos', campos: ['texto', 'referencias'] }).includes('informação que o chatbot pode usar, onde a informação aparece na fonte'));
+  assert.ok(m(422, { erro: 'dados_invalidos', campos: ['texto', 'referencias'] }).includes('o que o chatbot deve informar ao cidadão, onde a informação aparece na fonte'));
   assert.ok(m(422, { erro: 'dados_invalidos', campos: ['extras'] }).includes('não são permitidos'));
   assert.ok(m(413, null).includes('grandes'));
   assert.ok(m(415, null).includes('formato'));
@@ -250,37 +250,37 @@ test('IC10. erros do servidor viram mensagens curtas e pedem recarregar quando o
 
 test('IC11. estrutura: título, aviso, navegação com três links, rótulos, regiões vivas, diálogo e formulário só nesta página', () => {
   assert.match(HTML, /<html lang="pt-BR">/);
-  assert.match(HTML, /<title>SEMA Orienta — Informações do chatbot<\/title>/);
-  assert.match(HTML, /<h1>SEMA Orienta — Informações do chatbot<\/h1>/);
-  assert.match(HTML, /<p class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação<\/p>/);
-  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Cadastro da base<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Informações do chatbot<\/a>\s*<a class="navegacao__link" href="..\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
+  assert.match(HTML, /<title>SEMA Orienta — Conteúdo para respostas<\/title>/);
+  assert.match(HTML, /<h1>SEMA Orienta — Conteúdo para respostas<\/h1>/);
+  assert.doesNotMatch(HTML, /demonstra|sem autenticação|aviso-admin/i, 'a tela não repete avisos de demonstração nem de ambiente');
+  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Gestão de conteúdo<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Conteúdo para respostas<\/a>\s*<a class="navegacao__link" href="..\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
   assert.match(HTML, /<a class="pular" href="#principal">/);
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1">/);
   assert.match(HTML, /<dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">/);
   for (const id of ['assunto', 'servico', 'bloco-titulo', 'bloco-texto', 'bloco-alertas']) assert.match(HTML, new RegExp(`<label for="${id}">`), id);
   assert.match(HTML, /<fieldset[^>]*>\s*<legend>Documentos ou links usados<\/legend>/);
   for (const id of ['bloco-titulo', 'bloco-texto', 'bloco-alertas']) assert.match(HTML, new RegExp(`<p id="${id}-erro" class="erro" hidden>`), id);
-  assert.match(HTML, /<h2 id="titulo-form" tabindex="-1">Nova informação<\/h2>/);
+  assert.match(HTML, /<h2 id="titulo-form" tabindex="-1">Incluir informação<\/h2>/);
   // Linguagem e apresentação aprovadas: introdução, rótulos, ajudas e ícones decorativos
   assert.match(HTML, /Cadastre uma informação completa e comprovada. O chatbot poderá usá-la para responder diferentes perguntas dos cidadãos./);
   assert.match(HTML, /<label for="bloco-titulo">Tema da informação<\/label>/);
-  assert.match(HTML, /<label for="bloco-texto">Informação que o chatbot pode usar<\/label>/);
+  assert.match(HTML, /<label for="bloco-texto">O que o chatbot deve informar ao cidadão\?<\/label>/);
   assert.match(HTML, /<label for="bloco-alertas">Avisos ou limitações <span class="opcional">\(opcional\)<\/span><\/label>/);
   assert.match(HTML, /Selecione onde esta informação pode ser conferida./);
   assert.match(HTML, /Opcional. Escreva um aviso por linha./);
   assert.ok((HTML.match(/class="icone[^"]*" aria-hidden="true"/g) ?? []).length >= 4, 'ícones só decorativos, ocultos para leitores de tela');
-  assert.match(HTML, /<div class="duas-colunas">/);
+  assert.match(HTML, /id="botao-nova-orientacao" aria-controls="cartao-form" aria-expanded="false" hidden>Incluir informação<\/button>/);
+  assert.match(HTML, /<section id="cartao-form" class="cartao" aria-labelledby="titulo-form" hidden>/, 'formulário recolhido até a pessoa pedir');
   // Ícones SVG simples de traço (sem emojis nem biblioteca): currentColor, decorativos e do mesmo tamanho
   assert.doesNotMatch(HTML, /\p{Extended_Pictographic}/u, 'nenhum emoji na página');
   const svgs = HTML.match(/<svg [^>]*>/g) ?? [];
-  assert.equal(svgs.length, 5, 'folha, balão, documento, mais e lista');
+  assert.equal(svgs.length, 7, 'folha, balão, documento, links, mais, lista e conclusão');
   for (const s of svgs) assert.match(s, /viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"/);
   assert.doesNotMatch(HTML, /<svg[^>]*(<script|onload|href=)|<img|<use|xlink/);
   assert.match(CSS, /\.icone svg \{[^}]*width: 1\.25rem;[^}]*height: 1\.25rem;/);
   assert.match(CSS, /\.icone \{[^}]*color: var\(--verde-800\);/);
   assert.match(JS, /Onde esta informação aparece na fonte\?/);
   assert.match(JS, /placeholder = 'Ex\.: página 3'/);
-  assert.match(CSS, /@media \(min-width: 62rem\)[\s\S]*\.duas-colunas/);
   assert.doesNotMatch(HTML, /Título da informação|Orientação ao cidadão|Conteúdo orientativo|Localização/);
   assert.match(HTML, /id="bloco-enviar" disabled/);
   assert.match(HTML, /id="bloco-cancelar"/);
@@ -291,8 +291,8 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(CSS, /@media \(max-width: 30rem\)[\s\S]*\.acoes-form \.botao/);
   // O formulário não está na página administrativa principal nem na de saúde.
   for (const outra of [lerTexto('admin', 'index.html'), lerTexto('admin', 'saude', 'index.html')]) {
-    assert.doesNotMatch(outra, /form-bloco|bloco-titulo|Nova informação|conteudo\.js/);
-    assert.match(outra, /href="(\.\/|\.\.\/)conteudo\/">Informações do chatbot<\/a>/);
+    assert.doesNotMatch(outra, /form-bloco|bloco-titulo|Nova informação|Incluir informação|conteudo\.js/);
+    assert.match(outra, /href="(\.\/|\.\.\/)conteudo\/">Conteúdo para respostas<\/a>/);
   }
 });
 
@@ -311,9 +311,10 @@ test('IC13. nenhuma gravação ao abrir: gravarConhecimento só é chamado depoi
   assert.equal((JS.match(/cliente\.gravarConhecimento\(/g) ?? []).length, 1);
   const confirmar = /async function confirmar\(\) \{[\s\S]*?\r?\n\}\r?\n/.exec(JS)[0];
   assert.match(confirmar, /cliente\.gravarConhecimento\(operacao, servicoId, blocoId, corpo\)/);
-  assert.match(confirmar, /if \(pendente === null \|\| cliente\.gravando\(\)\) return;/);
+  assert.match(confirmar, /if \(pendente === null \|\| cliente\.gravando\(\) \|\| ocupado\) return;/);
   assert.match(confirmar, /botaoConfirmar\.disabled = true;/);
-  assert.match(confirmar, /mostrarStatus\(.*'info', true\)/, 'sucesso: foco na mensagem');
+  assert.match(confirmar, /mostrarStatus\(.*'info', !focou\)/, 'sucesso: foco no cartão salvo (ou na mensagem se ele não existir)');
+  assert.match(confirmar, /focarItem\(salvo === null \? null : itemDoBloco\(salvo\)\)/);
   assert.match(confirmar, /mostrarStatus\(r\.mensagem, 'erro', true\)/, 'erro: foco na mensagem');
   assert.match(confirmar, /await carregarServico\(servicoId\)/, 'recarrega a lista depois do sucesso');
   assert.match(confirmar, /r\.recarregar/);
@@ -322,18 +323,18 @@ test('IC13. nenhuma gravação ao abrir: gravarConhecimento só é chamado depoi
   assert.doesNotMatch(/async function carregarServico\([\s\S]*?\r?\n\}\r?\n/.exec(JS)[0], /gravarConhecimento/);
   // confirmação antes de criar, alterar e excluir; Voltar e Cancelar não gravam; Esc não fecha durante a gravação
   assert.match(JS, /abrirConfirmacao\(\{[\s\S]*?operacao: criando \? 'criar' : 'alterar'/);
-  assert.match(JS, /operacao: 'excluir'/);
+  assert.doesNotMatch(JS, /operacao: 'excluir'/, 'a exclusão virou "Excluir informação", com confirmação própria e a rota de rejeição');
   assert.match(JS, /botaoVoltar\.addEventListener\('click', fecharConfirmacao\)/);
   assert.match(JS, /\$\('bloco-cancelar'\)\.addEventListener\('click', cancelar\)/);
   assert.match(JS, /dialogo\.addEventListener\('cancel', \(evento\) => \{\s*if \(cliente\.gravando\(\)\) evento\.preventDefault\(\);/);
   assert.match(JS, /showModal/);
   // ações desabilitadas fora de rascunho; foco devolvido ao gatilho ao fechar; foco no formulário ao editar
-  assert.match(JS, /const podeEditar = \(\) => cliente\.sessaoPronta\(\) && contexto !== null && contexto\.editavel && !cliente\.gravando\(\);/);
-  assert.match(JS, /botao\.disabled = !livre \|\| !\(item && item\.__bloco && item\.__bloco\.editavel\);/);
+  assert.match(JS, /const podeEditar = \(\) => cliente\.sessaoPronta\(\) && contexto !== null && contexto\.editavel && !cliente\.gravando\(\) && !ocupado;/);
+  assert.match(JS, /botao\.disabled = parada \|\| botao\.dataset\.indisponivel === 'true';/);
   assert.match(JS, /pendente\.gatilho\.focus\(\)/);
   assert.match(JS, /\$\('titulo-form'\)\.focus\(\)/);
   assert.match(JS, /primeiro\.focus\(\)/, 'foco no primeiro campo com erro');
-  assert.match(JS, /aria-label', `Editar a informação \$\{b\.titulo\}`/);
+  assert.match(JS, /`Editar a informação \$\{b\.titulo\}`/);
 });
 
 test('IC14. isolamento: o chat público não referencia a página, o build não a inclui e este arquivo não grava nada', () => {

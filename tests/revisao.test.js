@@ -229,7 +229,7 @@ test('R7. concluir: congela, grava o hash, registra a decisão e leva a "Pronto 
     assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
     assert.equal(rev.rejeitarBloco('lac', { blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
     const sit = rev.consultar('lac').situacao;
-    assert.deepEqual([sit.editavel, sit.podeConcluir, sit.rotulo], [false, false, null]);
+    assert.deepEqual([sit.editavel, sit.podeConcluir, sit.rotulo], [false, false, 'Pronto para publicar']);
   });
 });
 
@@ -448,6 +448,80 @@ test('R15. isolamento: chat, assistente, MCP e build não conhecem o histórico 
     assert.doesNotMatch(t, /admin-private|historico-revisao|revisao-servico|acao_revisao|admin\/revisao/, path.relative(RAIZ, a));
   }
   assert.doesNotMatch(fs.readFileSync(path.join(RAIZ, 'vite.config.js'), 'utf8'), /admin-private|historico-revisao/);
+});
+
+test('R16. reabrir bloco aceito: volta a rascunho/pendente/não publicado, registra no histórico e só antes de concluir', async () => {
+  await comCopia(async ({ raiz }) => {
+    const rev = prontoParaConcluir(raiz);
+    const teste = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((b) => b.ambiente === 'teste_local');
+    // bloco de teste e bloco ainda em elaboração não são reabertos
+    assert.equal(rev.reabrirBloco('lac', { blocoId: teste.id, revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceitavel');
+    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-nao-existe', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_encontrado');
+    assert.equal(rev.consultar('lac').situacao.blocos[0].podeReabrir, true);
+    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
+    const r = rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const b = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((x) => x.id === 'bc-um');
+    assert.deepEqual([b.statusValidacao, b.revisaoAtualidade, b.publicado, b.atualizadoEm], ['rascunho', 'pendente', false, '2026-11-17']);
+    assert.equal(r.revisao, revisaoAtual(rev));
+    assert.deepEqual(validarServicos(raiz).erros, []);
+    const sit = rev.consultar('lac').situacao;
+    assert.deepEqual([sit.blocos[0].aceito, sit.blocos[0].podeAceitar, sit.blocos[0].podeReabrir, sit.podeConcluir], [false, true, false, false]);
+    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceito');
+    // pode ser aceito de novo e concluído
+    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
+    assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco', 'reabrir_bloco', 'aceitar_bloco']);
+    assert.equal(rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) }).ok, true);
+    // depois de concluir não se reabre
+    const antes = retrato(raiz);
+    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'versao_congelada');
+    assert.deepEqual(retrato(raiz), antes);
+    assert.equal(rev.consultar('lac').situacao.blocos[0].podeReabrir, false);
+  });
+});
+
+test('R17. situação em linguagem comum: rótulo, revisão pendente e resumo de pendências, sem estados técnicos', async () => {
+  await comCopia(async ({ raiz }) => {
+    prepararLac(raiz);
+    const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
+    let s = rev.consultar('lac').situacao;
+    assert.deepEqual([s.rotulo, s.revisaoPendente, s.resumo], ['Em elaboração', true, { fontesPendentes: 1, informacoesPendentes: 1, informacoesAceitas: 0, fontesNaoUsadas: 0, pendenciasParaConcluir: 3 }]);
+    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
+    s = rev.consultar('lac').situacao;
+    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: s.revisao }).ok, true);
+    s = rev.consultar('lac').situacao;
+    assert.deepEqual([s.rotulo, s.revisaoPendente, s.resumo], ['Em elaboração', false, { fontesPendentes: 0, informacoesPendentes: 0, informacoesAceitas: 1, fontesNaoUsadas: 0, pendenciasParaConcluir: 0 }]);
+    assert.equal(rev.concluirRevisao('lac', { revisao: s.revisao }).ok, true);
+    s = rev.consultar('lac').situacao;
+    assert.deepEqual([s.rotulo, s.revisaoPendente], ['Pronto para publicar', false]);
+    assert.ok(!/rascunho|validado|em_validacao|hash/i.test(s.rotulo));
+  });
+});
+
+test('R18. fonte não usada por nenhum bloco: aparece como não revisada, fica fora da contagem e não impede concluir', async () => {
+  await comCopia(async ({ raiz }) => {
+    // manual: usada pelo bloco; faq e tr-176: não usadas e não revisadas
+    prepararLac(raiz, [bloco('bc-um', ['manual-lac-siga-2020'])], ['manual-lac-siga-2020', 'faq-lac-2022', 'tr-176-lac']);
+    const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
+    let s = rev.consultar('lac').situacao;
+    assert.deepEqual(s.resumo, { fontesPendentes: 1, informacoesPendentes: 1, informacoesAceitas: 0, fontesNaoUsadas: 2, pendenciasParaConcluir: 3 });
+    assert.deepEqual(s.pendencias.map((p) => [p.codigo, p.id ?? null]).sort(), [['bloco_pendente', 'bc-um'], ['fonte_pendente', 'manual-lac-siga-2020'], ['sem_bloco_aceito', null]]);
+    assert.ok(!s.pendencias.some((p) => ['faq-lac-2022', 'tr-176-lac'].includes(p.id)), 'fonte não usada não é pendência');
+    const naoUsada = s.fontes.find((f) => f.id === 'faq-lac-2022');
+    assert.deepEqual([naoUsada.usadaPorBloco, naoUsada.revisada, naoUsada.podeRevisar], [false, false, true]);
+    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
+    s = rev.consultar('lac').situacao;
+    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: s.revisao }).ok, true);
+    s = rev.consultar('lac').situacao;
+    assert.deepEqual([s.resumo.pendenciasParaConcluir, s.resumo.fontesNaoUsadas, s.pendencias, s.podeConcluir], [0, 2, [], true]);
+    const r = rev.concluirRevisao('lac', { revisao: s.revisao });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    // as fontes não usadas continuam não revisadas e nada foi publicado
+    const f = lerJ(raiz, ...arq('fontes.json')).fontes;
+    assert.deepEqual(['faq-lac-2022', 'tr-176-lac'].map((id) => f.find((x) => x.id === id).statusValidacao), ['em_validacao', 'em_validacao']);
+    assert.ok(f.every((x) => x.publicado === false));
+    assert.deepEqual(validarServicos(raiz).erros, []);
+  });
 });
 
 test('R14. a LAC real e o armazenamento privado real não foram alterados por nenhum teste deste arquivo', () => {

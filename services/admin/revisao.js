@@ -23,6 +23,14 @@ const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
 const LIMITE_ID = 60;
 
 export const ROTULO_EM_ELABORACAO = 'Em elaboração';
+/** Rótulo da situação da versão em linguagem comum (nunca o nome técnico do estado). */
+export function rotuloDaSituacao(estado) {
+  if (estado === 'rascunho') return ROTULO_EM_ELABORACAO;
+  if (estado === 'validado_materialmente' || estado === 'autorizado_publicacao') return 'Pronto para publicar';
+  if (estado === 'publicado') return 'Publicado';
+  if (estado === 'ajustes_solicitados') return 'Ajustes solicitados';
+  return 'Em análise';
+}
 const ehConhecimento = (b) => ehObjeto(b) && b.tipo === TIPO_CONHECIMENTO;
 const fonteRevogada = (f) => ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada';
 const idValido = (v) => typeof v === 'string' && v.length <= LIMITE_ID && PADRAO_ID.test(v);
@@ -34,6 +42,7 @@ export const CAMPOS_DA_ACAO = Object.freeze({
   revisar_fonte: Object.freeze(['fonteId', 'revisao']),
   aceitar_bloco: Object.freeze(['blocoId', 'revisao']),
   rejeitar_bloco: Object.freeze(['blocoId', 'revisao']),
+  reabrir_bloco: Object.freeze(['blocoId', 'revisao']),
   concluir_revisao: Object.freeze(['revisao']),
   nova_versao: Object.freeze([]),
 });
@@ -98,7 +107,23 @@ export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao }) {
     servicoId,
     versaoId: manifesto.id,
     estadoVersao: manifesto.estado,
-    rotulo: editavel ? ROTULO_EM_ELABORACAO : null,
+    rotulo: rotuloDaSituacao(manifesto.estado),
+    revisaoPendente: editavel && pendencias.length > 0,
+    // "Pendências para concluir" = todos os impedimentos (nenhuma informação aceita, informações em elaboração, fontes USADAS ainda não
+    // revisadas, fonte revogada ou inexistente, entrada inválida). Fonte não usada por nenhum bloco NÃO conta nem impede concluir.
+    // Fonte não usada por nenhum bloco pode continuar sem revisão: não entra na contagem, não impede concluir e não vai ao público.
+    resumo: (() => {
+      const informacoesPendentes = blocos.filter((b) => b.statusValidacao !== 'validado').length;
+      const fontesPendentes = [...fontes.values()].filter((f) => usadas.has(f.id) && f.statusValidacao !== 'validado').length;
+      return {
+        fontesPendentes,
+        informacoesPendentes,
+        informacoesAceitas: blocos.filter((b) => b.statusValidacao === 'validado').length,
+        fontesNaoUsadas: [...fontes.values()].filter((f) => !usadas.has(f.id) && f.statusValidacao !== 'validado' && !fonteRevogada(f)).length,
+        // Fonte única: a contagem é o número de impedimentos devolvidos pelo domínio (a mesma lista de `pendencias`).
+        pendenciasParaConcluir: pendencias.length,
+      };
+    })(),
     editavel,
     revisao,
     fontes: [...fontes.values()].map((f) => ({
@@ -122,6 +147,7 @@ export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao }) {
         aceito: !emElaboracao,
         fontesPendentes,
         podeAceitar: editavel && emElaboracao && b.revisaoAtualidade === 'pendente' && fontesPendentes.length === 0 && (b.fonteIds ?? []).length > 0,
+        podeReabrir: editavel && !emElaboracao && b.publicado === false,
         podeRejeitar: editavel && emElaboracao && b.statusValidacao === 'rascunho' && b.publicado === false && b.revisaoAtualidade === 'pendente',
       };
     }),
@@ -176,6 +202,24 @@ export function aceitarBloco(arquivos, blocoId, data) {
   const atualizadoEm = dataIsoValida(bloco.criadoEm) && data < bloco.criadoEm ? bloco.criadoEm : data;
   novo.blocos = novo.blocos.map((b) => (ehObjeto(b) && b.id === blocoId ? { ...b, statusValidacao: 'validado', revisaoAtualidade: 'concluida', publicado: false, atualizadoEm } : b));
   if (novo.statusValidacao === 'rascunho') novo.statusValidacao = 'em_validacao';
+  return conferirConteudoAssistente(novo, arquivos) ?? { ok: true, conteudoAssistente: novo };
+}
+
+/**
+ * Reabre para correção um bloco aceito, enquanto a versão ainda está em rascunho: volta a rascunho, revisão de atualidade
+ * pendente e `publicado` falso. Não existe depois de concluída a revisão (a versão fica congelada). Retorna
+ * { ok: true, conteudoAssistente } ou { ok: false, erro }.
+ */
+export function reabrirBloco(arquivos, blocoId, data) {
+  if (!dataIsoValida(data) || !idValido(blocoId)) return falha('dados_invalidos');
+  const doc = arquivos.conteudoAssistente;
+  const bloco = listaDe(doc, 'blocos').find((b) => b.id === blocoId);
+  if (!bloco) return falha('bloco_nao_encontrado');
+  if (!ehConhecimento(bloco)) return falha('bloco_nao_aceitavel');
+  if (bloco.statusValidacao !== 'validado' || bloco.publicado !== false) return falha('bloco_nao_aceito');
+  const novo = structuredClone(doc);
+  const atualizadoEm = dataIsoValida(bloco.criadoEm) && data < bloco.criadoEm ? bloco.criadoEm : data;
+  novo.blocos = novo.blocos.map((b) => (ehObjeto(b) && b.id === blocoId ? { ...b, statusValidacao: 'rascunho', revisaoAtualidade: 'pendente', publicado: false, atualizadoEm } : b));
   return conferirConteudoAssistente(novo, arquivos) ?? { ok: true, conteudoAssistente: novo };
 }
 

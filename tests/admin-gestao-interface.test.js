@@ -229,19 +229,22 @@ test('G13. erros do servidor viram mensagens e campos; resposta inválida de suc
 
 // ---------- Estrutura, acessibilidade e segurança do código ----------
 
-test('G14. a tela abre no estado de demonstração, sem usuário nem senha, com os controles pedidos', () => {
-  assert.match(HTML, /Área administrativa — ambiente local de demonstração/);
-  assert.match(HTML, />Entrar como servidor de demonstração<\/button>/);
+test('G14. a tela abre com o botão Acessar administração, sem usuário nem senha, sem avisos de demonstração e com os controles pedidos', () => {
+  assert.match(HTML, /<h2 id="titulo-entrada">Área administrativa<\/h2>/);
+  assert.match(HTML, />Acessar administração<\/button>/);
   assert.match(HTML, />Sair<\/button>/);
-  assert.match(HTML, /Servidor de demonstração/);
+  assert.match(HTML, /class="barra-sessao__quem">Administração<\/p>/);
+  assert.doesNotMatch(`${HTML}\n${JS}`, /demonstra|sem autenticação|autenticação real|aviso-demo/i, 'sem textos de demonstração na tela');
   assert.match(HTML, /href="\.\/saude\/">Saúde do sistema<\/a>/);
-  assert.match(HTML, /href="\.\/conteudo\/">Informações do chatbot<\/a>/);
-  assert.match(JS, /não é autenticação real/);
+  assert.match(HTML, /href="\.\/conteudo\/">Conteúdo para respostas<\/a>/);
   assert.doesNotMatch(HTML, /type="password"|name="(usuario|senha|login)"|autocomplete="(username|current-password)"/i);
   assert.match(HTML, /Novo serviço/);
   assert.match(HTML, />Texto<\/button>/);
-  assert.match(HTML, />Link novo<\/button>/);
-  assert.match(HTML, />Usar link já cadastrado<\/button>/);
+  assert.match(HTML, />Link<\/button>/);
+  assert.doesNotMatch(HTML, /Usar link já cadastrado<\/button>|maneira-existente|Link novo<\/button>/, 'só duas escolhas principais: Texto e Link');
+  assert.match(HTML, /Você pode informar um novo endereço ou reutilizar um link já cadastrado\./);
+  assert.doesNotMatch(HTML, /id="texto-descricao"|id="texto-orgao"/, 'o cadastro de texto não pede descrição nem órgão');
+  assert.match(HTML, /<label for="link-orgao">Órgão que publicou o conteúdo<\/label>/);
   assert.match(HTML, /Informações em elaboração/);
   assert.match(HTML, /list="temas-lista"/);
   assert.equal((HTML.match(/Não escreva dados pessoais/g) ?? []).length >= 2, true, 'aviso nas telas de texto e de link');
@@ -249,7 +252,8 @@ test('G14. a tela abre no estado de demonstração, sem usuário nem senha, com 
 
 test('G15. sem radios, assistente, modo avançado, identificadores técnicos nem campos que o servidor define', () => {
   assert.doesNotMatch(HTML, /type="radio"|<fieldset|checkpoint|wizard|avançad|Mais opções|<details/i);
-  assert.doesNotMatch(`${HTML}\n${JS}`, /\bv1\b|hashConteudo|revisao|statusValidacao|sigla|Identificador|termosEquivalentes/i);
+  assert.doesNotMatch(`${HTML}\n${JS}`, /\bv1\b|hashConteudo|statusValidacao|sigla|Identificador|termosEquivalentes/i);
+  assert.doesNotMatch(HTML, /revisao/i, 'a revisão aparece só em linguagem comum, sem identificadores técnicos no HTML');
   assert.doesNotMatch(HTML, /name="(id|sigla|descricaoTema|termos[A-Za-z]*|revisao|status[A-Za-z]*|publicado)"/);
   // o formulário de novo serviço tem só dois campos
   const novo = HTML.slice(HTML.indexOf('id="form-novo"'), HTML.indexOf('</form>', HTML.indexOf('id="form-novo"')));
@@ -268,7 +272,7 @@ test('G16. rótulos, ids únicos, descrições existentes, regiões vivas e erro
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
   assert.equal((HTML.match(/aria-live="polite"/g) ?? []).length >= 4, true);
   for (const m of HTML.matchAll(/<button\b([^>]*)>/g)) assert.match(m[1], /type="(submit|button)"/);
-  for (const id of ['maneira-texto', 'maneira-link', 'maneira-existente']) assert.match(HTML, new RegExp(`id="${id}" aria-expanded="false" aria-controls="painel-`));
+  for (const id of ['maneira-texto', 'maneira-link']) assert.match(HTML, new RegExp(`id="${id}" aria-expanded="false" aria-controls="painel-`));
   assert.equal((HTML.match(/<h1>/g) ?? []).length, 1);
   assert.match(HTML, /<html lang="pt-BR">/);
   assert.match(HTML, /<a class="pular" href="#principal">/);

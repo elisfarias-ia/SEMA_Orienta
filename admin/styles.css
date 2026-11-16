@@ -10,7 +10,7 @@
   --texto: #14281d;
   --texto-suave: #3f5a4a;
   --borda: #a7d8b8;
-  --foco: #ca8a04;
+  --foco: #a16207; /* contraste de pelo menos 4,5:1 sobre branco (anel de foco) */
   --erro: #9b1c1c;
   --erro-fundo: #fef2f2;
   --aviso-fundo: #fef9c3;
@@ -859,4 +859,61 @@ a.botao {
   display: flex;
   align-items: center;
   min-height: 2.75rem;
+}
+
+/* Revisão do conteúdo (Passo 5B2): estados sempre com texto; a forma (borda tracejada) reforça "pendente" além da cor. */
+.selo[hidden] {
+  display: none;
+}
+.selo--pendente {
+  border-style: dashed;
+  border-color: #713f12;
+  color: #713f12;
+  background: var(--aviso-fundo);
+}
+.selo--neutro {
+  margin-left: 0;
+}
+.bloco__ajuda {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #713f12;
+}
+.pendencias {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.pendencias li {
+  margin: 0.25rem 0;
+}
+.painel-estado {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+  min-width: 0;
+}
+.painel-estado p {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+a.botao {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
+.bloco__acoes .botao,
+.acoes-form .botao,
+.painel-estado .botao {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.situacao[hidden] {
+  display: none;
+}
+.maneiras[hidden] {
+  display: none;
 }

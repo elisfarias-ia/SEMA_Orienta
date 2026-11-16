@@ -12,6 +12,7 @@
 // Resultado: { ok: true, ... } ou { ok: false, erro: '<codigo>', detalhes?: [...] } (detalhes nomeiam campos, sem repetir conteúdo).
 
 import { conteudoEditavel } from './fluxo.js';
+import { contemEmailNaoPermitido } from './contatos-permitidos.js';
 import { dataIsoValida, falha, idValido, structuredCloneSeguro, validarVersao } from './versao.js';
 import { CAMPOS_BLOCO_CONHECIMENTO, LIMITES_CONHECIMENTO, validarConteudoAssistente } from '../../scripts/validate-services.js';
 
@@ -31,7 +32,7 @@ const ehConhecimento = (b) => ehObjeto(b) && b.tipo === TIPO_CONHECIMENTO;
 function texto(valor, limite) {
   if (typeof valor !== 'string' || CONTROLE.test(valor)) return null;
   const t = valor.trim();
-  if (t === '' || t.length > limite || PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) return null;
+  if (t === '' || t.length > limite || contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t)) return null;
   return t;
 }
 

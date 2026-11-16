@@ -199,3 +199,20 @@ Domínio, rotas e histórico, **sem interface e sem publicação** (a interface 
 - **Decisão órfã (para o 5C):** uma decisão gravada por tentativa desfeita só é reaproveitada se for exatamente a esperada (tipo, versão, hash, decisão e ator iguais); senão a conclusão falha com `historico_invalido`. O histórico sozinho não prova que a versão foi validada: o 5C precisa checar também o estado e o hash do manifesto da versão.
 - **Pendência para o 5C:** hoje só as fontes usadas por blocos de conhecimento precisam estar revisadas; uma fonte em rascunho que nenhum bloco usa não impede a conclusão.
 - **Pendências:** a autorização e a publicação são do 5C; o histórico fora da transação do conteúdo (arquivo privado) não é atômico com ela, por isso a gravação do histórico acontece na etapa final da transação.
+
+### Interface da revisão (Sprint 5, Passo 5B2)
+
+A revisão não ganhou página nem seção de navegação: faz parte da mesma experiência "Gestão de conteúdo". Em `/admin/` o painel do serviço mostra a situação (rótulos em linguagem comum: "Em elaboração", "Revisão pendente", "Pronto para publicar"), a contagem de fontes e informações pendentes e a ação "Revisar informações"; em `/admin/conteudo/` ficam a revisão das fontes, a aceitação, a edição, o descarte e a reabertura das informações, a conclusão da revisão (com confirmação própria) e "Criar nova versão para editar". Não há botão de publicação.
+
+Extensão mínima do domínio e das rotas para este passo:
+- **Reabrir bloco aceito** (`reabrirBloco` em `revisao.js`; `POST .../revisao/blocos/reabrir`): só enquanto a versão está em rascunho; o bloco volta a rascunho, com revisão de atualidade pendente e `publicado` falso; a ação entra no histórico e a revisão otimista é atualizada. Depois de concluir a revisão não existe (`versao_congelada`).
+- **Situação da revisão** (`GET .../revisao`): devolve `rotulo` (nome do estado em linguagem comum), `revisaoPendente`, `resumo` (fontes pendentes, informações pendentes e aceitas) e `podeReabrir` por bloco.
+- **Edição de fonte:** não existe rota de edição de fonte; por isso não há "desfazer revisão". Uma fonte revisada só muda por nova versão, que reinicia a validação.
+
+### Contato institucional permitido (Sprint 5, ajuste do 5B2)
+
+O texto informado pode conter e-mail do domínio institucional configurado (`services/admin/contatos-permitidos.js`, configuração única `DOMINIOS_EMAIL_PERMITIDOS`, hoje `sema.mt.gov.br`). O domínio é comparado sem diferença entre maiúsculas e minúsculas e exatamente (um domínio parecido, como `sema.mt.gov.br.exemplo.com`, não vale). E-mails externos ou pessoais, telefones, senhas, tokens e credenciais continuam bloqueados; o endereço nunca é registrado nem repetido em mensagens. A mesma função é usada pelo servidor (entradas, blocos e validador da base) e pela interface local.
+
+### Aparência da administração
+
+A tela não menciona "demonstração" nem exibe faixa de ambiente: o acesso é o botão "Acessar administração" (sem autenticação real) e "Sair". Continuam apenas no código e na documentação: o ator registrado "Servidor de demonstração", a administração local e a ausência de autenticação institucional (a identificação não tem valor jurídico).

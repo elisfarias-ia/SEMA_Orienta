@@ -1,10 +1,10 @@
-// Área administrativa local (ambiente de demonstração). Só liga a lógica (admin-logic.js) ao DOM.
+// Área administrativa local (ambiente local). Só liga a lógica (admin-logic.js) ao DOM.
 // Regras: textos montados com textContent e createElement (nunca HTML em texto), sem armazenamento do navegador, sem cookies
 // e sem log. A chave da sessão fica dentro do cliente (memória): recarregar a página ou sair exige uma nova entrada.
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
 
 import {
-  AVISO_DADOS_PESSOAIS, criarClienteGestao, servicosDaLista, temasAtivos, validarEntradaTexto, validarLinkNovo, validarNovoServico,
+  AVISO_DADOS_PESSOAIS, criarClienteGestao, frasePendenciasParaConcluir, servicoDaUrl, servicosDaLista, temasAtivos, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from './admin-logic.js';
 
 const cliente = criarClienteGestao({ fetchImpl: (...argumentos) => fetch(...argumentos) });
@@ -12,11 +12,11 @@ const $ = (id) => document.getElementById(id);
 
 const CAMPOS = {
   novo: { nome: 'novo-nome', tema: 'novo-tema' },
-  texto: { titulo: 'texto-titulo', texto: 'texto-texto', descricao: 'texto-descricao', orgaoResponsavel: 'texto-orgao' },
+  texto: { titulo: 'texto-titulo', texto: 'texto-texto' },
   link: { titulo: 'link-titulo', url: 'link-url', tipo: 'link-tipo', orgaoResponsavel: 'link-orgao', descricao: 'link-descricao', origemOficial: 'link-oficial' },
 };
-const MANEIRAS = { texto: 'maneira-texto', link: 'maneira-link', existente: 'maneira-existente' };
-const PAINEIS = { texto: 'painel-texto', link: 'painel-link', existente: 'painel-existente' };
+const MANEIRAS = { texto: 'maneira-texto', link: 'maneira-link' };
+const PAINEIS = { texto: 'painel-texto', link: 'painel-link' };
 const VISTAS = { lista: 'vista-lista', novo: 'vista-novo', servico: 'vista-servico' };
 
 let catalogo = null;
@@ -24,6 +24,7 @@ let servicoAtual = null; // { id, nome, temaNome }
 let ocupado = false; // uma ação de gravação por vez na tela
 let sequenciaBusca = 0;
 let sequenciaInformacoes = 0;
+let sequenciaRevisao = 0;
 let resultadoBusca = [];
 
 const status = $('status');
@@ -127,13 +128,16 @@ async function entrar() {
   $('entrada').hidden = true;
   $('gestao').hidden = false;
   $('barra-sessao').hidden = false;
-  $('aviso-demo').textContent = 'Servidor de demonstração: esta entrada não é autenticação real e não confirma quem você é.';
   mostrarVista('lista');
   renderizarLista();
-  mostrarStatus('Você entrou como servidor de demonstração.');
+  mostrarStatus('Você acessou a administração.');
   const titulo = $('titulo-lista');
   titulo.setAttribute('tabindex', '-1');
   titulo.focus();
+  // Vindo de "Conteúdo para respostas": reabre o mesmo serviço (id validado na URL, nunca exibido).
+  const idDaUrl = servicoDaUrl(window.location.search);
+  const doCatalogo = idDaUrl === null ? undefined : servicosDaLista(catalogo, '').find((s) => s.id === idDaUrl);
+  if (doCatalogo !== undefined) await abrirServico(doCatalogo);
 }
 
 function sair() {
@@ -144,6 +148,7 @@ function sair() {
   resultadoBusca = [];
   sequenciaBusca += 1;
   sequenciaInformacoes += 1;
+  sequenciaRevisao += 1;
   limparFormulario('novo', $('form-novo'));
   limparFormulario('texto', $('form-texto'));
   limparFormulario('link', $('form-link'));
@@ -157,8 +162,7 @@ function sair() {
   $('barra-sessao').hidden = true;
   $('entrada').hidden = false;
   $('botao-entrar').disabled = false;
-  $('aviso-demo').textContent = 'Ambiente administrativo local — sem autenticação';
-  mostrarStatus('Você saiu da demonstração.');
+  mostrarStatus('Você saiu da administração.');
   $('botao-entrar').focus();
 }
 
@@ -258,16 +262,66 @@ async function abrirServico(servico, mensagemInicial = '') {
   $('existente-resumo').textContent = '';
   fecharPaineis();
   for (const id of Object.values(MANEIRAS)) $(id).disabled = false;
+  $('painel-revisar').href = `./conteudo/?servico=${encodeURIComponent(servico.id)}`;
+  $('painel-situacao-texto').textContent = 'Carregando a situação…';
+  $('painel-resumo').textContent = '';
+  $('painel-nova-versao').hidden = true;
   mostrarVista('servico');
   mostrarStatus(mensagemInicial);
   $('titulo-servico').focus();
-  await carregarInformacoes();
+  await atualizarServico();
+}
+
+/** Recarrega a lista de informações e a situação da revisão do serviço aberto. */
+function atualizarServico() {
+  return Promise.all([carregarInformacoes(), carregarRevisao()]);
+}
+
+async function carregarRevisao() {
+  if (servicoAtual === null) return;
+  const minha = ++sequenciaRevisao;
+  const r = await cliente.carregarRevisao(servicoAtual.id);
+  if (minha !== sequenciaRevisao) return;
+  const situacao = $('painel-situacao-texto');
+  situacao.replaceChildren();
+  if (!r.ok) {
+    situacao.textContent = r.mensagem;
+    $('painel-resumo').textContent = '';
+    $('painel-nova-versao').hidden = true;
+    return;
+  }
+  situacao.append('Situação: ', criar('strong', '', r.rotulo));
+  if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
+  $('painel-resumo').textContent = frasePendenciasParaConcluir(r.resumo);
+  $('painel-nova-versao').hidden = !r.congelada;
+}
+
+async function criarNovaVersao() {
+  if (ocupado || servicoAtual === null) return;
+  ocupado = true;
+  const botao = $('painel-nova-versao');
+  botao.disabled = true;
+  mostrarStatus('Criando a nova versão…');
+  const r = await cliente.criarNovaVersao(servicoAtual.id);
+  ocupado = false;
+  botao.disabled = false;
+  if (r.ok) {
+    await atualizarCatalogo();
+    await atualizarServico();
+    mostrarStatus('Nova versão criada. Ela está em elaboração e nada foi publicado.', 'info', true);
+    return;
+  }
+  mostrarStatus(r.mensagem, 'erro');
+  if (r.recarregar) await atualizarServico();
+  status.focus();
 }
 
 function voltarParaLista() {
   if (ocupado) return;
   servicoAtual = null;
   sequenciaInformacoes += 1;
+  sequenciaRevisao += 1;
+  if (window.location.search !== '') window.history.replaceState(null, '', window.location.pathname);
   mostrarVista('lista');
   renderizarLista();
   mostrarStatus('');
@@ -314,6 +368,9 @@ async function carregarInformacoes() {
   }
   for (const i of r.itens) lista.append(itemDaInformacao(i));
   for (const id of Object.values(MANEIRAS)) $(id).disabled = !r.editavel;
+  $('titulo-adicionar').hidden = !r.editavel;
+  $('grupo-adicionar').hidden = !r.editavel;
+  if (!r.editavel) fecharPaineis();
   $('informacoes-resumo').textContent = !r.editavel
     ? 'Este serviço não está em elaboração e não aceita novas informações.'
     : r.itens.length === 0 ? 'Nenhuma informação ainda. Escolha uma das três maneiras acima para adicionar.'
@@ -328,9 +385,8 @@ function alternarPainel(nome) {
   $(PAINEIS[nome]).hidden = false;
   $(MANEIRAS[nome]).setAttribute('aria-expanded', 'true');
   if (nome === 'texto') $('texto-titulo').focus();
-  else if (nome === 'link') $('link-titulo').focus();
   else {
-    $('existente-consulta').focus();
+    $('link-titulo').focus();
     buscarLinks();
   }
 }
@@ -347,13 +403,13 @@ async function tratarFalha(grupo, r) {
   mostrarStatus(r.mensagem, 'erro');
   if (primeiro) primeiro.focus();
   else status.focus();
-  if (r.recarregar) await carregarInformacoes();
+  if (r.recarregar) await atualizarServico();
 }
 
 async function concluirAdicao(mensagem) {
   fecharPaineis();
   mostrarStatus(mensagem);
-  await carregarInformacoes();
+  await atualizarServico();
   const titulo = $('titulo-informacoes');
   titulo.scrollIntoView({ block: 'nearest' });
   titulo.focus();
@@ -363,7 +419,7 @@ async function enviarTexto(evento) {
   evento.preventDefault();
   if (ocupado || servicoAtual === null) return;
   const validacao = validarEntradaTexto({
-    titulo: $('texto-titulo').value, texto: $('texto-texto').value, descricao: $('texto-descricao').value, orgaoResponsavel: $('texto-orgao').value,
+    titulo: $('texto-titulo').value, texto: $('texto-texto').value,
   });
   if (!validacao.ok) {
     focar(mostrarErros('texto', validacao.erros));
@@ -465,7 +521,7 @@ async function usarLink(item) {
   if (!r.ok) {
     mostrarStatus(r.mensagem, 'erro');
     await buscarLinks();
-    if (r.recarregar) await carregarInformacoes();
+    if (r.recarregar) await atualizarServico();
     status.focus();
     return;
   }
@@ -481,10 +537,10 @@ $('botao-novo-servico').addEventListener('click', abrirNovoServico);
 $('novo-cancelar').addEventListener('click', cancelarNovoServico);
 $('form-novo').addEventListener('submit', enviarNovoServico);
 $('botao-voltar').addEventListener('click', voltarParaLista);
+$('painel-nova-versao').addEventListener('click', criarNovaVersao);
 for (const nome of Object.keys(MANEIRAS)) $(MANEIRAS[nome]).addEventListener('click', () => alternarPainel(nome));
 $('texto-cancelar').addEventListener('click', () => fecharPainel('texto'));
 $('link-cancelar').addEventListener('click', () => fecharPainel('link'));
-$('existente-cancelar').addEventListener('click', () => fecharPainel('existente'));
 $('form-texto').addEventListener('submit', enviarTexto);
 $('form-link').addEventListener('submit', enviarLink);
 $('form-busca').addEventListener('submit', buscarLinks);

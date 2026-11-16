@@ -242,3 +242,18 @@ Conferência manual feita pela usuária em 15/11/2026, em `http://localhost:5173
 | Responsividade | **Reprovada inicialmente e corrigida** neste ajuste (largura mínima fixa em rem na grade de saúde e palavras longas nos rótulos de fonte alargavam a página com texto ampliado; placeholder cortado) |
 
 O que cobre a correção (executado): `e2e-real/responsivo.spec.js` (desktop 1280, 390 × 844, e 390 × 844 com texto a 150% e a 200%: sem rolagem horizontal, nada fora da tela nem cortado, textos longos quebrando e foco visível por Tab) e as especificações de `e2e/`. A nova conferência visual da usuária aprovou a responsividade em desktop e celular (15/11/2026).
+
+### Execução — revisão de conteúdo (Sprint 5, Passo 5B2)
+
+Conferência manual feita pela usuária em 16/11/2026, em ambiente temporário (cópia de `services/` e histórico fora do repositório).
+
+| Aspecto | Resultado |
+|---|---|
+| Revisão (revisar fonte, aceitar, reabrir, excluir informação, concluir revisão, nova versão) e navegação | **Aprovadas** |
+| Nomenclatura ("Conteúdo para respostas", "Informações cadastradas", "Incluir informação", "Excluir informação") | **Aprovada** |
+| Cadastro de texto simplificado (somente título e texto) | **Aprovado** |
+| Contato institucional do domínio configurado no texto informado | **Aceito** (e-mail externo continua bloqueado) |
+| Responsividade (desktop, 390 px e texto ampliado) | **Aprovada** |
+| Edição e exclusão de fontes (documentos, textos e links) | **Ficaram para o 5B3**, como requisito obrigatório |
+
+A manutenção de documentos, textos e links passa a ser requisito do Passo 5B3. Nada foi publicado e nenhum dado real foi alterado na conferência.

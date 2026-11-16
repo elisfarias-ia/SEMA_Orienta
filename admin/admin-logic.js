@@ -5,6 +5,8 @@
 // O token da sessão fica numa variável DENTRO do cliente (memória): não há como lê-lo de fora, e ele nunca é devolvido,
 // exibido, gravado ou registrado. As mensagens de erro vêm de uma tabela fixa em português, nunca da resposta bruta.
 
+import { contemEmailNaoPermitido } from '../services/admin/contatos-permitidos.js';
+
 export const LIMITES = Object.freeze({ id: 60, nome: 120, descricao: 1000, sigla: 20, termos: 20, termo: 120 });
 export const ROTAS = Object.freeze({
   sessao: '/__admin/sessao',
@@ -54,7 +56,7 @@ function textoLivre(valor, limite, nomeDoCampo, erros, campo) {
   if (t === '') erros[campo] = `Preencha ${nomeDoCampo}.`;
   else if (CONTROLE.test(valor)) erros[campo] = `${capitalizar(nomeDoCampo)} contém caracteres não permitidos.`;
   else if (t.length > limite) erros[campo] = `${capitalizar(nomeDoCampo)} deve ter no máximo ${limite} caracteres.`;
-  else if (PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
+  else if (contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
   else return t;
   return null;
 }
@@ -382,7 +384,7 @@ function textoLongo(valor, limite, nomeDoCampo, erros, campo) {
   if (!ehTexto(valor) || valor.trim() === '') erros[campo] = `Preencha ${nomeDoCampo}.`;
   else if (CONTROLE_LONGO.test(valor)) erros[campo] = `${capitalizar(nomeDoCampo)} contém caracteres não permitidos.`;
   else if (valor.trim().length > limite) erros[campo] = `${capitalizar(nomeDoCampo)} deve ter no máximo ${limite} caracteres.`;
-  else if (PADRAO_EMAIL.test(valor) || PADRAO_TELEFONE.test(valor)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
+  else if (contemEmailNaoPermitido(valor) || PADRAO_TELEFONE.test(valor)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
   else return valor.trim();
   return null;
 }
@@ -396,7 +398,7 @@ export function validarFormConhecimento(valores, fontes = []) {
   const L = LIMITES_CONHECIMENTO;
   const erros = {};
   const titulo = textoLivre(v.titulo, L.titulo, 'o tema da informação', erros, 'titulo');
-  const texto = textoLongo(v.texto, L.texto, 'a informação que o chatbot pode usar', erros, 'texto');
+  const texto = textoLongo(v.texto, L.texto, 'o que o chatbot deve informar ao cidadão', erros, 'texto');
 
   const disponiveis = new Map(fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => [f.id, f]));
   const selecionadas = Array.isArray(v.selecionadas) ? v.selecionadas : [];
@@ -421,7 +423,7 @@ export function validarFormConhecimento(valores, fontes = []) {
   if (alertas.length > L.alertas) erros.alertas = `Informe no máximo ${L.alertas} avisos.`;
   else if (alertas.some((a) => a.length > L.alerta)) erros.alertas = `Cada aviso deve ter no máximo ${L.alerta} caracteres.`;
   else if (alertas.some((a) => CONTROLE.test(a))) erros.alertas = 'Os avisos contêm caracteres não permitidos.';
-  else if (alertas.some((a) => PADRAO_EMAIL.test(a) || PADRAO_TELEFONE.test(a))) erros.alertas = 'Não informe e-mail nem telefone nos avisos.';
+  else if (alertas.some((a) => contemEmailNaoPermitido(a) || PADRAO_TELEFONE.test(a))) erros.alertas = 'Não informe e-mail nem telefone nos avisos.';
 
   if (Object.keys(erros).length) return { ok: false, erros };
   return { ok: true, dados: { titulo, texto, fonteIds: referencias.map((r) => r.fonteId), referencias, alertas } };
@@ -442,7 +444,7 @@ export function resumoDoConhecimento(dados, fontes = [], servico = null) {
   return [
     { rotulo: 'Serviço', valor: servico ?? 'não identificado' },
     { rotulo: 'Tema da informação', valor: dados.titulo },
-    { rotulo: 'Informação que o chatbot pode usar', valor: dados.texto },
+    { rotulo: 'O que o chatbot deve informar ao cidadão?', valor: dados.texto },
     { rotulo: 'Documentos ou links usados', valor: dados.referencias.map((r) => `${titulos.get(r.fonteId) ?? 'Fonte'} — ${r.localizacao}`).join('; ') },
     { rotulo: 'Avisos ou limitações', valor: dados.alertas.length ? dados.alertas.join('; ') : 'nenhum' },
     { rotulo: 'Situação inicial', valor: 'Em elaboração (rascunho); ainda não disponível no chatbot' },
@@ -485,7 +487,7 @@ const ROTULO_DO_CAMPO = Object.freeze({
   id: 'identificador', nome: 'nome', descricao: 'descrição', assuntoId: 'assunto', sigla: 'sigla', termosEquivalentes: 'termos equivalentes',
   titulo: 'título', tipo: 'tipo', orgaoResponsavel: 'órgão responsável', url: 'URL', origemOficial: 'origem oficial', dataPublicacao: 'data de publicação',
   dispositivoRelevante: 'dispositivo relevante', revisao: 'revisão das fontes',
-  texto: 'informação que o chatbot pode usar', fonteIds: 'fontes', referencias: 'onde a informação aparece na fonte', alertas: 'avisos ou limitações',
+  texto: 'o que o chatbot deve informar ao cidadão', fonteIds: 'fontes', referencias: 'onde a informação aparece na fonte', alertas: 'avisos ou limitações',
 });
 export const MENSAGENS = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se o servidor de desenvolvimento está ativo e recarregue a página.',
@@ -658,6 +660,24 @@ export function criarClienteAdmin({ fetchImpl }) {
       }
     },
 
+    /** Lê a situação da revisão do serviço (fontes, informações, pendências e a revisão otimista a devolver em cada ação). */
+    carregarRevisao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS.sessao });
+      return lerRevisaoDoServico(chamar, servicoId, MENSAGENS.rede);
+    },
+
+    /** Grava uma ação da revisão. Uma gravação por vez; retorna { ok } ou { ok: false, mensagem, recarregar? }. */
+    async gravarRevisao(acao, servicoId, corpo) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        return await enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, MENSAGENS.rede);
+      } finally {
+        gravando = false;
+      }
+    },
+
     /**
      * Cadastra um assunto, um serviço ou uma fonte (nesse caso, `contexto.servicoId` indica o serviço).
      * Retorna { ok, item } ou { ok: false, mensagem }.
@@ -708,11 +728,11 @@ export const TIPOS_LINK = Object.freeze([
 export const AVISO_DADOS_PESSOAIS = 'Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.';
 export const MENSAGENS_GESTAO = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se ele está ativo e tente de novo.',
-  entrada: 'Não foi possível entrar na demonstração. Tente de novo.',
+  entrada: 'Não foi possível acessar a administração. Tente de novo.',
   catalogo: 'Não foi possível carregar os serviços. Tente de novo.',
   informacoes: 'Não foi possível carregar as informações deste serviço. Tente de novo.',
   busca: 'Não foi possível buscar os links cadastrados. Tente de novo.',
-  semEntrada: 'Entre na demonstração para continuar.',
+  semEntrada: 'Acesse a administração para continuar.',
   expirada: 'Sua entrada expirou. Saia e entre de novo.',
   acessoLocal: 'Acesso recusado. Esta área só funciona neste computador.',
   ocupado: 'Há outra gravação em andamento, tente de novo.',
@@ -766,7 +786,7 @@ export function resolverTema(texto, temas) {
 /** Verdadeiro se o texto parece ter e-mail, telefone, CPF ou credencial (a conferência definitiva é do servidor). */
 export function pareceDadoPessoal(texto) {
   const t = String(texto ?? '');
-  return PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t)
+  return contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t)
     || /\b(senha|password|token|api[ _-]?key|chave de acesso)\s*[:=]/i.test(t);
 }
 
@@ -1009,6 +1029,21 @@ export function criarClienteGestao({ fetchImpl }) {
       return { ok: true, ...resumo };
     },
 
+    carregarRevisao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
+      return lerRevisaoDoServico(chamar, servicoId, MENSAGENS_GESTAO.rede);
+    },
+    /** Cria uma nova versão editável a partir da versão concluída. Envia exatamente `{}`. */
+    async criarNovaVersao(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        return await enviarAcaoDeRevisao(chamar, servicoId, 'nova-versao', {}, MENSAGENS_GESTAO.rede);
+      } finally {
+        gravando = false;
+      }
+    },
     criarServico: (corpo) => gravar(ROTAS_GESTAO.servicoComTema, corpo, (c) => (
       ehObjeto(c.servico) && ehTexto(c.servico.id) && PADRAO_ID.test(c.servico.id) && ehTexto(c.servico.nome)
         ? { servico: { id: c.servico.id, nome: c.servico.nome, temaNome: ehTexto(c.servico.temaNome) ? c.servico.temaNome : '' }, temaCriado: c.temaCriado === true }
@@ -1023,4 +1058,163 @@ export function criarClienteGestao({ fetchImpl }) {
       ? gravar(rotaDoServico(servicoId, 'links-existentes'), corpoDoLinkExistente(item), (c) => (ehObjeto(c.fonte) ? {} : null), 'link-existente')
       : recusa()),
   };
+}
+
+// ---------- Revisão do conteúdo (Passo 5B2) ----------
+// Lógica pura mais os trechos de cliente compartilhados pelas duas páginas ("Gestão de conteúdo"). Nunca exibe ids, hashes,
+// códigos internos nem nomes técnicos de estado: tudo vem de rótulos em linguagem comum. A publicação não existe nesta etapa.
+
+export const TEXTO_CONFIRMAR_CONCLUSAO = 'Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.';
+export const MENSAGEM_REVISAO_DIVERGENTE = 'O conteúdo mudou. Os dados foram atualizados; confira e tente de novo.';
+const ROTULO_PADRAO_SITUACAO = 'Situação indisponível';
+const ACOES_REVISAO = Object.freeze({
+  fonte: 'revisao/fontes',
+  'bloco-aceitar': 'revisao/blocos/aceitar',
+  'bloco-rejeitar': 'revisao/blocos/rejeitar',
+  'bloco-reabrir': 'revisao/blocos/reabrir',
+  concluir: 'revisao/concluir',
+  'nova-versao': 'nova-versao',
+});
+const textoCurto = (v, limite = 200) => (ehTexto(v) ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, limite) : '');
+const idSeguro = (v) => ehTexto(v) && PADRAO_ID.test(v);
+const contagem = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+
+/** Rótulo do tipo da fonte: nunca devolve o texto original. */
+export const rotuloFormaDaFonte = (forma) => (forma === 'link' ? 'Link' : 'Texto informado');
+export function rotuloSituacaoDaFonte(f) {
+  if (f.revogada) return 'Revogada';
+  if (f.revisada) return 'Revisado';
+  // Fonte que nenhum bloco usa pode ficar sem revisão: não é pendência para concluir.
+  return f.usadaPorBloco === false ? 'Ainda não revisada' : 'Revisão pendente';
+}
+export const rotuloSituacaoDoBloco = (aceito) => (aceito ? 'Aceita' : 'Em elaboração');
+
+/** Resumo em uma frase: só blocos pendentes e fontes usadas por eles contam como pendência para concluir. */
+export function frasePendenciasParaConcluir(resumo) {
+  const n = resumo.pendenciasParaConcluir;
+  const pendencias = n === 0 ? 'Nenhuma pendência para concluir.' : n === 1 ? '1 pendência para concluir.' : `${n} pendências para concluir.`;
+  const nao = resumo.fontesNaoUsadas;
+  const naoUsadas = nao > 0 ? ` ${nao === 1 ? '1 documento ou link ainda não é usado por nenhuma informação' : `${nao} documentos ou links ainda não são usados por nenhuma informação`}; isso não impede a conclusão.` : '';
+  return `${pendencias} Informações aceitas: ${resumo.informacoesAceitas}.${naoUsadas}`;
+}
+
+/** Traduz uma pendência da API para uma frase comum. O título (nome dado pelo servidor) é o único dado variável. */
+export function traduzirPendencia(p) {
+  const titulo = ehObjeto(p) ? textoCurto(p.titulo) : '';
+  const nome = titulo === '' ? '' : ` "${titulo}"`;
+  switch (ehObjeto(p) ? p.codigo : null) {
+    case 'sem_bloco_aceito': return 'Aceite pelo menos uma informação do chatbot.';
+    case 'bloco_pendente': return `A informação${nome} ainda não foi aceita nem excluída.`;
+    case 'fonte_pendente': return `O documento ou link${nome} ainda não foi revisado.`;
+    case 'fonte_revogada': return `O documento ou link${nome} foi revogado e não pode mais ser usado.`;
+    case 'fonte_inexistente': return `A informação${nome} usa um documento ou link que não existe mais. Edite a informação.`;
+    case 'entrada_invalida': return 'Há um dado inválido neste serviço. Procure a equipe responsável.';
+    default: return 'Há uma pendência a resolver antes de concluir a revisão.';
+  }
+}
+
+/** Resume GET .../revisao só com o que a tela usa. Retorna null se o formato não for o esperado. */
+export function resumirRevisao(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.revisao) || corpo.revisao === '' || corpo.revisao.length > 200) return null;
+  if (!ehObjeto(corpo.resumo) || !Array.isArray(corpo.fontes) || !Array.isArray(corpo.blocos) || !Array.isArray(corpo.pendencias)) return null;
+  const fontes = corpo.fontes.filter(ehObjeto).filter((f) => idSeguro(f.id)).map((f) => {
+    const base = { id: f.id, titulo: textoCurto(f.titulo) || 'Documento ou link', forma: f.forma === 'link' ? 'link' : 'texto', revisada: f.revisada === true, revogada: f.revogada === true, usadaPorBloco: f.usadaPorBloco === true, podeRevisar: f.podeRevisar === true };
+    return { ...base, rotuloForma: rotuloFormaDaFonte(base.forma), situacao: rotuloSituacaoDaFonte(base) };
+  });
+  const blocos = corpo.blocos.filter(ehObjeto).filter((b) => idSeguro(b.id)).map((b) => ({
+    id: b.id,
+    titulo: textoCurto(b.titulo),
+    aceito: b.aceito === true,
+    situacao: rotuloSituacaoDoBloco(b.aceito === true),
+    fontesPendentes: Array.isArray(b.fontesPendentes) ? b.fontesPendentes.filter(idSeguro) : [],
+    podeAceitar: b.podeAceitar === true,
+    podeReabrir: b.podeReabrir === true,
+    podeRejeitar: b.podeRejeitar === true,
+  }));
+  const pendencias = corpo.pendencias.filter(ehObjeto).map((p) => traduzirPendencia(p));
+  const editavel = corpo.editavel === true;
+  return {
+    revisao: corpo.revisao,
+    rotulo: textoCurto(corpo.rotulo, 60) || ROTULO_PADRAO_SITUACAO,
+    // Fonte única dos números e do selo: a própria lista de impedimentos devolvida pela API.
+    revisaoPendente: pendencias.length > 0,
+    editavel,
+    congelada: !editavel,
+    resumo: {
+      informacoesAceitas: contagem(corpo.resumo.informacoesAceitas),
+      fontesNaoUsadas: contagem(corpo.resumo.fontesNaoUsadas),
+      pendenciasParaConcluir: pendencias.length,
+    },
+    fontes,
+    blocos,
+    pendencias,
+    podeConcluir: corpo.podeConcluir === true && editavel,
+  };
+}
+
+/** Títulos das fontes pendentes de um bloco, em frase comum. */
+export function explicarFontesPendentes(bloco, fontes) {
+  const nomes = bloco.fontesPendentes.map((id) => fontes.find((f) => f.id === id)).filter(Boolean).map((f) => `"${f.titulo}"`);
+  if (nomes.length === 0) return '';
+  return `Para aceitar esta informação, marque antes como revisado: ${nomes.join(', ')}.`;
+}
+
+/** Mensagem curta por código de erro da revisão. Nunca usa texto bruto da resposta. `recarregar`: a tela deve buscar os dados de novo. */
+export function mensagemDaRevisao(status, corpo) {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  if (status === 401) return { mensagem: 'A sessão administrativa é inválida ou expirou. Recarregue a página para iniciar uma nova sessão.' };
+  if (status === 403) return { mensagem: 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.' };
+  if (status === 404) return { mensagem: 'Não encontramos este item. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'fonte_ja_revisada') return { mensagem: 'Este documento ou link já foi revisado. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'bloco_ja_aceito') return { mensagem: 'Esta informação já foi aceita. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'estado_nao_permite_nova_versao') return { mensagem: 'Ainda não é possível criar uma nova versão. Conclua a revisão antes.', recarregar: true };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências. Resolva-as antes de concluir a revisão.', recarregar: true };
+    if (erro === 'fonte_pendente') return { mensagem: 'Marque antes como revisados os documentos ou links usados por esta informação.', recarregar: true };
+    if (erro === 'fonte_revogada') return { mensagem: 'Um dos documentos ou links foi revogado e não pode ser usado.', recarregar: true };
+    if (erro === 'bloco_sem_fonte') return { mensagem: 'Esta informação não tem documento ou link. Edite e escolha uma fonte antes de aceitar.', recarregar: true };
+    if (erro === 'bloco_nao_aceitavel' || erro === 'bloco_nao_aceito') return { mensagem: 'Esta ação não é possível para a informação neste momento. Os dados foram atualizados.', recarregar: true };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) {
+    if (erro === 'desfazer_incompleto') return { mensagem: 'A operação não terminou por completo. Recarregue a página e confira os dados.', recarregar: true };
+    return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  }
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+/** Leitura da revisão (GET). `chamar` é o `chamar` do cliente que a usa; falha de rede e 401 viram mensagens fixas. */
+export async function lerRevisaoDoServico(chamar, servicoId, mensagemRede) {
+  if (!idSeguro(servicoId)) return { ok: false, mensagem: 'Não foi possível carregar a revisão deste serviço. Tente de novo.' };
+  const r = await chamar('GET', `/__admin/servicos/${encodeURIComponent(servicoId)}/revisao`);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  const resumo = r.ok ? resumirRevisao(r.corpo) : null;
+  if (resumo === null) return { ok: false, mensagem: r.status === 401 ? mensagemDaRevisao(401).mensagem : 'Não foi possível carregar a revisão deste serviço. Tente de novo.' };
+  return { ok: true, ...resumo };
+}
+
+/**
+ * Grava uma ação da revisão (sempre POST JSON). `acao`: fonte, bloco-aceitar, bloco-rejeitar, bloco-reabrir, concluir ou nova-versao.
+ * Para nova-versao o corpo é exatamente `{}`; nas demais, `corpo` já traz a `revisao` atual.
+ */
+export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensagemRede) {
+  if (!idSeguro(servicoId) || !Object.hasOwn(ACOES_REVISAO, acao)) return { ok: false, mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+  const r = await chamar('POST', `/__admin/servicos/${encodeURIComponent(servicoId)}/${ACOES_REVISAO[acao]}`, acao === 'nova-versao' ? {} : corpo);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  if (r.status === (acao === 'nova-versao' ? 201 : 200)) return { ok: true };
+  return { ok: false, ...mensagemDaRevisao(r.status, r.corpo) };
+}
+
+/** Lê `?servico=` e devolve o id apenas se tiver o formato válido; qualquer outro valor é ignorado. */
+export function servicoDaUrl(busca) {
+  let valor = null;
+  try { valor = new URLSearchParams(ehTexto(busca) ? busca : '').get('servico'); } catch { return null; }
+  return ehTexto(valor) && valor.length <= LIMITES.id && PADRAO_ID.test(valor) ? valor : null;
 }

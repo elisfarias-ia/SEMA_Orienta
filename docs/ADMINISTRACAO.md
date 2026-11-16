@@ -166,6 +166,7 @@ A experiência principal de `/admin/` (só no `npm run dev`) é orientada por se
 | `POST /__admin/servicos/<id>/revisao/fontes` | Marca uma fonte como revisada (corpo: `fonteId`, `revisao`). Não publica nem acessa o link. |
 | `POST /__admin/servicos/<id>/revisao/blocos/aceitar` | Aceita um bloco de conhecimento (corpo: `blocoId`, `revisao`). |
 | `POST /__admin/servicos/<id>/revisao/blocos/rejeitar` | Remove um bloco de conhecimento em rascunho (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/blocos/reabrir` | Reabre para correção um bloco aceito, só antes de concluir a revisão (corpo: `blocoId`, `revisao`). |
 | `POST /__admin/servicos/<id>/revisao/concluir` | Conclui a revisão: congela a versão, grava o hash e leva a "Pronto para publicar" (corpo: `revisao`). Não autoriza nem publica. |
 | `POST /__admin/servicos/<id>/nova-versao` | Cria a nova versão a partir da atual congelada (corpo `{}`). A versão publicada anterior fica intacta. |
 

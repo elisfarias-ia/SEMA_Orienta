@@ -22,6 +22,7 @@
 //   POST /__admin/servicos/<id>/revisao/fontes           -> revisa uma fonte (não publica)
 //   POST /__admin/servicos/<id>/revisao/blocos/aceitar   -> aceita um bloco de conhecimento (não publica)
 //   POST /__admin/servicos/<id>/revisao/blocos/rejeitar  -> remove um bloco de conhecimento em rascunho
+//   POST /__admin/servicos/<id>/revisao/blocos/reabrir   -> reabre um bloco aceito para correção (só antes de concluir a revisão)
 //   POST /__admin/servicos/<id>/revisao/concluir         -> congela a versão (hash) e leva a "Pronto para publicar"; não autoriza nem publica
 //   POST /__admin/servicos/<id>/nova-versao              -> nova versão a partir da atual congelada
 //
@@ -80,18 +81,19 @@ const PADRAO_ROTA_LINKS_EXISTENTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/l
 const PADRAO_ROTA_BUSCA_LINKS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links-existentes\/busca$/;
 const PADRAO_ROTA_INFORMACOES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/informacoes$/;
 const PADRAO_ROTA_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/revisao$/;
-const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/concluir|nova-versao)$/;
+const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/blocos\/reabrir|revisao\/concluir|nova-versao)$/;
 const ACAO_DA_ROTA = Object.freeze({
   'revisao/fontes': 'revisar_fonte',
   'revisao/blocos/aceitar': 'aceitar_bloco',
   'revisao/blocos/rejeitar': 'rejeitar_bloco',
+  'revisao/blocos/reabrir': 'reabrir_bloco',
   'revisao/concluir': 'concluir_revisao',
   'nova-versao': 'nova_versao',
 });
 const STATUS_DA_REVISAO = Object.freeze({
   servico_nao_encontrado: 404, fonte_nao_encontrada: 404, bloco_nao_encontrado: 404,
   versao_congelada: 409, revisao_divergente: 409, fonte_ja_revisada: 409, bloco_ja_aceito: 409, estado_nao_permite_nova_versao: 409, validacao_em_andamento: 409,
-  revisao_incompleta: 422, fonte_pendente: 422, fonte_revogada: 422, fonte_inexistente: 422, bloco_nao_aceitavel: 422, bloco_nao_removivel: 422, bloco_sem_fonte: 422,
+  revisao_incompleta: 422, fonte_pendente: 422, fonte_revogada: 422, fonte_inexistente: 422, bloco_nao_aceitavel: 422, bloco_nao_aceito: 422, bloco_nao_removivel: 422, bloco_sem_fonte: 422,
   entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
 });
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
@@ -600,6 +602,7 @@ export function criarManipuladorAdmin({
       case 'revisar_fonte': return respostaDaRevisao(servicoRevisao.revisarFonte(servicoId, dados));
       case 'aceitar_bloco': return respostaDaRevisao(servicoRevisao.aceitarBloco(servicoId, dados));
       case 'rejeitar_bloco': return respostaDaRevisao(servicoRevisao.rejeitarBloco(servicoId, dados));
+      case 'reabrir_bloco': return respostaDaRevisao(servicoRevisao.reabrirBloco(servicoId, dados));
       case 'concluir_revisao': return respostaDaRevisao(servicoRevisao.concluirRevisao(servicoId, dados));
       default: return respostaDaRevisao(servicoRevisao.criarNovaVersao(servicoId), 201);
     }

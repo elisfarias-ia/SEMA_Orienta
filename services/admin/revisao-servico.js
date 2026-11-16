@@ -13,7 +13,7 @@ import { congelarVersao } from './congelamento.js';
 import { registrarDecisaoMaterial } from './decisoes.js';
 import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
-import { aceitarBloco, avaliarPendencias, rejeitarBloco, revisarFonte, situacaoDaRevisao } from './revisao.js';
+import { aceitarBloco, avaliarPendencias, reabrirBloco, rejeitarBloco, revisarFonte, situacaoDaRevisao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
 import { validarVersao } from './versao.js';
 import { lerArquivosDaVersao } from './versao-arquivos.js';
@@ -118,6 +118,16 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
       servicoId, revisao, acao: 'aceitar_bloco',
       preparar: (atual, data) => {
         const r = aceitarBloco(atual.arquivos, blocoId, data);
+        return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
+      },
+    });
+  }
+
+  function reabrirBlocoDoServico(servicoId, { blocoId, revisao }) {
+    return gravar({
+      servicoId, revisao, acao: 'reabrir_bloco',
+      preparar: (atual, data) => {
+        const r = reabrirBloco(atual.arquivos, blocoId, data);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
       },
     });
@@ -233,6 +243,7 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     revisarFonte: revisarFonteDoServico,
     aceitarBloco: aceitarBlocoDoServico,
     rejeitarBloco: rejeitarBlocoDoServico,
+    reabrirBloco: reabrirBlocoDoServico,
     concluirRevisao,
     criarNovaVersao,
   };

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validarVersao } from '../services/admin/versao.js';
+import { contemEmailNaoPermitido } from '../services/admin/contatos-permitidos.js';
 import { conferirHashDaVersaoEmDisco } from '../services/admin/versao-arquivos.js';
 import { CAMPOS_FONTE_TEXTO, CHAVE_ENTRADAS, NOME_ARQUIVO_ENTRADAS, validarArquivoEntradas } from '../services/admin/entradas.js';
 import { ARQUIVOS_DA_VERSAO, NOME_DO_MANIFESTO, caminhosDaVersao, pastaDaVersao } from '../services/versao-atual.js';
@@ -572,7 +573,7 @@ function validarBlocoConhecimento(b, ref, fonteIds) {
       if (!textoPreenchido(r.fonteId) || !ids.includes(r.fonteId)) erros.push(`${rr}: fonteId deve estar em fonteIds`);
       else citadas.push(r.fonteId);
       if (!textoPreenchido(r.localizacao)) erros.push(`${rr}: localizacao obrigatória`);
-      else if (PADRAO_EMAIL.test(r.localizacao) || PADRAO_TELEFONE.test(r.localizacao)) erros.push(`${rr}: localizacao contém e-mail ou telefone`);
+      else if (contemEmailNaoPermitido(r.localizacao) || PADRAO_TELEFONE.test(r.localizacao)) erros.push(`${rr}: localizacao contém e-mail ou telefone`);
     });
     if (new Set(citadas).size !== citadas.length) erros.push(`${ref}: referencias não pode repetir fonte`);
     if (ids.some((id) => !citadas.includes(id))) erros.push(`${ref}: toda fonte de fonteIds exige uma referência`);
@@ -580,13 +581,13 @@ function validarBlocoConhecimento(b, ref, fonteIds) {
 
   if (b.alertas !== undefined) {
     if (!Array.isArray(b.alertas) || !b.alertas.every(textoPreenchido)) erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
-    else if (b.alertas.some((t) => PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);
+    else if (b.alertas.some((t) => contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);
   }
   if (!dataValida(b.criadoEm)) erros.push(`${ref}: criadoEm deve ser uma data válida AAAA-MM-DD`);
   if (!dataValida(b.atualizadoEm)) erros.push(`${ref}: atualizadoEm deve ser uma data válida AAAA-MM-DD`);
   else if (dataValida(b.criadoEm) && b.atualizadoEm < b.criadoEm) erros.push(`${ref}: atualizadoEm não pode ser anterior a criadoEm`);
   for (const campo of ['titulo', 'texto']) {
-    if (typeof b[campo] === 'string' && (PADRAO_EMAIL.test(b[campo]) || PADRAO_TELEFONE.test(b[campo]))) {
+    if (typeof b[campo] === 'string' && (contemEmailNaoPermitido(b[campo]) || PADRAO_TELEFONE.test(b[campo]))) {
       erros.push(`${ref}: ${campo} contém e-mail ou telefone; contatos não podem ser armazenados`);
     }
   }

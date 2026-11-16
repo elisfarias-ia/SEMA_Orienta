@@ -19,26 +19,24 @@
         </div>
       </div>
       <div id="barra-sessao" class="barra-sessao" hidden>
-        <p class="barra-sessao__quem">Servidor de demonstração</p>
+        <p class="barra-sessao__quem">Administração</p>
         <nav class="navegacao barra-sessao__links" aria-label="Seções da administração">
-          <a class="navegacao__link" href="./conteudo/">Informações do chatbot</a>
+          <a class="navegacao__link" href="./conteudo/">Conteúdo para respostas</a>
           <a class="navegacao__link" href="./saude/">Saúde do sistema</a>
         </nav>
         <button type="button" class="botao botao--secundario" id="botao-sair">Sair</button>
       </div>
     </header>
 
-    <p id="aviso-demo" class="aviso-admin" role="note">Ambiente administrativo local — sem autenticação</p>
-
     <main id="principal" class="pagina" tabindex="-1">
       <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
 
       <section id="entrada" class="cartao introducao" aria-labelledby="titulo-entrada">
         <div>
-          <h2 id="titulo-entrada">Área administrativa — ambiente local de demonstração</h2>
+          <h2 id="titulo-entrada">Área administrativa</h2>
           <p class="introducao__texto">Aqui você cadastra serviços e as informações que o chatbot poderá usar depois de revisadas. Nada é publicado nesta área.</p>
-          <p class="introducao__texto">Esta entrada é só uma demonstração: não pede usuário nem senha e não confirma quem você é.</p>
-          <button type="button" class="botao" id="botao-entrar">Entrar como servidor de demonstração</button>
+          <p class="introducao__texto">O acesso é feito neste computador, sem usuário e senha.</p>
+          <button type="button" class="botao" id="botao-entrar">Acessar administração</button>
         </div>
       </section>
 
@@ -83,11 +81,20 @@
           <h2 id="titulo-servico" tabindex="-1"></h2>
           <p id="servico-tema" class="ajuda"></p>
 
+          <div id="painel-situacao" class="painel-estado" role="group" aria-labelledby="titulo-estado-servico">
+            <h3 class="subtitulo" id="titulo-estado-servico">Situação do serviço</h3>
+            <p id="painel-situacao-texto"></p>
+            <p id="painel-resumo"></p>
+            <div class="acoes-form">
+              <a class="botao botao--secundario" id="painel-revisar" href="./conteudo/">Revisar informações</a>
+              <button type="button" class="botao" id="painel-nova-versao" hidden>Criar nova versão para editar</button>
+            </div>
+          </div>
+
           <h3 class="subtitulo" id="titulo-adicionar">Adicionar informação</h3>
-          <div class="maneiras" role="group" aria-labelledby="titulo-adicionar">
+          <div class="maneiras" id="grupo-adicionar" role="group" aria-labelledby="titulo-adicionar">
             <button type="button" class="botao botao--secundario" id="maneira-texto" aria-expanded="false" aria-controls="painel-texto">Texto</button>
-            <button type="button" class="botao botao--secundario" id="maneira-link" aria-expanded="false" aria-controls="painel-link">Link novo</button>
-            <button type="button" class="botao botao--secundario" id="maneira-existente" aria-expanded="false" aria-controls="painel-existente">Usar link já cadastrado</button>
+            <button type="button" class="botao botao--secundario" id="maneira-link" aria-expanded="false" aria-controls="painel-link">Link</button>
           </div>
 
           <div id="painel-texto" class="painel" hidden>
@@ -104,16 +111,6 @@
                 <p id="texto-texto-ajuda" class="ajuda">Escreva a informação com as suas palavras. Até 20.000 caracteres.</p>
                 <p id="texto-texto-erro" class="erro" hidden></p>
               </div>
-              <div class="campo">
-                <label for="texto-descricao">Descrição <span class="opcional">(opcional)</span></label>
-                <input id="texto-descricao" name="descricao" type="text" maxlength="1000" autocomplete="off" aria-describedby="texto-descricao-erro" />
-                <p id="texto-descricao-erro" class="erro" hidden></p>
-              </div>
-              <div class="campo">
-                <label for="texto-orgao">Órgão responsável <span class="opcional">(opcional)</span></label>
-                <input id="texto-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="texto-orgao-erro" />
-                <p id="texto-orgao-erro" class="erro" hidden></p>
-              </div>
               <div class="acoes-form">
                 <button type="submit" class="botao" id="texto-enviar">Adicionar texto</button>
                 <button type="button" class="botao botao--secundario" id="texto-cancelar">Cancelar</button>
@@ -122,6 +119,7 @@
           </div>
 
           <div id="painel-link" class="painel" hidden>
+            <p class="ajuda">Você pode informar um novo endereço ou reutilizar um link já cadastrado.</p>
             <p class="aviso-dados" role="note">Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.</p>
             <form id="form-link" novalidate>
               <div class="campo">
@@ -146,7 +144,7 @@
                 <p id="link-tipo-erro" class="erro" hidden></p>
               </div>
               <div class="campo">
-                <label for="link-orgao">Órgão responsável</label>
+                <label for="link-orgao">Órgão que publicou o conteúdo</label>
                 <input id="link-orgao" name="orgaoResponsavel" type="text" maxlength="120" autocomplete="off" aria-describedby="link-orgao-erro" />
                 <p id="link-orgao-erro" class="erro" hidden></p>
               </div>
@@ -165,9 +163,8 @@
                 <button type="button" class="botao botao--secundario" id="link-cancelar">Cancelar</button>
               </div>
             </form>
-          </div>
 
-          <div id="painel-existente" class="painel" hidden>
+            <h4 class="subtitulo" id="titulo-existente">Ou reutilize um link já cadastrado em outro serviço</h4>
             <p class="ajuda">O link é copiado para este serviço como rascunho e precisa de uma nova revisão.</p>
             <form id="form-busca" novalidate>
               <div class="campo">
@@ -175,8 +172,7 @@
                 <input id="existente-consulta" type="search" maxlength="100" autocomplete="off" aria-describedby="existente-resumo" />
               </div>
               <div class="acoes-form">
-                <button type="submit" class="botao" id="existente-buscar">Pesquisar</button>
-                <button type="button" class="botao botao--secundario" id="existente-cancelar">Fechar</button>
+                <button type="submit" class="botao botao--secundario" id="existente-buscar">Pesquisar</button>
               </div>
             </form>
             <p id="existente-resumo" class="ajuda" aria-live="polite"></p>

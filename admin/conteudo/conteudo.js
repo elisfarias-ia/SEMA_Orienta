@@ -1,10 +1,12 @@
-// Página "Informações do chatbot" (ambiente administrativo local, sem autenticação). Só liga a lógica (admin-logic.js) ao DOM.
-// Regras: somente textContent e APIs seguras do DOM, sem armazenamento do navegador, sem cookies e sem log; o token fica
-// dentro do cliente (memória); ids, origem, ambiente, estados internos e datas ISO nunca aparecem; nada é gravado ao abrir a página:
-// toda gravação exige formulário válido e confirmação explícita, e só uma gravação acontece por vez.
+// Página "Gestão de conteúdo > Conteúdo para respostas" (ambiente administrativo local, sem autenticação). Só liga a lógica
+// (admin-logic.js) ao DOM. Regras: somente textContent e APIs seguras do DOM, sem armazenamento do navegador, sem cookies e sem log;
+// o token fica dentro do cliente (memória); ids, hashes, origem, ambiente, estados internos e datas ISO nunca aparecem; nada é
+// gravado ao abrir a página: toda gravação exige ação explícita (e confirmação quando é irreversível), uma por vez.
+// A publicação não existe nesta tela.
 
 import {
-  corpoDoConhecimento, criarClienteAdmin, MENSAGENS, resumoDoConhecimento, rotuloEstado, validarFormConhecimento,
+  corpoDoConhecimento, criarClienteAdmin, explicarFontesPendentes, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
+  rotuloEstado, servicoDaUrl, validarFormConhecimento,
 } from '../admin-logic.js';
 
 const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos) });
@@ -12,10 +14,13 @@ const $ = (id) => document.getElementById(id);
 
 let catalogo = null;
 let contexto = null; // { servicoId, nomeServico, numero, estado, editavel, fontes, blocos }
+let revisao = null; // resumo da revisão (admin-logic.js) ou null quando não pôde ser lida
 let editando = null; // id do bloco em edição (só em memória, nunca exibido)
 let pendente = null; // { operacao, servicoId, blocoId, corpo, dados, gatilho }
 let destinoDoFoco = 'gatilho';
 let sequencia = 0;
+let ocupado = false; // uma ação de revisão por vez, até a tela terminar de atualizar
+let formAberto = false; // o formulário de nova orientação fica recolhido até a pessoa pedir
 
 const status = $('status');
 const dialogo = $('confirmacao');
@@ -35,7 +40,22 @@ function criar(tag, classe, texto) {
   return elemento;
 }
 
+function criarBotao(texto, rotuloAcessivel, acao, aoClicar, { secundario = true, indisponivel = false } = {}) {
+  const botao = criar('button', secundario ? 'botao botao--secundario' : 'botao', texto);
+  botao.type = 'button';
+  botao.dataset.acao = acao;
+  botao.dataset.indisponivel = indisponivel ? 'true' : 'false';
+  if (rotuloAcessivel) botao.setAttribute('aria-label', rotuloAcessivel);
+  botao.addEventListener('click', () => aoClicar(botao));
+  return botao;
+}
+
+function selo(texto, pendenteOuNao) {
+  return criar('span', pendenteOuNao ? 'selo selo--pendente' : 'selo', texto);
+}
+
 const servicoDoCatalogo = (id) => (catalogo ? catalogo.servicos.find((s) => s.id === id) : undefined);
+const congelada = () => (revisao !== null ? revisao.congelada : contexto !== null && !contexto.editavel);
 
 // ---------- Seleção de assunto e serviço ----------
 
@@ -75,16 +95,22 @@ function preencherServicos() {
   select.disabled = servicos.length === 0;
 }
 
-// ---------- Situação, lista e formulário ----------
+// ---------- Situação, fontes, lista, conclusão e formulário ----------
 
 function limparContexto(mensagem = 'Escolha um serviço para ver as informações.') {
   contexto = null;
+  revisao = null;
   editando = null;
   $('servico-situacao').hidden = true;
   $('blocos').replaceChildren(criar('p', 'vazio', mensagem));
   $('blocos').setAttribute('aria-busy', 'false');
+  renderizarFontesRevisao();
+  renderizarConclusao();
   renderizarFontes();
   limparFormulario();
+  formAberto = false;
+  atualizarFormulario();
+  atualizarVoltar();
   atualizarPermissoes();
 }
 
@@ -97,12 +123,94 @@ function renderizarSituacao() {
   raiz.hidden = false;
   $('situacao-nome').textContent = contexto.nomeServico;
   $('situacao-versao').textContent = `Versão ${contexto.numero}`;
-  $('situacao-estado').textContent = contexto.estado === 'rascunho' ? 'Em elaboração (rascunho)' : rotuloEstado(contexto.estado);
+  $('situacao-estado').textContent = revisao !== null ? revisao.rotulo : rotuloEstado(contexto.estado);
+  const pendenteSelo = $('situacao-selo');
+  pendenteSelo.hidden = !(revisao !== null && revisao.revisaoPendente);
+  pendenteSelo.textContent = 'Revisão pendente';
+  $('situacao-resumo').textContent = revisao === null
+    ? 'A situação da revisão não está disponível agora.'
+    : frasePendenciasParaConcluir(revisao.resumo);
   const s = servicoDoCatalogo($('servico').value);
   $('situacao-publicacao').textContent = s && s.versaoPublicadaId ? 'Existe versão publicada; a versão atual não está publicada' : 'Não publicada';
   $('situacao-edicao').textContent = contexto.editavel
-    ? 'Este serviço está em elaboração (rascunho): você pode cadastrar, editar e excluir informações.'
-    : 'Este serviço não está mais em elaboração: cadastro, edição e exclusão estão bloqueados.';
+    ? 'Esta versão está em elaboração: você pode cadastrar, editar, aceitar ou excluir informações.'
+    : 'Esta versão está bloqueada: cadastro, edição, aceite e exclusão estão bloqueados. Para alterar, crie uma nova versão.';
+  atualizarFormulario();
+}
+
+/** O formulário de nova orientação só aparece se pedido (botão ou edição) e enquanto a versão pode ser editada. */
+function atualizarFormulario() {
+  const permitido = contexto !== null && contexto.editavel;
+  $('cartao-form').hidden = !(permitido && formAberto);
+  $('botao-nova-orientacao').hidden = !permitido;
+  $('botao-nova-orientacao').setAttribute('aria-expanded', permitido && formAberto ? 'true' : 'false');
+}
+
+function abrirFormulario() {
+  if (!podeEditar()) return;
+  formAberto = true;
+  atualizarFormulario();
+  atualizarPermissoes();
+  $('titulo-form').scrollIntoView({ block: 'nearest' });
+  $('titulo-form').focus();
+}
+
+/** Link de volta e navegação reabrem o MESMO serviço em /admin/ (o id vai só na URL, nunca na tela). */
+function atualizarVoltar() {
+  const destino = contexto === null ? '../' : `../?servico=${encodeURIComponent(contexto.servicoId)}`;
+  $('voltar-gestao').setAttribute('href', destino);
+  document.querySelector('nav .navegacao__link').setAttribute('href', destino);
+}
+
+function focarItem(elemento) {
+  if (elemento === null || elemento === undefined) return false;
+  elemento.scrollIntoView({ block: 'nearest' });
+  elemento.focus();
+  return true;
+}
+const itemDoBloco = (id) => [...document.querySelectorAll('#blocos li.bloco')].find((li) => li.__bloco && li.__bloco.id === id) ?? null;
+const itemDaFonte = (id) => [...document.querySelectorAll('#fontes-revisao li.bloco')].find((li) => li.__fonteId === id) ?? null;
+
+function renderizarFontesRevisao() {
+  const raiz = $('fontes-revisao');
+  raiz.replaceChildren();
+  raiz.setAttribute('aria-busy', 'false');
+  if (contexto === null) {
+    raiz.append(criar('p', 'vazio', 'Escolha um serviço para ver os documentos e links.'));
+    return;
+  }
+  if (revisao === null) {
+    raiz.append(criar('p', 'vazio', 'A revisão dos documentos e links não está disponível agora.'));
+    return;
+  }
+  if (revisao.fontes.length === 0) {
+    raiz.append(criar('p', 'vazio', 'Este serviço ainda não tem documentos ou links. Adicione um texto ou link na página do serviço.'));
+    return;
+  }
+  const lista = criar('ul', 'blocos');
+  for (const f of revisao.fontes) {
+    const item = criar('li', 'bloco');
+    item.tabIndex = -1;
+    item.__fonteId = f.id;
+    item.append(criar('p', 'bloco__titulo', f.titulo));
+    const tipo = criar('p', 'bloco__linha');
+    tipo.append('Tipo: ', criar('span', 'selo selo--neutro', f.rotuloForma));
+    item.append(tipo);
+    const situacao = criar('p', 'bloco__linha');
+    situacao.append('Situação: ', selo(f.situacao, !f.revisada || f.revogada));
+    item.append(situacao);
+    if (f.podeRevisar && !revisao.congelada) {
+      const acoes = criar('div', 'bloco__acoes');
+      acoes.append(criarBotao('Marcar como revisado', `Marcar como revisado: ${f.titulo}`, 'revisar-fonte', () => executarRevisao('fonte', { fonteId: f.id }, 'Documento ou link marcado como revisado.', undefined, { fonte: f.id })));
+      item.append(acoes);
+    }
+    lista.append(item);
+  }
+  raiz.append(lista);
+}
+
+function descreverFonte(r) {
+  return `${r.fonteTitulo} — ${r.localizacao}`;
 }
 
 function renderizarBlocos() {
@@ -117,13 +225,17 @@ function renderizarBlocos() {
     raiz.append(criar('p', 'vazio', 'Nenhuma orientação foi cadastrada para este serviço.'));
     return;
   }
+  const bloqueada = congelada();
   const lista = criar('ul', 'blocos');
-  for (const b of contexto.blocos) {
+  contexto.blocos.forEach((b, i) => {
+    const rb = revisao !== null ? revisao.blocos.find((x) => x.id === b.id) : undefined;
+    const aceito = rb !== undefined && rb.aceito;
     const item = criar('li', 'bloco');
+    item.tabIndex = -1;
     item.append(criar('p', 'bloco__titulo', b.titulo));
     item.append(criar('p', 'bloco__texto', b.texto));
     const fontes = criar('ul', 'bloco__fontes');
-    for (const r of b.referencias) fontes.append(criar('li', '', `${r.fonteTitulo} — ${r.localizacao}`));
+    for (const r of b.referencias) fontes.append(criar('li', '', descreverFonte(r)));
     item.append(criar('p', 'bloco__rotulo', 'Documentos ou links usados'));
     item.append(fontes);
     if (b.alertas.length > 0) {
@@ -133,35 +245,67 @@ function renderizarBlocos() {
       item.append(alertas);
     }
     const situacao = criar('p', 'bloco__linha');
-    situacao.append('Situação: ', criar('span', 'selo', b.situacao));
+    situacao.append('Situação: ', selo(rb !== undefined ? rb.situacao : b.situacao, !aceito));
     item.append(situacao);
     item.append(criar('p', 'bloco__linha bloco__disponibilidade', b.publicacao));
     item.append(criar('p', 'bloco__linha', `Criado em ${b.criadoEm} · Atualizado em ${b.atualizadoEm}`));
-    const acoes = criar('div', 'bloco__acoes');
-    const editar = criar('button', 'botao botao--secundario', 'Editar');
-    editar.type = 'button';
-    editar.dataset.acao = 'editar';
-    editar.setAttribute('aria-label', `Editar a informação ${b.titulo}`);
-    const excluir = criar('button', 'botao botao--secundario', 'Excluir');
-    excluir.type = 'button';
-    excluir.dataset.acao = 'excluir';
-    excluir.setAttribute('aria-label', `Excluir a informação ${b.titulo}`);
-    editar.addEventListener('click', () => iniciarEdicao(b));
-    excluir.addEventListener('click', () => pedirExclusao(b, excluir));
-    acoes.append(editar, excluir);
-    item.append(acoes);
+    if (!bloqueada) {
+      const acoes = criar('div', 'bloco__acoes');
+      if (b.editavel && !aceito) acoes.append(criarBotao('Editar', `Editar a informação ${b.titulo}`, 'editar', () => iniciarEdicao(b)));
+      if (rb !== undefined && !aceito) {
+        const ajudaId = `bloco-ajuda-${i}`;
+        const faltam = explicarFontesPendentes(rb, revisao.fontes);
+        const aceitar = criarBotao('Aceitar informação', `Aceitar informação: ${b.titulo}`, 'aceitar', () => executarRevisao('bloco-aceitar', { blocoId: b.id }, 'Informação aceita.', undefined, { bloco: b.id }), { indisponivel: !rb.podeAceitar });
+        acoes.append(aceitar);
+        if (!rb.podeAceitar) {
+          const ajuda = criar('p', 'bloco__ajuda', faltam !== '' ? faltam : 'Esta informação ainda não pode ser aceita. Confira se ela tem documento ou link usável.');
+          ajuda.id = ajudaId;
+          aceitar.setAttribute('aria-describedby', ajudaId);
+          item.append(ajuda);
+        }
+        if (rb.podeRejeitar) acoes.append(criarBotao('Excluir informação', `Excluir informação: ${b.titulo}`, 'descartar', (gatilho) => pedirDescarte(b, gatilho)));
+      }
+      if (rb !== undefined && rb.podeReabrir) {
+        acoes.append(criarBotao('Reabrir para correção', `Reabrir para correção: ${b.titulo}`, 'reabrir', () => executarRevisao('bloco-reabrir', { blocoId: b.id }, 'Informação reaberta para correção. Ela voltou para elaboração.', undefined, { bloco: b.id })));
+      }
+      if (acoes.childElementCount > 0) item.append(acoes);
+    }
     lista.append(item);
     item.__bloco = b;
-  }
+  });
   raiz.append(lista);
-  atualizarPermissoes();
+}
+
+function renderizarConclusao() {
+  const cartao = $('cartao-conclusao');
+  const lista = $('pendencias');
+  lista.replaceChildren();
+  cartao.hidden = contexto === null || revisao === null;
+  if (cartao.hidden) return;
+  const bloqueada = revisao.congelada;
+  $('conclusao-pendencias-bloco').hidden = bloqueada;
+  $('conclusao-pronta').hidden = !bloqueada;
+  $('botao-concluir').hidden = bloqueada || !revisao.podeConcluir;
+  $('botao-nova-versao').hidden = !bloqueada;
+  $('conclusao-explicacao').hidden = bloqueada;
+  $('nova-versao-explicacao').hidden = !bloqueada;
+  if (bloqueada) {
+    $('conclusao-pronta').textContent = `Situação: ${revisao.rotulo}. Esta versão está bloqueada para edição.`;
+    return;
+  }
+  if (revisao.pendencias.length === 0) {
+    $('pendencias-resumo').textContent = 'Nenhuma pendência. Você já pode concluir a revisão.';
+  } else {
+    $('pendencias-resumo').textContent = revisao.pendencias.length === 1 ? 'Falta resolver 1 pendência para concluir a revisão:' : `Faltam resolver ${revisao.pendencias.length} pendências para concluir a revisão:`;
+    for (const frase of revisao.pendencias) lista.append(criar('li', '', frase));
+  }
 }
 
 function renderizarFontes(selecionadas = []) {
   const raiz = $('bloco-fontes');
   raiz.replaceChildren();
   if (contexto === null || contexto.fontes.length === 0) {
-    raiz.append(criar('p', 'vazio', contexto === null ? 'Escolha um serviço para ver as fontes.' : 'Esta versão não tem fontes cadastradas. Cadastre uma fonte em Assuntos, serviços e fontes antes de cadastrar informações.'));
+    raiz.append(criar('p', 'vazio', contexto === null ? 'Escolha um serviço para ver as fontes.' : 'Esta versão não tem fontes cadastradas. Adicione um texto ou link na página do serviço antes de cadastrar informações.'));
     return;
   }
   const mapa = new Map(selecionadas.map((s) => [s.fonteId, s.localizacao]));
@@ -260,8 +404,8 @@ function mostrarErros(erros) {
 function limparFormulario() {
   $('form-bloco').reset();
   editando = null;
-  $('titulo-form').textContent = 'Nova informação';
-  $('bloco-enviar').textContent = 'Conferir antes de salvar';
+  $('titulo-form').textContent = 'Incluir informação';
+  $('bloco-enviar').textContent = 'Salvar informação';
   limparErros();
   renderizarFontes();
 }
@@ -270,38 +414,45 @@ function iniciarEdicao(bloco) {
   if (!podeEditar() || !bloco.editavel) return;
   limparErros();
   editando = bloco.id;
+  formAberto = true;
+  atualizarFormulario();
   $('titulo-form').textContent = 'Editar informação';
-  $('bloco-enviar').textContent = 'Conferir antes de salvar';
+  $('bloco-enviar').textContent = 'Salvar informação';
   $('bloco-titulo').value = bloco.titulo;
   $('bloco-texto').value = bloco.texto;
   $('bloco-alertas').value = bloco.alertas.join('\n');
   renderizarFontes(bloco.referencias.map((r) => ({ fonteId: r.fonteId, localizacao: r.localizacao })));
   mostrarStatus('');
+  $('titulo-form').scrollIntoView({ block: 'nearest' });
   $('titulo-form').focus();
 }
 
 function cancelar() {
-  if (cliente.gravando()) return;
+  if (cliente.gravando() || ocupado) return;
   limparFormulario();
+  formAberto = false;
+  atualizarFormulario();
   mostrarStatus('');
   atualizarPermissoes();
+  $('botao-nova-orientacao').focus();
 }
 
 // ---------- Permissões ----------
 
-const podeEditar = () => cliente.sessaoPronta() && contexto !== null && contexto.editavel && !cliente.gravando();
+const podeEditar = () => cliente.sessaoPronta() && contexto !== null && contexto.editavel && !cliente.gravando() && !ocupado;
 
 function atualizarPermissoes() {
   const livre = podeEditar();
   $('bloco-enviar').disabled = !livre || contexto.fontes.length === 0;
-  $('bloco-cancelar').disabled = cliente.gravando();
-  for (const botao of document.querySelectorAll('#blocos button[data-acao]')) {
-    const item = botao.closest('li');
-    botao.disabled = !livre || !(item && item.__bloco && item.__bloco.editavel);
+  $('bloco-cancelar').disabled = cliente.gravando() || ocupado;
+  $('botao-nova-orientacao').disabled = !livre;
+  const parada = !cliente.sessaoPronta() || cliente.gravando() || ocupado;
+  for (const botao of document.querySelectorAll('#blocos button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao]')) {
+    botao.disabled = parada || botao.dataset.indisponivel === 'true';
   }
 }
 
-// ---------- Confirmação ----------
+// ---------- Confirmação do cadastro e da edição (diálogo com resumo) ----------
 
 function abrirConfirmacao(configuracao) {
   pendente = { ...configuracao };
@@ -348,30 +499,17 @@ function aoEnviar(evento) {
   const criando = editando === null;
   abrirConfirmacao({
     operacao: criando ? 'criar' : 'alterar', servicoId: contexto.servicoId, blocoId: editando, dados: r.dados, corpo: corpoDoConhecimento(r.dados), gatilho: $('bloco-enviar'),
-    titulo: criando ? 'Confirmar cadastro da informação' : 'Confirmar alteração da informação', rotuloConfirmar: 'Salvar informação',
+    titulo: criando ? 'Confirmar cadastro da informação' : 'Confirmar alteração da informação', rotuloConfirmar: 'Confirmar e salvar',
     linhas: resumoDoConhecimento(r.dados, contexto.fontes, contexto.nomeServico),
   });
 }
 
-function pedirExclusao(bloco, gatilho) {
-  if (!podeEditar() || !bloco.editavel) return;
-  abrirConfirmacao({
-    operacao: 'excluir', servicoId: contexto.servicoId, blocoId: bloco.id, dados: null, corpo: undefined, gatilho,
-    titulo: 'Confirmar exclusão da informação', rotuloConfirmar: 'Excluir informação',
-    linhas: [
-      { rotulo: 'Serviço', valor: contexto.nomeServico },
-      { rotulo: 'Tema da informação', valor: bloco.titulo },
-      { rotulo: 'Documentos ou links usados', valor: bloco.referencias.map((r) => `${r.fonteTitulo} — ${r.localizacao}`).join('; ') },
-      { rotulo: 'Atenção', valor: 'A informação é removida da lista. Esta ação não pode ser desfeita por esta tela.' },
-    ],
-  });
-}
-
-const MENSAGEM_SUCESSO = { criar: 'Informação salva. Ela está em elaboração (rascunho) e ainda não está disponível no chatbot.', alterar: 'Informação alterada. Ela continua em elaboração (rascunho) e ainda não está disponível no chatbot.', excluir: 'Informação excluída.' };
+const MENSAGEM_SUCESSO = { criar: 'Informação salva. Ela está em elaboração e ainda não está disponível no chatbot.', alterar: 'Informação alterada. Ela continua em elaboração e ainda não está disponível no chatbot.' };
 
 async function confirmar() {
-  if (pendente === null || cliente.gravando()) return;
+  if (pendente === null || cliente.gravando() || ocupado) return;
   const { operacao, servicoId, blocoId, corpo } = pendente;
+  const idsAntes = new Set(contexto.blocos.map((b) => b.id));
   botaoVoltar.disabled = true;
   botaoConfirmar.disabled = true;
   dialogo.setAttribute('aria-busy', 'true');
@@ -382,9 +520,13 @@ async function confirmar() {
   pendente = null;
   if (r.ok) {
     limparFormulario();
+    formAberto = false;
+    atualizarFormulario();
     fecharConfirmacao();
     const atualizado = await carregarServico(servicoId);
-    mostrarStatus(`${MENSAGEM_SUCESSO[operacao]}${atualizado.ok ? '' : ' A lista não pôde ser atualizada; recarregue a página.'}`, 'info', true);
+    const salvo = operacao === 'alterar' ? blocoId : (contexto?.blocos.find((b) => !idsAntes.has(b.id))?.id ?? null);
+    const focou = focarItem(salvo === null ? null : itemDoBloco(salvo));
+    mostrarStatus(`${MENSAGEM_SUCESSO[operacao]}${atualizado.ok ? '' : ' A lista não pôde ser atualizada; recarregue a página.'}`, 'info', !focou);
     return;
   }
   fecharConfirmacao();
@@ -408,9 +550,117 @@ botaoConfirmar.addEventListener('click', confirmar);
 $('form-bloco').addEventListener('submit', aoEnviar);
 $('bloco-cancelar').addEventListener('click', cancelar);
 
+// ---------- Ações da revisão ----------
+
+/**
+ * Envia uma ação da revisão com a `revisao` atual (exceto a nova versão, que envia `{}`). Bloqueia cliques repetidos, recarrega os
+ * dados em caso de divergência e leva o foco à mensagem do resultado. `aoTerminarEnvio` fecha o diálogo que originou a ação.
+ */
+async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio = () => {}, foco = null) {
+  if (cliente.gravando() || ocupado || contexto === null || revisao === null) return;
+  const servicoId = contexto.servicoId;
+  const corpo = acao === 'nova-versao' ? {} : { ...extra, revisao: revisao.revisao };
+  const posicaoDoBloco = foco !== null && foco.vizinho !== undefined ? contexto.blocos.findIndex((b) => b.id === foco.vizinho) : -1;
+  ocupado = true;
+  mostrarStatus('Registrando…');
+  const promessa = cliente.gravarRevisao(acao, servicoId, corpo);
+  atualizarPermissoes();
+  let r;
+  try {
+    r = await promessa.catch(() => ({ ok: false, mensagem: 'Não foi possível concluir a ação agora. Tente de novo.' }));
+    aoTerminarEnvio();
+    if (r.ok) {
+      const atualizado = await carregarServico(servicoId);
+      ocupado = false;
+      atualizarPermissoes();
+      let alvo = null;
+      if (foco !== null && atualizado.ok) {
+        if (foco.bloco !== undefined) alvo = itemDoBloco(foco.bloco);
+        else if (foco.fonte !== undefined) alvo = itemDaFonte(foco.fonte);
+        else if (posicaoDoBloco >= 0 && contexto !== null) {
+          const restantes = [...document.querySelectorAll('#blocos li.bloco')];
+          alvo = restantes[Math.min(posicaoDoBloco, restantes.length - 1)] ?? null;
+        }
+      }
+      const focou = focarItem(alvo);
+      mostrarStatus(`${mensagemDeSucesso}${atualizado.ok ? '' : ' Os dados não puderam ser atualizados; recarregue a página.'}`, 'info', !focou);
+      return;
+    }
+    if (r.recarregar) await carregarServico(servicoId);
+  } finally {
+    ocupado = false;
+    atualizarPermissoes();
+  }
+  mostrarStatus(r.mensagem, 'erro', true);
+}
+
+/** Diálogo simples de confirmação (Voltar / Confirmar). Mantém-se aberto durante o envio, para evitar clique duplo. */
+function ligarDialogo(dlg, voltar, confirmarBtn, aoConfirmar) {
+  let gatilho = null;
+  const devolverFoco = () => {
+    if (gatilho !== null && gatilho.isConnected && !gatilho.disabled) gatilho.focus();
+    else status.focus();
+  };
+  const fechar = () => { if (dlg.open) dlg.close(); };
+  dlg.addEventListener('close', () => { atualizarPermissoes(); });
+  dlg.addEventListener('cancel', (evento) => { if (cliente.gravando() || ocupado) evento.preventDefault(); });
+  voltar.addEventListener('click', () => {
+    if (cliente.gravando() || ocupado) return;
+    fechar();
+    devolverFoco();
+  });
+  confirmarBtn.addEventListener('click', async () => {
+    if (cliente.gravando() || ocupado) return;
+    voltar.disabled = true;
+    confirmarBtn.disabled = true;
+    dlg.setAttribute('aria-busy', 'true');
+    await aoConfirmar(fechar);
+    dlg.removeAttribute('aria-busy');
+    // Se nada foi enviado (por exemplo, outra gravação em andamento), o diálogo não pode ficar preso: reabilita e devolve o foco.
+    if (dlg.open) {
+      voltar.disabled = false;
+      confirmarBtn.disabled = false;
+      voltar.focus();
+    }
+  });
+  return (origem) => {
+    gatilho = origem;
+    voltar.disabled = false;
+    confirmarBtn.disabled = false;
+    dlg.removeAttribute('aria-busy');
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+    voltar.focus();
+  };
+}
+
+let blocoADescartar = null;
+const abrirDescarte = ligarDialogo($('dialogo-descarte'), $('descarte-voltar'), $('descarte-confirmar'), async (fechar) => {
+  const bloco = blocoADescartar;
+  if (bloco === null) { fechar(); return; }
+  await executarRevisao('bloco-rejeitar', { blocoId: bloco.id }, 'Informação excluída.', () => { fechar(); blocoADescartar = null; }, { vizinho: bloco.id });
+});
+
+function pedirDescarte(bloco, gatilho) {
+  if (ocupado || cliente.gravando() || revisao === null) return;
+  blocoADescartar = bloco;
+  $('descarte-descricao').textContent = `A informação "${bloco.titulo}" será removida da lista. Esta ação não pode ser desfeita por esta tela.`;
+  abrirDescarte(gatilho);
+}
+
+const abrirConclusao = ligarDialogo($('dialogo-conclusao'), $('conclusao-voltar'), $('conclusao-confirmar'), async (fechar) => {
+  await executarRevisao('concluir', {}, 'Revisão concluída. A versão está pronta para publicar e não pode mais ser editada.', fechar);
+});
+
+$('botao-concluir').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || !revisao.podeConcluir) return;
+  abrirConclusao(evento.currentTarget);
+});
+$('botao-nova-versao').addEventListener('click', () => executarRevisao('nova-versao', {}, 'Nova versão criada. Ela está em elaboração e nada foi publicado.'));
+
 // ---------- Carregamento ----------
 
-/** Lê a versão atual do serviço e redesenha situação, lista e fontes. Resultados atrasados (outra escolha feita) são ignorados. */
+/** Lê a versão atual e a revisão do serviço e redesenha tudo. Resultados atrasados (outra escolha feita) são ignorados. */
 async function carregarServico(servicoId) {
   const minha = ++sequencia;
   if (!servicoId) {
@@ -418,20 +668,31 @@ async function carregarServico(servicoId) {
     return { ok: true };
   }
   $('blocos').setAttribute('aria-busy', 'true');
-  const r = await cliente.carregarConhecimento(servicoId);
+  $('fontes-revisao').setAttribute('aria-busy', 'true');
+  const [r, rev] = await Promise.all([cliente.carregarConhecimento(servicoId), cliente.carregarRevisao(servicoId)]);
   if (minha !== sequencia) return r;
   if (!r.ok) {
     limparContexto('Não foi possível mostrar as informações deste serviço.');
     mostrarStatus(r.mensagem, 'erro');
     return r;
   }
-  const mantidaEdicao = editando !== null && r.blocos.some((b) => b.id === editando && b.editavel);
-  contexto = { servicoId, nomeServico: r.nomeServico, numero: r.numero, estado: r.estado, editavel: r.editavel, fontes: r.fontes, blocos: r.blocos };
-  if (!mantidaEdicao) limparFormulario();
-  else renderizarFontes(lerFormularioAtualParaManter());
+  revisao = rev.ok ? rev : null;
+  const editavel = r.editavel && (revisao === null || revisao.editavel);
+  const mantidaEdicao = editando !== null && editavel && r.blocos.some((b) => b.id === editando && b.editavel);
+  const outroServico = contexto === null || contexto.servicoId !== servicoId;
+  const selecaoAtual = outroServico ? [] : lerFormularioAtualParaManter();
+  contexto = { servicoId, nomeServico: r.nomeServico, numero: r.numero, estado: r.estado, editavel, fontes: r.fontes, blocos: r.blocos };
+  if (outroServico || (editando !== null && !mantidaEdicao)) {
+    limparFormulario();
+    formAberto = false;
+  } else renderizarFontes(selecaoAtual);
+  atualizarVoltar();
   renderizarSituacao();
+  renderizarFontesRevisao();
   renderizarBlocos();
+  renderizarConclusao();
   atualizarPermissoes();
+  if (!rev.ok) mostrarStatus(rev.mensagem, 'erro');
   return r;
 }
 
@@ -458,6 +719,30 @@ $('assunto').addEventListener('change', () => {
 });
 $('servico').addEventListener('change', (evento) => carregarServico(evento.target.value));
 
+/** Seleciona assunto e serviço a partir de `?servico=` (id nunca exibido); valores inválidos ou desconhecidos são ignorados. */
+async function selecionarServicoDaUrl() {
+  const id = servicoDaUrl(window.location.search);
+  const alvo = id === null ? undefined : servicoDoCatalogo(id);
+  if (alvo === undefined) return false;
+  $('assunto').value = alvo.assuntoId;
+  if ($('assunto').value !== alvo.assuntoId) return false;
+  preencherServicos();
+  $('servico').value = alvo.id;
+  if ($('servico').value !== alvo.id) return false;
+  $('servico-compacto').hidden = false;
+  $('selecao-completa').hidden = true;
+  const r = await carregarServico(alvo.id);
+  return r.ok;
+}
+
+$('botao-trocar-servico').addEventListener('click', () => {
+  $('selecao-completa').hidden = false;
+  $('servico-compacto').hidden = true;
+  $('botao-trocar-servico').setAttribute('aria-expanded', 'true');
+  $('assunto').focus();
+});
+$('botao-nova-orientacao').addEventListener('click', abrirFormulario);
+
 async function iniciar() {
   atualizarPermissoes();
   mostrarStatus('Preparando a sessão administrativa…');
@@ -472,7 +757,11 @@ async function iniciar() {
     mostrarStatus(r.mensagem, 'erro');
     return;
   }
-  mostrarStatus('Sessão iniciada. Escolha o assunto e o serviço.');
+  if (await selecionarServicoDaUrl()) {
+    if (status.dataset.tipo !== 'erro') mostrarStatus('Serviço aberto para revisão.');
+  } else {
+    mostrarStatus('Sessão iniciada. Escolha o assunto e o serviço.');
+  }
   atualizarPermissoes();
 }
 
