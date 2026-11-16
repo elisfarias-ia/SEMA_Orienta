@@ -157,3 +157,16 @@ A experiência principal de `/admin/` (só no `npm run dev`) é orientada por se
 - **Trava:** todas as gravações novas usam a mesma trava das demais (uma por vez; a segunda recebe 409 `operacao_em_andamento`). A busca não grava e não usa a trava.
 - **Credenciais:** a recusa só vale para atribuições explícitas (`senha:`, `token=`, `api_key`, `client_secret`...), `Bearer` com sequência de token e `senha` seguida de valor com dígito, e é aplicada a título, descrição e texto. Frases como "A senha deve ser trocada" são aceitas. Limitação conhecida: "senha: ..." escrito como explicação em frase corrida também é recusado; a interface avisa o motivo.
 - **Fora do escopo:** edição, exclusão, revisão, publicação, links seguros e agente (Sprints 5 a 6).
+
+### Revisão da versão (Sprint 5, Passo 5B1; só rotas, sem interface ainda)
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `GET /__admin/servicos/<id>/revisao` | Situação da revisão da versão atual: estado, fontes e blocos de conhecimento revisáveis, pendências e a `revisao` (hash canônico) a devolver nas ações. |
+| `POST /__admin/servicos/<id>/revisao/fontes` | Marca uma fonte como revisada (corpo: `fonteId`, `revisao`). Não publica nem acessa o link. |
+| `POST /__admin/servicos/<id>/revisao/blocos/aceitar` | Aceita um bloco de conhecimento (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/blocos/rejeitar` | Remove um bloco de conhecimento em rascunho (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/concluir` | Conclui a revisão: congela a versão, grava o hash e leva a "Pronto para publicar" (corpo: `revisao`). Não autoriza nem publica. |
+| `POST /__admin/servicos/<id>/nova-versao` | Cria a nova versão a partir da atual congelada (corpo `{}`). A versão publicada anterior fica intacta. |
+
+O ator registrado no histórico privado é sempre "Servidor de demonstração" (não comprova identidade nem validação jurídica). Todas as gravações passam pela trava comum.

@@ -193,7 +193,8 @@ export function validarFontes(doc, rotulo = 'fontes') {
       if (fonte.url !== null) erros.push(`${ref}: fonte textual não tem url (deve ser null)`);
       if (typeof fonte.entradaId !== 'string' || !PADRAO_ID.test(fonte.entradaId)) erros.push(`${ref}: entradaId obrigatório e válido na fonte textual`);
       if (fonte.origemOficial !== false) erros.push(`${ref}: fonte textual deve ter origemOficial false`);
-      if (fonte.statusValidacao !== 'rascunho') erros.push(`${ref}: fonte textual deve estar em rascunho`);
+      // A fonte textual nasce em rascunho e pode ser REVISADA por uma pessoa (em_validacao ou validado, com dataConsulta);
+      // nunca nasce validada e continua sem publicação (verificada abaixo).
       if (!ehObjeto(fonte.vigencia) || fonte.vigencia.situacao !== 'nao_se_aplica') erros.push(`${ref}: fonte textual deve ter vigencia nao_se_aplica`);
       if (fonte.publicado !== false) erros.push(`${ref}: fonte textual não pode estar publicada`);
       if (Object.keys(fonte).some((k) => !CAMPOS_FONTE_TEXTO.includes(k))) erros.push(`${ref}: fonte textual com campo não previsto`);

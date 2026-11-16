@@ -175,10 +175,8 @@ export function criarNovaVersaoDoServico({ raiz, sistema = fs, servicoId, agora 
       return false;
     }
   };
-  const verificar = () => {
-    const erros = verificarFinal(raiz);
-    return roteiroIgual() ? erros : [...erros, 'roteiro copiado difere do original'];
-  };
+  // Ordem importa: o verificarFinal recebido pode gravar o histórico privado, então ele roda por último, depois de tudo conferido.
+  const verificar = () => (roteiroIgual() ? verificarFinal(raiz) : ['roteiro copiado difere do original']);
   const r = executarTransacao({ raiz, sistema, passos, verificar });
   if (!r.ok) {
     if (r.revertido === false) return { ok: false, erro: 'desfazer_incompleto', revertido: false };
