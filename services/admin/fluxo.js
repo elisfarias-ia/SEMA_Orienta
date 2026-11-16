@@ -47,3 +47,29 @@ export const conteudoEditavel = (estado) => estado === 'rascunho';
 
 /** Depois de ajustes solicitados, ou de qualquer estado posterior ao rascunho, mudar o conteúdo exige nova versão. */
 export const exigeNovaVersaoParaAlterar = (estado) => estadoVersaoValido(estado) && estado !== 'rascunho';
+
+// Tabela PURA das ações humanas da versão e dos estados em que cada uma é permitida (Sprint 5, Passo 5A). Revisão e autorização
+// são ações separadas; publicar é outra. "concluir_revisao" congela a versão e calcula o hash. "nova_versao" não muda a versão
+// de origem: cria outra, que nasce em rascunho.
+export const ACOES_DA_VERSAO = Object.freeze({
+  concluir_revisao: Object.freeze({ de: Object.freeze(['rascunho']), para: 'em_validacao' }),
+  solicitar_ajustes: Object.freeze({ de: Object.freeze(['em_validacao']), para: 'ajustes_solicitados' }),
+  validar_materialmente: Object.freeze({ de: Object.freeze(['em_validacao']), para: 'validado_materialmente' }),
+  autorizar_publicacao: Object.freeze({ de: Object.freeze(['validado_materialmente']), para: 'autorizado_publicacao' }),
+  publicar: Object.freeze({ de: Object.freeze(['autorizado_publicacao']), para: 'publicado' }),
+  nova_versao: Object.freeze({ de: Object.freeze(['ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado']), para: 'rascunho' }),
+});
+
+/** Ações permitidas no estado dado (lista vazia se o estado for desconhecido). */
+export function acoesPermitidas(estado) {
+  if (!estadoVersaoValido(estado)) return [];
+  return Object.keys(ACOES_DA_VERSAO).filter((a) => ACOES_DA_VERSAO[a].de.includes(estado));
+}
+
+/** Verifica uma ação no estado atual. Retorna { permitida, para, motivo }. */
+export function verificarAcao(acao, estado) {
+  if (!Object.hasOwn(ACOES_DA_VERSAO, acao)) return { permitida: false, para: null, motivo: 'acao_desconhecida' };
+  if (!estadoVersaoValido(estado)) return { permitida: false, para: null, motivo: 'estado_de_origem_desconhecido' };
+  const a = ACOES_DA_VERSAO[acao];
+  return a.de.includes(estado) ? { permitida: true, para: a.para, motivo: null } : { permitida: false, para: null, motivo: 'acao_nao_permitida_no_estado' };
+}

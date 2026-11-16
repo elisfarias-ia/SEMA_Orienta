@@ -95,9 +95,11 @@ export function executarTransacao({ raiz, sistema = fs, passos, verificar }) {
   };
 
   for (const passo of passos) {
-    const r = passo.tipo === 'texto'
-      ? arm.gravarTexto(passo.caminho, passo.conteudo, passo.validar)
-      : arm.gravarJson(passo.caminho, passo.conteudo, passo.validar);
+    const r = passo.tipo === 'texto_exato'
+      ? arm.gravarTextoExato(passo.caminho, passo.conteudo, passo.validar)
+      : passo.tipo === 'texto'
+        ? arm.gravarTexto(passo.caminho, passo.conteudo, passo.validar)
+        : arm.gravarJson(passo.caminho, passo.conteudo, passo.validar);
     // Mesmo quando a gravação falha, o desfazer cobre o que ela possa ter criado (pastas) e os passos anteriores.
     if (r.ok) gravados.push(passo.caminho);
     if (!r.ok) return { ok: false, erro: r.erro === 'dados_invalidos' ? 'dados_invalidos' : 'falha_de_escrita', revertido: desfazer() };

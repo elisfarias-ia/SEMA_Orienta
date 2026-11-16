@@ -193,6 +193,24 @@ export function criarArmazenamento({ raiz, sistema = fs } = {}) {
       return gravarAtomico(g.destino, conteudo);
     },
 
+    /**
+     * Grava um arquivo .md de forma atômica, EXATAMENTE como recebido (UTF-8): sem aparar espaços, sem acrescentar nem remover
+     * quebra de linha e sem converter CRLF/LF. Usada só para copiar um arquivo que já existe (nova versão). Recusa byte nulo.
+     */
+    gravarTextoExato(relativo, texto, validar) {
+      const semValidador = exigirValidador(validar);
+      if (semValidador) return semValidador;
+      if (typeof texto !== 'string' || texto.includes('\0')) return falha('dados_invalidos');
+      const r = resolver(relativo, EXTENSOES.md, { criarDiretorios: false });
+      if (!r.ok) return r;
+      if (Buffer.byteLength(texto, 'utf8') > TAMANHO_MAXIMO) return falha('arquivo_grande_demais');
+      const invalido = conferir(validar, texto);
+      if (invalido) return invalido;
+      const g = resolver(relativo, EXTENSOES.md, { criarDiretorios: true });
+      if (!g.ok) return g;
+      return gravarAtomico(g.destino, texto);
+    },
+
     /** Lê um arquivo .json. */
     lerJson(relativo) {
       const r = resolver(relativo, EXTENSOES.json, { criarDiretorios: false });

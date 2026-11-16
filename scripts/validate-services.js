@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validarVersao } from '../services/admin/versao.js';
+import { conferirHashDaVersaoEmDisco } from '../services/admin/versao-arquivos.js';
 import { CAMPOS_FONTE_TEXTO, CHAVE_ENTRADAS, NOME_ARQUIVO_ENTRADAS, validarArquivoEntradas } from '../services/admin/entradas.js';
 import { ARQUIVOS_DA_VERSAO, NOME_DO_MANIFESTO, caminhosDaVersao, pastaDaVersao } from '../services/versao-atual.js';
 
@@ -982,6 +983,35 @@ function validarAssuntoDoServico(entrada, servico, rotulo, catalogo) {
   return erros;
 }
 
+/** Confere o hash gravado no manifesto com o conteúdo canônico em disco. */
+function conferirHash(raiz, servicoId, versaoId, rotulo, erros) {
+  const r = conferirHashDaVersaoEmDisco({ raiz, servicoId, versaoId });
+  if (!r.ok) erros.push(`${rotulo}: não foi possível conferir o hash da versão ${versaoId} (${r.erro})`);
+  else if (!r.confere) erros.push(`${rotulo}: hashConteudo da versão ${versaoId} não confere com o conteúdo`);
+}
+
+/** versaoPublicadaId diferente da atual: a pasta existe, o manifesto é válido, está publicado, é anterior à atual e tem hash coerente. */
+function validarVersaoPublicadaAnterior(raiz, id, publicada, manifestoAtual, rotulo, erros) {
+  const pastaPublicada = pastaDaVersao(id, publicada);
+  const naoPublicada = `${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`;
+  if (pastaPublicada === null) {
+    erros.push(naoPublicada);
+    return;
+  }
+  const m = lerJson(raiz, `${pastaPublicada}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão publicada`);
+  if (!m) {
+    erros.push(naoPublicada);
+    return;
+  }
+  erros.push(...validarVersao(m).map((e) => `${rotulo} versão publicada: ${e}`));
+  if (m.id !== publicada || m.servicoId !== id) erros.push(`${rotulo}: manifesto da versão publicada é incoerente`);
+  if (m.estado !== 'publicado') erros.push(naoPublicada);
+  if (Number.isInteger(m.numero) && Number.isInteger(manifestoAtual.numero) && m.numero >= manifestoAtual.numero) {
+    erros.push(`${rotulo}: a versão publicada deve ser anterior à versão atual`);
+  }
+  if (typeof m.hashConteudo === 'string') conferirHash(raiz, id, publicada, rotulo, erros);
+}
+
 /**
  * Confere a versão atual de um serviço: registro (versaoAtualId, versaoPublicadaId), manifesto versao.json, arquivos
  * da pasta da versão, ausência de arquivos soltos fora da versão e coerência da publicação.
@@ -1021,12 +1051,19 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
       if (!absoluto || !fs.existsSync(absoluto)) erros.push(`${rotulo} versão: arquivo não encontrado: ${caminho}`);
     }
 
-    // Publicação: somente versão em estado publicado pode ser a publicada.
-    if (publicada !== null && (publicada !== entrada.versaoAtualId || manifesto.estado !== 'publicado')) {
+    // Hash: versão congelada precisa ter o hash coerente com o conteúdo canônico (incluindo entradas.json).
+    if (typeof manifesto.hashConteudo === 'string') conferirHash(raiz, id, manifesto.id, rotulo, erros);
+
+    // Publicação: somente versão em estado publicado pode ser a publicada. A publicada pode ser uma versão ANTERIOR enquanto
+    // a atual (mais nova) está em elaboração; uma versão em estado publicado, porém, só pode ser a atual se for a publicada.
+    if (publicada !== null && publicada === entrada.versaoAtualId && manifesto.estado !== 'publicado') {
       erros.push(`${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`);
     }
     if (manifesto.estado === 'publicado' && publicada !== entrada.versaoAtualId) {
       erros.push(`${rotulo}: versão em estado publicado exige versaoPublicadaId igual a versaoAtualId`);
+    }
+    if (typeof publicada === 'string' && publicada !== '' && publicada !== entrada.versaoAtualId) {
+      validarVersaoPublicadaAnterior(raiz, id, publicada, manifesto, rotulo, erros);
     }
   }
   if (typeof entrada.publicado === 'boolean' && entrada.publicado !== (publicada !== null)) {
@@ -1042,8 +1079,23 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
   }
   const pastaVersoes = resolverDentro(raiz, `services/${id}/versoes`);
   if (pastaVersoes && fs.existsSync(pastaVersoes)) {
+    const numeroAtual = Number(pasta.slice(pasta.lastIndexOf('/v') + 2));
     for (const nome of fs.readdirSync(pastaVersoes)) {
-      if (`services/${id}/versoes/${nome}` !== pasta) erros.push(`${rotulo}: pasta de versão não registrada: services/${id}/versoes/${nome}`);
+      const caminho = `services/${id}/versoes/${nome}`;
+      if (caminho === pasta) continue;
+      // Versões ANTERIORES à atual ficam preservadas (histórico); precisam ter manifesto válido e coerente. Qualquer outra pasta é erro.
+      const m = /^v([1-9][0-9]*)$/.exec(nome);
+      if (!m || Number(m[1]) >= numeroAtual) {
+        erros.push(`${rotulo}: pasta de versão não registrada: ${caminho}`);
+        continue;
+      }
+      const anterior = lerJson(raiz, `${caminho}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão anterior`);
+      if (!anterior) continue;
+      erros.push(...validarVersao(anterior).map((e) => `${rotulo} versão anterior ${nome}: ${e}`));
+      if (anterior.id !== `${id}-${nome}` || anterior.servicoId !== id || anterior.numero !== Number(m[1])) {
+        erros.push(`${rotulo}: manifesto da versão anterior ${nome} é incoerente`);
+      }
+      if (typeof anterior.hashConteudo === 'string') conferirHash(raiz, id, anterior.id, rotulo, erros);
     }
   }
 }
@@ -1142,10 +1194,12 @@ export function validarServicos(raiz) {
 
     if (servico.id !== id) erros.push(`${rotulo}: id do service.json ("${servico.id}") difere do registro`);
     erros.push(...validarAssuntoDoServico(entrada, servico, rotulo, catalogo));
-    if (servico.statusValidacao !== entrada.statusValidacao) {
+    // Com uma versão anterior publicada e a atual em elaboração, o registro descreve a publicada e o service.json, a atual.
+    const atualEhAPublicada = entrada.versaoPublicadaId === null || entrada.versaoPublicadaId === entrada.versaoAtualId;
+    if (atualEhAPublicada && servico.statusValidacao !== entrada.statusValidacao) {
       erros.push(`${rotulo}: statusValidacao difere entre registro e service.json`);
     }
-    if (servico.publicado !== entrada.publicado) {
+    if (atualEhAPublicada && servico.publicado !== entrada.publicado) {
       erros.push(`${rotulo}: "publicado" difere entre registro e service.json`);
     }
     if (!STATUS_VALIDOS.includes(servico.statusValidacao)) {

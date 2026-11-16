@@ -100,11 +100,12 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Passo 4B2 (gestão simples por serviço):** `/admin/` com entrada de demonstração (não é autenticação real; token só em memória), serviços, tema único, Adicionar informação (texto, link novo, link já cadastrado), rotas novas com a trava comum, detecção de credenciais de alta confiança, interface do 4B reprovado removida e teste Playwright real (`npm run test:e2e:real`, Vite na porta 5183 com cópia temporária de `services/`). Conferência manual: funcionalidades e linguagem aprovadas; responsividade reprovada e corrigida (texto ampliado: grade da saúde com largura mínima em rem, rótulos de fonte sem quebra); conferência visual aprovada e Sprint fechada com a bateria completa, o build e o `check-dist`.
 - **Aceite, testes e DoD:** na Issue #8.
 
-## Sprint 5 — Revisão, aprovação humana e publicação (planejada)
+## Sprint 5 — Revisão, aprovação humana e publicação (em andamento, Issue #11)
 
 - **Objetivo:** revisar blocos, concluir a revisão (versão e hash congelados) e publicar em ação humana separada.
 - **Regras:** só a versão expressamente aprovada, com os blocos aceitos e suas fontes, é publicada; a versão publicada anterior permanece ativa até a troca atômica; alteração posterior muda o hash e invalida análise e aprovação; "Servidor de demonstração" não comprova identidade.
 - **Texto cadastrado:** o bloqueio atual das fontes textuais no assistente é provisório; blocos revisados e publicados derivados de texto poderão fundamentar respostas, sempre pelos blocos publicados (nunca `entradas.json`); o texto original continua isolado; resposta baseada só em texto não mostra fonte; resposta baseada em link mostra somente os links usados.
+- **Passo 5A (domínio e hash, sem rotas nem interface):** hash canônico com `entradas.json`, congelamento da versão revisada, nova versão real com cópia independente, `versaoPublicadaId` podendo apontar para versão anterior e tabela pura de ações (`conteudo-versao.js`, `versao-arquivos.js`, `congelamento.js`, `nova-versao.js`, `fluxo.js`). Detalhes em `docs/ARQUITETURA.md`.
 - **Exige:** atualizar `CLAUDE.md`, a documentação e os testes de isolamento (hoje não há publicação pela interface) e promover blocos, fontes e registro na mesma transação.
 
 ## Sprint 6 — Links seguros e agente integrado (planejada)
