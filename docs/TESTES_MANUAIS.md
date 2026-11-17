@@ -273,3 +273,17 @@ Resultados **automatizados**. A conferência manual dos passos 5B3b, 5B3c e 5C *
 | Auditorias 5B3a, 5B3b, 5B3c, 5C e final | final aprovada, sem bloqueantes nem importantes |
 
 A "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e não equivale à validação material pela área competente da SEMA. Nenhuma publicação real foi criada; a LAC segue não publicada.
+
+### Execução — importação de conteúdo existente (Sprint 5, ajuste do 5B3c)
+
+Conferência manual feita pela usuária, em ambiente temporário (cópia de `services/`); **aprovada**.
+
+| Aspecto | Resultado |
+|---|---|
+| Lista "Orientações encontradas no conteúdo antigo" com 24 candidatos da LAC (descrição, etapas, condições e requisitos, 21 perguntas com resposta) | **Aprovada** |
+| Documentos, normas, links e conteúdos de teste fora da lista (continuam como fontes) | **Aprovado** |
+| Frase padronizada "pendente de confirmação pela área competente antes da publicação" removida só no preenchimento; arquivo antigo intacto | **Aprovada** |
+| Aviso "Conteúdo antigo: confira e atualize esta orientação antes de salvar." (não gravado) | **Aprovado** |
+| Importação sempre em elaboração, sem aceitação, revisão ou publicação automática | **Aprovada** |
+
+Depois do ajuste foram executados apenas os testes direcionados (Node da importação: 27 ok; Playwright real da importação: 6 ok; `validate:services` ok; `git diff --check` limpo). A bateria completa e o build não foram repetidos depois do filtro; os últimos resultados completos estão na seção de fechamento acima. Nenhum dado real foi alterado e nada foi publicado.

@@ -1768,10 +1768,10 @@ export function mensagemDaEdicao(status, corpo, contexto = 'servico') {
 // ---------- Importar conteúdo existente (Passo 5B3c) ----------
 
 export const ROTULOS_CANDIDATO = Object.freeze({
-  descricao: 'Descrição', etapas: 'Etapas', link: 'Link', norma: 'Norma', bloco: 'Conteúdo anterior', documento: 'Documento exigido', pergunta: 'Pergunta frequente',
+  descricao: 'Descrição', etapas: 'Etapas', requisitos: 'Condições e requisitos', link: 'Link', norma: 'Norma', bloco: 'Conteúdo anterior', documento: 'Documento exigido', pergunta: 'Pergunta frequente',
 });
-export const TEXTO_IMPORTACAO = 'O conteúdo existente continua como está. Importe um item por vez: ele preenche o formulário, você confere e confirma, e a informação entra em elaboração, sem ser aceita nem publicada.';
-export const FRASE_SEM_CANDIDATOS = 'Não há conteúdo existente para importar neste serviço.';
+export const TEXTO_IMPORTACAO = 'Escolha somente as orientações que ainda são úteis. Os documentos e normas continuam disponíveis como fontes.';
+export const FRASE_SEM_CANDIDATOS = 'Nenhuma orientação encontrada no conteúdo antigo.';
 export const MENSAGEM_IMPORTADA = 'Informação importada. Ela está em elaboração e ainda não está disponível no chatbot. O conteúdo existente continua preservado.';
 const LIMITE_PREVIA = 300;
 

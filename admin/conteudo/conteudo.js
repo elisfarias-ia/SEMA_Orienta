@@ -484,6 +484,7 @@ function limparFormulario() {
   $('form-bloco').reset();
   editando = null;
   importando = null;
+  $('aviso-importacao').hidden = true;
   $('titulo-form').textContent = 'Incluir informação';
   $('bloco-enviar').textContent = 'Salvar informação';
   limparErros();
@@ -656,7 +657,7 @@ function renderizarImportacao() {
     return;
   }
   const n = candidatos.candidatos.length;
-  $('importacao-estado').textContent = n === 1 ? '1 item pode ser importado.' : `${n} itens podem ser importados.`;
+  $('importacao-estado').textContent = n === 1 ? '1 orientação encontrada.' : `${n} orientações encontradas.`;
   const titulos = new Map(contexto.fontes.map((f) => [f.id, f.titulo]));
   for (const c of candidatos.candidatos) {
     const item = criar('li', 'bloco');
@@ -726,6 +727,7 @@ function escolherCandidato(c) {
   formAberto = true;
   atualizarFormulario();
   $('titulo-form').textContent = 'Importar informação';
+  $('aviso-importacao').hidden = false; // aviso fora do campo de texto: nunca faz parte da orientação gravada
   $('bloco-enviar').textContent = 'Revisar e salvar informação';
   $('bloco-titulo').value = c.titulo;
   $('bloco-texto').value = c.texto;

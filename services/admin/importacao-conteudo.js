@@ -2,9 +2,10 @@
 // documentos, perguntas e blocos antigos, fontes) e montam candidatos a "informação" em elaboração. Nada é gravado aqui e nada recebido
 // é modificado. O conteúdo antigo nunca é alterado: a importação só acrescenta um bloco de conhecimento em elaboração.
 //
-// Candidato = item antigo com conteúdo suficiente e fonte ativa (não excluída, não revogada). Não são candidatos: bloco de teste ou
-// regra institucional sem fonte, conteúdo vazio, pergunta sem resposta, conteúdo já importado, fonte excluída ou revogada e texto marcado
-// como teste local. A importação é de UM item por vez: o candidato apenas preenche o formulário; a gravação passa pelas mesmas regras
+// Candidatos: descrição, etapas, condições/requisitos, blocos antigos (fora do ambiente de teste) com orientação e fonte, e perguntas com
+// resposta. Normas, links e documentos (checklist técnico) NÃO são candidatos: continuam como fontes. Textos iguais (normalizados)
+// aparecem uma só vez. Não são candidatos: bloco com ambiente teste_local (nunca), regra institucional ou bloco sem fonte, conteúdo vazio,
+// pergunta sem resposta, conteúdo já importado, fonte excluída ou revogada e texto marcado como teste local. A importação é de UM item por vez: o candidato apenas preenche o formulário; a gravação passa pelas mesmas regras
 // do cadastro de informação (fonte ativa obrigatória, em elaboração, sem aceitar, revisar nem publicar).
 //
 // A origem fica no próprio bloco (`origemImportacao: { tipo, referencia }`), só para evitar duplicação; a referência é estável
@@ -13,7 +14,7 @@
 import { montarBlocoConhecimento, validarEntradaConhecimento } from './conhecimento.js';
 import { fonteIndisponivel } from './edicao-fonte.js';
 
-export const TIPOS_CANDIDATO = Object.freeze(['descricao', 'etapas', 'link', 'norma', 'bloco', 'documento', 'pergunta']);
+export const TIPOS_CANDIDATO = Object.freeze(['descricao', 'etapas', 'requisitos', 'bloco', 'pergunta']);
 export const CAMPOS_CORPO_IMPORTACAO = Object.freeze(['revisao', 'ref', 'titulo', 'texto', 'fonteIds', 'referencias', 'alertas']);
 
 const PADRAO_REVISAO = /^[0-9a-f]{64}$/;
@@ -23,6 +24,13 @@ const LIMITE_LOCALIZACAO = 200;
 const LIMITE_ALERTA = 300;
 const LIMITE_ALERTAS = 10;
 
+const TAMANHO_MINIMO_ORIENTACAO = 40;
+// Única frase padronizada removida do texto de `conteudoFonte` ao pré-preencher (correspondência exata, ponto final opcional).
+const FRASE_PENDENTE = /[ 	]*Informação pendente de confirmação pela área competente antes da publicação.?/g;
+/** Remove somente essa frase exata e o espaço que sobra; o resto do texto fica como está. */
+export const semFrasePendente = (t) => (typeof t === 'string' ? t.replace(FRASE_PENDENTE, '').trim() : t);
+/** Minúsculas, sem acentos e com espaços colapsados, para comparar conteúdos. */
+const normalizar = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const lista = (v) => (Array.isArray(v) ? v : []);
 const preenchido = (v) => typeof v === 'string' && v.trim() !== '';
@@ -52,7 +60,7 @@ function referenciasImportadas(conteudoAssistente) {
 }
 
 /**
- * Candidatos da versão (ordem fixa: descrição, etapas, normas, links, blocos antigos, documentos, perguntas).
+ * Candidatos da versão (ordem fixa: descrição, etapas, condições, blocos antigos fora do teste, perguntas).
  * `arquivos`: { service, documentos, perguntasFrequentes, fontes, conteudoAssistente }. Cada candidato:
  * { ref, tipo, titulo, texto, fonteIds, referencias: [{ fonteId, localizacao }], alertas }. Fontes sugeridas só se ativas.
  */
@@ -64,6 +72,7 @@ export function listarCandidatos(arquivos) {
   const importadas = referenciasImportadas(arquivos.conteudoAssistente);
   const service = ehObjeto(arquivos.service) ? arquivos.service : {};
   const saida = [];
+  const conteudos = new Set(lista(arquivos.conteudoAssistente?.blocos).filter((b) => ehObjeto(b) && b.tipo === 'conhecimento' && typeof b.texto === 'string').map((b) => normalizar(b.texto)));
 
   const aceitavel = (c) => {
     if (importadas.has(c.ref) || MARCA_DE_TESTE.test(c.titulo) || MARCA_DE_TESTE.test(c.texto)) return false;
@@ -85,7 +94,9 @@ export function listarCandidatos(arquivos) {
     // Documento, pergunta, bloco antigo, link e norma só valem com fonte ativa; descrição e etapas deixam a escolha da fonte para a pessoa.
     if (exigeFonte && referencias.length === 0) return;
     const candidato = { ref, tipo, titulo: titulo.trim(), texto: texto.trim(), fonteIds: referencias.map((r) => r.fonteId), referencias, alertas: alertasValidos(alertas) };
-    if (aceitavel(candidato)) saida.push(candidato);
+    if (!aceitavel(candidato) || conteudos.has(normalizar(candidato.texto))) return;
+    conteudos.add(normalizar(candidato.texto));
+    saida.push(candidato);
   };
   const sugeridasDe = (campo) => lista(service.referencias?.[campo]).filter((i) => typeof i === 'string').map((fonteId) => ({ fonteId, localizacao: '' }));
   const idsDeLista = (v) => lista(v).map((i) => (typeof i === 'string' ? i : ehObjeto(i) ? (i.fonteId ?? i.id) : null)).filter((i) => typeof i === 'string');
@@ -95,39 +106,23 @@ export function listarCandidatos(arquivos) {
   const etapas = lista(service.etapas).filter(preenchido).map((e) => e.trim());
   if (etapas.length > 0) acrescentar('etapas', 'etapas', 'Etapas do serviço', etapas.map((e, i) => `${i + 1}. ${e}`).join('\n'), sugeridasDe('etapas'), [], false);
 
-  // 3. Normas (legislação) e 4. links: a fonte é o próprio item; formas textuais (texto cadastrado) não entram aqui.
-  const vistas = new Set();
-  const daFonte = (f, ref, tipo) => {
-    if (f.formaEntrada === 'texto' || vistas.has(f.id)) return;
-    const base = preenchido(f.descricao) ? f.descricao.trim() : '';
-    if (base === '') return;
-    const partes = [base];
-    if (tipo === 'norma' && preenchido(f.dispositivoRelevante)) partes.push(`Dispositivo relevante: ${f.dispositivoRelevante.trim()}`);
-    if (tipo === 'link' && preenchido(f.url)) partes.push(`Endereço: ${f.url.trim()}`);
-    const obs = ehObjeto(f.vigencia) && preenchido(f.vigencia.observacao) ? [f.vigencia.observacao] : [];
-    vistas.add(f.id);
-    acrescentar(ref, tipo, f.titulo, partes.join('\n'), [{ fonteId: f.id, localizacao: tipo === 'norma' ? f.dispositivoRelevante : '' }], obs);
-  };
-  const idsNormas = new Set([...idsDeLista(service.legislacao), ...fontes.filter((f) => f.tipo === 'legislacao').map((f) => f.id)]);
-  for (const id of idsNormas) { const f = porId.get(id); if (ativa(f)) daFonte(f, `norma:${f.id}`, 'norma'); }
-  for (const id of idsDeLista(service.links)) { const f = porId.get(id); if (ativa(f)) daFonte(f, `link:${f.id}`, 'link'); }
+  // 3. Condições e requisitos explicados ao cidadão (texto de orientação do service.json, com fonte ativa).
+  const condicoes = lista(service.condicoes).filter(preenchido).map((c) => c.trim());
+  if (condicoes.length > 0) acrescentar('requisitos', 'requisitos', 'Condições e requisitos', condicoes.map((c, i) => `${i + 1}. ${c}`).join('\n'), sugeridasDe('condicoes'));
 
-  // 5. Blocos antigos que possuem fonte (nunca regra institucional, "sem conteúdo" nem bloco sem fonte).
+  // 4. Blocos antigos com orientação compreensível (descrição ou sequência de etapas) e fonte ativa. Nunca regra institucional,
+  // "sem conteúdo", bloco de teste_local, link isolado nem bloco sem fonte; texto repetido de um item já listado é descartado pela deduplicação.
   for (const b of lista(arquivos.conteudoAssistente?.blocos)) {
-    if (!ehObjeto(b) || !['descricao', 'sequencia', 'link'].includes(b.tipo) || b.origem !== 'fonte' || !preenchido(b.id)) continue;
-    const titulo = b.tipo === 'descricao' ? 'Descrição do serviço (conteúdo anterior)' : b.tipo === 'sequencia' ? 'Etapas do serviço (conteúdo anterior)' : 'Link do serviço (conteúdo anterior)';
+    if (!ehObjeto(b) || !['descricao', 'sequencia'].includes(b.tipo) || b.origem !== 'fonte' || b.ambiente === 'teste_local' || !preenchido(b.id) || !preenchido(b.texto) || b.texto.trim().length < TAMANHO_MINIMO_ORIENTACAO) continue;
+    const titulo = b.tipo === 'descricao' ? 'Descrição do serviço (conteúdo anterior)' : 'Etapas do serviço (conteúdo anterior)';
     acrescentar(`bloco:${b.id}`, 'bloco', titulo, b.texto, lista(b.fonteIds).filter((i) => typeof i === 'string').map((fonteId) => ({ fonteId, localizacao: '' })), preenchido(b.aviso) ? [b.aviso] : []);
   }
 
-  // 6. Documentos e 7. perguntas com conteúdo e fonte suficientes.
-  for (const d of lista(arquivos.documentos?.documentos)) {
-    if (!ehObjeto(d) || !preenchido(d.id) || !preenchido(d.nome) || !preenchido(d.descricao) || !preenchido(d.fonteId)) continue;
-    const texto = preenchido(d.aplicabilidade) ? `${d.descricao.trim()}\nAplicabilidade: ${d.aplicabilidade.trim()}` : d.descricao;
-    acrescentar(`documento:${d.id}`, 'documento', d.nome, texto, [{ fonteId: d.fonteId, localizacao: d.localizacaoFonte }], d.alertas);
-  }
+  // 5. Perguntas frequentes COM resposta preenchida e fonte ativa. Normas, links e documentos NÃO são candidatos: são fontes
+  // (comprovam, não viram informação sozinhos); a lista técnica de documentos exigidos não traz orientação ao cidadão.
   for (const p of lista(arquivos.perguntasFrequentes?.perguntas)) {
     if (!ehObjeto(p) || !preenchido(p.id) || !preenchido(p.pergunta) || !preenchido(p.fonteId)) continue;
-    const resposta = preenchido(p.respostaPublicavel) ? p.respostaPublicavel : p.conteudoFonte;
+    const resposta = preenchido(p.respostaPublicavel) ? p.respostaPublicavel : semFrasePendente(p.conteudoFonte);
     acrescentar(`pergunta:${p.id}`, 'pergunta', p.pergunta, resposta, [{ fonteId: p.fonteId, localizacao: p.localizacaoFonte }], p.alertas);
   }
   return saida;

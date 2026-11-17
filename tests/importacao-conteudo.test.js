@@ -95,13 +95,16 @@ test('IM1. a lista só lê: candidatos em linguagem comum, sem regra institucion
     const r = await cand();
     assert.equal(r.status, 200, r.bruto);
     assert.match(r.corpo.revisao, /^[0-9a-f]{64}$/);
-    const tipos = new Set(r.corpo.candidatos.map((c) => c.tipo));
-    for (const t of ['descricao', 'etapas', 'norma', 'link', 'bloco', 'documento', 'pergunta']) assert.ok(tipos.has(t), `tipo ${t}`);
+    const contagem = {};
+    for (const c of r.corpo.candidatos) contagem[c.tipo] = (contagem[c.tipo] ?? 0) + 1;
+    // só orientações: normas, links e documentos (checklist técnico) continuam como fontes e nunca são candidatos
+    assert.deepEqual(contagem, { descricao: 1, etapas: 1, requisitos: 1, pergunta: 21 });
+    assert.equal(r.corpo.candidatos.length, 24, 'blocos antigos de teste_local não aparecem');
     const refs = r.corpo.candidatos.map((c) => c.ref);
     assert.equal(new Set(refs).size, refs.length);
     const antigos = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos;
+    assert.ok(!refs.some((x) => x.startsWith('bloco:')), 'nenhum bloco antigo teste_local');
     const doBloco = refs.filter((x) => x.startsWith('bloco:')).map((x) => x.slice(6));
-    assert.ok(doBloco.length > 0);
     for (const id of doBloco) assert.equal(antigos.find((b) => b.id === id).origem, 'fonte');
     for (const b of antigos.filter((x) => x.origem === 'regra_institucional' || x.tipo === 'sem_conteudo')) assert.ok(!refs.includes(`bloco:${b.id}`));
     assert.ok(!refs.includes(`norma:${REVOGADO}`) && !refs.includes(`link:${REVOGADO}`), 'fonte revogada não é candidata');
@@ -180,40 +183,34 @@ test('IM4. fonte ativa é exigida: excluída, revogada, inexistente ou ausente s
   });
 });
 
-test('IM5. não são candidatos: vazio, pergunta sem resposta, fonte excluída ou revogada, texto de teste local, sem etapas', async () => {
+test('IM5. não são candidatos: pergunta sem resposta, fonte excluída ou revogada, texto de teste local, sem etapas nem condições', async () => {
   await comCopia(async ({ cand, raiz }) => {
-    const docs = lerJ(raiz, ...arq('documentos.json'));
     const perg = lerJ(raiz, ...arq('perguntas-frequentes.json'));
     const cont = lerJ(raiz, ...arq('conteudo-assistente.json'));
     const fontes = lerJ(raiz, ...arq('fontes.json'));
     const svc = lerJ(raiz, ...arq('service.json'));
-    const [d0, d1, d2] = docs.documentos;
-    d0.descricao = '   ';
-    d1.fonteId = REVOGADO;
-    const [p0, p1] = perg.perguntas;
+    const [p0, p1, p2] = perg.perguntas;
     p0.conteudoFonte = '';
     p0.respostaPublicavel = null;
-    p1.fonteId = 'fonte-inexistente';
-    const teste = cont.blocos.find((b) => b.tipo === 'descricao');
+    p1.fonteId = REVOGADO;
+    const teste = { ...cont.blocos.find((b) => b.tipo === 'sequencia'), id: 'bloco-publico-teste', ambiente: 'publico' };
+    cont.blocos.push(teste);
     teste.texto = `${teste.texto} (texto de teste local)`;
     svc.etapas = [];
+    svc.condicoes = ['   '];
     fontes.fontes.find((f) => f.id === MANUAL).excluidaEm = '2026-11-17';
-    gravarJ(raiz, arq('documentos.json'), docs);
     gravarJ(raiz, arq('perguntas-frequentes.json'), perg);
     gravarJ(raiz, arq('conteudo-assistente.json'), cont);
     gravarJ(raiz, arq('fontes.json'), fontes);
     gravarJ(raiz, arq('service.json'), svc);
     const l = (await cand()).corpo;
     const refs = l.candidatos.map((c) => c.ref);
-    assert.ok(!refs.includes(`documento:${d0.id}`), 'descrição vazia');
-    assert.ok(!refs.includes(`documento:${d1.id}`), 'fonte revogada');
-    assert.ok(refs.includes(`documento:${d2.id}`) || d2.fonteId === MANUAL);
     assert.ok(!refs.includes(`pergunta:${p0.id}`), 'pergunta sem resposta');
-    assert.ok(!refs.includes(`pergunta:${p1.id}`), 'fonte inexistente');
+    assert.ok(!refs.includes(`pergunta:${p1.id}`), 'fonte revogada');
+    assert.ok(refs.includes(`pergunta:${p2.id}`) || p2.fonteId === MANUAL);
     assert.ok(!refs.includes(`bloco:${teste.id}`), 'texto marcado como teste local');
-    assert.ok(!refs.includes('etapas'), 'sem etapas');
-    assert.ok(!l.candidatos.some((c) => c.fonteIds.includes(MANUAL)), 'fonte excluída nunca é sugerida');
-    assert.ok(!refs.some((x) => x.endsWith(MANUAL)), 'fonte excluída não é candidata');
+    assert.ok(!refs.includes('etapas') && !refs.includes('requisitos'), 'sem etapas nem condições');
+    assert.ok(!l.candidatos.some((c) => c.fonteIds.includes(MANUAL) || c.fonteIds.includes(REVOGADO)), 'fonte excluída ou revogada nunca é sugerida');
   });
   assert.deepEqual(listarCandidatos({ service: { descricao: 'Texto.' }, fontes: { fontes: [{ id: 'a', excluidaEm: '2026-01-01' }] }, conteudoAssistente: { blocos: [] } }), []);
 });
@@ -311,13 +308,13 @@ test('IM9. rollback: falha em cada gravação (e conferência final recusada) de
 test('IM10. histórico privado só com metadados (ação, tipo do item); sem texto, título nem URL', async () => {
   await comCopia(async ({ cand, importar, raiz, blocos }) => {
     const l = (await cand()).corpo;
-    const link = l.candidatos.find((c) => c.tipo === 'link');
+    const link = l.candidatos.find((c) => c.tipo === 'pergunta');
     const r = await importar(corpoDe(l, link.ref, l.revisao));
     assert.equal(r.status, 201, r.bruto);
     const h = criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros;
-    assert.deepEqual(h.map((x) => [x.acao, x.itemTipo, x.itemId]), [['importar_conteudo', 'link', blocos()[0].id]]);
+    assert.deepEqual(h.map((x) => [x.acao, x.itemTipo, x.itemId]), [['importar_conteudo', 'pergunta', blocos()[0].id]]);
     const bruto = JSON.stringify(h);
-    assert.ok(!bruto.includes(link.titulo) && !bruto.includes('http') && !bruto.includes(link.texto.slice(0, 30)));
+    assert.ok(!bruto.includes(link.titulo) && !bruto.includes(link.texto.slice(0, 30)));
     assert.match(h[0].hashConteudo, /^[0-9a-f]{64}$/);
   });
 });
@@ -372,4 +369,115 @@ test('IM12. o validador e os leitores toleram origemImportacao; formato inválid
 test('IM13. a base real e o histórico real continuam intactos', () => {
   assert.deepEqual(retrato(RAIZ), RETRATO_REAL_ANTES);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), EXISTIA_DATA);
+});
+
+const FONTE_A = { id: 'fa', titulo: 'Fonte A', tipo: 'pagina_oficial', formaEntrada: 'link', url: 'https://exemplo.test/a', descricao: 'Página oficial fictícia.', statusValidacao: 'validado', publicado: false, vigencia: { situacao: 'nao_se_aplica' } };
+const base = (extra = {}) => ({
+  service: { descricao: 'Descrição fictícia do serviço para o cidadão.', etapas: ['Entrar no sistema.', 'Enviar o pedido.'], condicoes: ['Ter cadastro prévio no sistema.'], referencias: { condicoes: ['fa'] }, ...extra.service },
+  documentos: extra.documentos ?? { documentos: [] },
+  perguntasFrequentes: extra.perguntas ?? { perguntas: [] },
+  fontes: extra.fontes ?? { fontes: [FONTE_A] },
+  conteudoAssistente: extra.conteudo ?? { blocos: [] },
+});
+
+test('IM14. elegíveis: descrição, etapas e condições; pergunta com resposta; pergunta sem resposta fora', () => {
+  const c = listarCandidatos(base({ perguntas: { perguntas: [
+    { id: 'p1', pergunta: 'Posso enviar o pedido?', conteudoFonte: 'Sim, o pedido é enviado pelo sistema.', respostaPublicavel: null, fonteId: 'fa', localizacaoFonte: 'item 1' },
+    { id: 'p2', pergunta: 'Qual o prazo?', conteudoFonte: '', respostaPublicavel: null, fonteId: 'fa' },
+    { id: 'p3', pergunta: 'Outra?', conteudoFonte: '  ', respostaPublicavel: '', fonteId: 'fa' },
+  ] } }));
+  assert.deepEqual(c.map((x) => x.ref), ['descricao', 'etapas', 'requisitos', 'pergunta:p1']);
+  assert.equal(c[1].texto, '1. Entrar no sistema.\n2. Enviar o pedido.');
+  assert.deepEqual(c[3].referencias, [{ fonteId: 'fa', localizacao: 'item 1' }]);
+});
+
+test('IM15. lei, decreto, link e documento técnico nunca são candidatos (continuam como fontes)', () => {
+  const lei = { ...FONTE_A, id: 'lei', titulo: 'Lei fictícia', tipo: 'legislacao', descricao: 'Norma fictícia sobre o serviço.', dispositivoRelevante: 'art. 1' };
+  const dec = { ...lei, id: 'dec', titulo: 'Decreto fictício' };
+  const c = listarCandidatos(base({
+    service: { legislacao: ['lei', 'dec'], links: ['fa'] },
+    fontes: { fontes: [FONTE_A, lei, dec] },
+    documentos: { documentos: [{ id: 'd1', nome: 'RG do solicitante', descricao: 'Cópia autenticada do RG.', aplicabilidade: 'Pessoa física.', fonteId: 'fa', localizacaoFonte: 'item 1' }] },
+  }));
+  assert.deepEqual(c.map((x) => x.tipo), ['descricao', 'etapas', 'requisitos']);
+});
+
+test('IM16. bloco antigo: só descrição/sequência com orientação e fonte ativa fora do teste_local; teste_local (mesmo com fonte e texto longo), sem fonte, limitação e link fora', () => {
+  const bl = (id, tipo, texto, extra = {}) => ({ id, tipo, texto, origem: 'fonte', fonteIds: ['fa'], ambiente: 'teste_local', statusValidacao: 'em_validacao', publicado: false, revisaoAtualidade: 'pendente', ...extra });
+  const c = listarCandidatos(base({ conteudo: { blocos: [
+    bl('b-seq', 'sequencia', 'Fluxo antigo de referência: 1. Entrar. 2. Enviar o pedido ao órgão.', { ambiente: 'publico' }),
+    bl('b-teste-local-fonte', 'sequencia', 'Orientação longa e compreensível, com fonte ativa, mas em bloco teste_local.'),
+    bl('b-sem-fonte', 'descricao', 'Texto antigo sem nenhuma fonte cadastrada para o serviço.', { ambiente: 'publico', origem: 'regra_institucional', fonteIds: [] }),
+    bl('b-fonte-ausente', 'sequencia', 'Texto antigo com fonte que não existe mais no serviço.', { ambiente: 'publico', fonteIds: ['nao-existe'] }),
+    bl('b-link', 'link', 'Link antigo com descrição suficientemente longa para o teste.', { ambiente: 'publico', url: 'https://exemplo.test/x' }),
+    bl('b-curto', 'descricao', 'Curto.', { ambiente: 'publico' }),
+    bl('b-limitacao', 'limitacao', 'O sistema apenas orienta e não decide sobre a licença do serviço.', { origem: 'regra_institucional', fonteIds: [] }),
+    bl('b-teste', 'descricao', 'Orientação antiga marcada como texto de teste local para demonstração.', { ambiente: 'publico' }),
+  ] } }));
+  assert.deepEqual(c.filter((x) => x.tipo === 'bloco').map((x) => x.ref), ['bloco:b-seq']);
+});
+
+test('IM17. duplicados: o mesmo conteúdo (minúsculas, sem acento, espaços colapsados) aparece uma só vez; já importado não reaparece', () => {
+  const dupe = { id: 'b-d', tipo: 'descricao', texto: '  DESCRIÇÃO   fictícia do serviço para o CIDADÃO. ', origem: 'fonte', fonteIds: ['fa'], ambiente: 'publico', statusValidacao: 'em_validacao', publicado: false, revisaoAtualidade: 'pendente' };
+  const c = listarCandidatos(base({ conteudo: { blocos: [dupe] } }));
+  assert.deepEqual(c.map((x) => x.ref), ['descricao', 'etapas', 'requisitos']);
+  const importado = { id: 'bc-1', tipo: 'conhecimento', titulo: 'T', texto: 'Descrição fictícia do serviço para o cidadão.', origem: 'fonte', fonteIds: ['fa'], referencias: [{ fonteId: 'fa', localizacao: 'x' }], origemImportacao: { tipo: 'descricao', referencia: 'descricao' } };
+  assert.deepEqual(listarCandidatos(base({ conteudo: { blocos: [importado] } })).map((x) => x.ref), ['etapas', 'requisitos']);
+  const manual = { ...importado, id: 'bc-2' };
+  delete manual.origemImportacao;
+  assert.ok(!listarCandidatos(base({ conteudo: { blocos: [manual] } })).some((x) => x.ref === 'descricao'));
+});
+
+test('IM18. itens não importados não são pendência: a revisão conclui só com o que foi importado e aceito', async () => {
+  await comCopia(async ({ cand, importar, post, situacao }) => {
+    const l = (await cand()).corpo;
+    assert.ok(l.candidatos.length > 1);
+    assert.equal((await importar(corpoDe(l, 'descricao', l.revisao))).status, 201);
+    let s = await situacao();
+    assert.ok(s.pendencias.every((p) => ['sem_bloco_aceito', 'bloco_pendente', 'fonte_pendente'].includes(p.codigo)), JSON.stringify(s.pendencias));
+    if (s.fontes.find((f) => f.id === SEMA)?.podeRevisar) {
+      assert.equal((await post('revisao/fontes', { fonteId: SEMA, revisao: s.revisao })).status, 200);
+      s = await situacao();
+    }
+    assert.equal((await post('revisao/blocos/aceitar', { blocoId: s.blocos[0].id, revisao: s.revisao })).status, 200);
+    s = await situacao();
+    assert.deepEqual(s.pendencias, [], 'os demais candidatos não importados não impedem concluir');
+    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+  });
+});
+
+test('IM19. conteudoFonte: só a frase padronizada exata é removida; o resto do texto fica; frase parecida permanece', async () => {
+  const { semFrasePendente } = await import('../services/admin/importacao-conteudo.js');
+  const F = 'Informação pendente de confirmação pela área competente antes da publicação.';
+  assert.equal(semFrasePendente(`Resposta A. ${F}`), 'Resposta A.');
+  assert.equal(semFrasePendente(`Resposta A. ${F.slice(0, -1)}  `), 'Resposta A.');
+  assert.equal(semFrasePendente(`Primeira. ${F} Segunda frase.`), 'Primeira. Segunda frase.');
+  const parecida = 'Informação pendente de confirmação pela área responsável antes da publicação.';
+  assert.equal(semFrasePendente(`Resposta B. ${parecida}`), `Resposta B. ${parecida}`);
+  assert.equal(semFrasePendente('Informação pendente de confirmação.'), 'Informação pendente de confirmação.');
+  const c = listarCandidatos(base({ perguntas: { perguntas: [{ id: 'p1', pergunta: 'Posso enviar?', conteudoFonte: `Sim, pelo sistema. ${F}`, respostaPublicavel: null, fonteId: 'fa', localizacaoFonte: 'item 1' }] } }));
+  assert.equal(c.find((x) => x.ref === 'pergunta:p1').texto, 'Sim, pelo sistema.');
+});
+
+test('IM20. importar pergunta com a frase removida: o texto gravado não tem a frase nem o aviso da tela; arquivos antigos intactos; em elaboração, nada aceito nem publicado', async () => {
+  const F = 'Informação pendente de confirmação pela área competente antes da publicação.';
+  await comCopia(async ({ cand, importar, raiz, blocos }) => {
+    const perg = lerJ(raiz, ...arq('perguntas-frequentes.json'));
+    perg.perguntas[0].conteudoFonte = `O pedido é enviado pelo sistema. ${F} Confirme o prazo com a SEMA.`;
+    perg.perguntas[0].respostaPublicavel = null;
+    gravarJ(raiz, arq('perguntas-frequentes.json'), perg);
+    const antes = ANTIGOS.map((n) => bytes(raiz, n));
+    const l = (await cand()).corpo;
+    const c = l.candidatos.find((x) => x.ref === `pergunta:${perg.perguntas[0].id}`);
+    assert.ok(!c.texto.includes('pendente de confirmação pela área competente'));
+    assert.ok(c.texto.startsWith('O pedido é enviado pelo sistema.') && c.texto.includes('Confirme o prazo com a SEMA.'));
+    const r = await importar(corpoDe(l, c.ref, l.revisao));
+    assert.equal(r.status, 201, r.bruto);
+    const b = blocos()[0];
+    assert.equal(b.texto, c.texto);
+    assert.ok(!/Conteúdo antigo: confira|antes de salvar/.test(JSON.stringify(b)), 'o aviso da tela nunca é gravado');
+    assert.deepEqual([b.statusValidacao, b.revisaoAtualidade, b.publicado], ['rascunho', 'pendente', false]);
+    ANTIGOS.forEach((n, i) => assert.ok(bytes(raiz, n).equals(antes[i]), `${n} intacto`));
+    assert.deepEqual(validarServicos(raiz).erros, []);
+  });
 });

@@ -25,7 +25,7 @@ async function abrirLac(page) {
   await expect(page.locator('#fontes-revisao')).toHaveAttribute('aria-busy', 'false');
 }
 
-test('1. abrir a lista só lê: candidatos em linguagem comum, sem ids, nada gravado, foco no título', async ({ page }) => {
+test('1. abrir a lista só lê (apenas orientações): candidatos em linguagem comum, sem ids, nada gravado, foco no título', async ({ page }) => {
   const enviados = observar(page);
   await abrirLac(page);
   await expect(cartao(page)).toBeHidden();
@@ -33,12 +33,20 @@ test('1. abrir a lista só lê: candidatos em linguagem comum, sem ids, nada gra
   await expect(cartao(page)).toBeVisible();
   await expect(page.locator('#titulo-importacao')).toBeFocused();
   await expect(itens(page).first()).toBeVisible();
-  await expect(page.locator('#importacao-estado')).toContainText(/podem? ser importados?/);
-  expect(await itens(page).count()).toBeGreaterThan(3);
+  await expect(page.locator('#importacao-estado')).toHaveText(/^\d+ orientaç(ão|ões) encontradas?\.$/);
+  await expect(page.locator('#titulo-importacao')).toHaveText('Orientações encontradas no conteúdo antigo');
+  await expect(page.locator('#importacao-ajuda')).toHaveText('Escolha somente as orientações que ainda são úteis. Os documentos e normas continuam disponíveis como fontes.');
+  const n = await itens(page).count();
+  expect(n).toBeGreaterThan(3);
+  await expect(page.locator('#importacao-estado')).toHaveText(`${n} orientações encontradas.`);
+  // normas, links e documentos técnicos não são itens importáveis: continuam como fontes
+  await expect(itens(page).filter({ hasText: /Tipo: (Norma|Link|Documento exigido)/ })).toHaveCount(0);
+  await expect(itens(page).locator('.bloco__titulo').filter({ hasText: /^(Lei|Decreto|Termo de Referência|RG |CPF )/ })).toHaveCount(0);
   await expect(itens(page).filter({ hasText: 'Descrição do serviço' }).first()).toContainText('Tipo: Descrição');
   await expect(botao(page, 'Importar: Descrição do serviço')).toBeVisible();
   expect(await cartao(page).innerText()).not.toMatch(TECNICO);
-  // não aparecem regra institucional, bloco "sem conteúdo" nem a norma revogada
+  // não aparecem blocos antigos de teste, regra institucional, bloco "sem conteúdo" nem a norma revogada
+  await expect(itens(page).filter({ hasText: /conteúdo anterior|Tipo: Conteúdo anterior/ })).toHaveCount(0);
   // o decreto revogado pode ser citado no corpo de outros textos, mas nunca é um item importável nem fonte sugerida
   await expect(itens(page).locator('.bloco__titulo').filter({ hasText: 'Decreto nº 695' })).toHaveCount(0);
   await expect(itens(page).locator('p.bloco__linha').filter({ hasText: /Documento ou link sugerido:.*Decreto nº 695/ })).toHaveCount(0);
@@ -63,6 +71,9 @@ test('2. importar um item: o formulário é preenchido, a pessoa confere e confi
   await expect(page.locator('#titulo-form')).toBeFocused();
   await expect(page.locator('#bloco-titulo')).toHaveValue('Descrição do serviço');
   await expect(page.locator('#bloco-texto')).not.toHaveValue('');
+  await expect(page.locator('#aviso-importacao')).toBeVisible();
+  await expect(page.locator('#aviso-importacao')).toHaveText('Conteúdo antigo: confira e atualize esta orientação antes de salvar.');
+  await expect(page.locator('#bloco-texto')).not.toHaveValue(/Conteúdo antigo: confira/);
   expect(enviados, 'escolher o item só preenche o formulário').toEqual([]);
   // fonte sugerida marcada; falta o local na fonte
   const marcada = page.locator('#bloco-fontes input[type="checkbox"]:checked');
@@ -75,6 +86,7 @@ test('2. importar um item: o formulário é preenchido, a pessoa confere e confi
   expect(enviados, 'a confirmação ainda não grava').toEqual([]);
   await botao(page, 'Confirmar e salvar').click();
   await expect(status(page)).toContainText('Informação importada.');
+  await expect(page.locator('#aviso-importacao')).toBeHidden();
   await expect(status(page)).toContainText('conteúdo existente continua preservado');
   await expect(page.locator('#blocos li.bloco')).toHaveCount(antes + 1);
   const nova = page.locator('#blocos li.bloco').filter({ hasText: 'Descrição do serviço' }).last();

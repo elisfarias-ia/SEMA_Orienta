@@ -51,7 +51,7 @@ export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'l
 // Campos exclusivos do bloco de conhecimento e conjunto completo de campos permitidos nele.
 export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm', 'origemImportacao'];
 // Origem da importação de conteúdo existente (Passo 5B3c): campo interno e opcional, só tipo + referência estável do item de origem.
-export const TIPOS_ORIGEM_IMPORTACAO = ['descricao', 'etapas', 'link', 'norma', 'bloco', 'documento', 'pergunta'];
+export const TIPOS_ORIGEM_IMPORTACAO = ['descricao', 'etapas', 'requisitos', 'link', 'norma', 'bloco', 'documento', 'pergunta'];
 const PADRAO_REFERENCIA_IMPORTACAO = /^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*)?$/;
 export const CAMPOS_BLOCO_CONHECIMENTO = [
   'id', 'tipo', 'titulo', 'texto', 'origem', 'fonteIds', 'referencias', 'alertas', 'ambiente', 'statusValidacao', 'publicado',

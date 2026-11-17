@@ -96,7 +96,7 @@
 
       <section id="cartao-importacao" class="cartao" aria-labelledby="titulo-importacao" hidden>
         <div class="cartao__titulo">
-          <h2 id="titulo-importacao" tabindex="-1">Importar conteúdo existente</h2>
+          <h2 id="titulo-importacao" tabindex="-1">Orientações encontradas no conteúdo antigo</h2>
           <button type="button" class="botao botao--secundario" id="importacao-fechar">Fechar</button>
         </div>
         <p class="ajuda" id="importacao-ajuda"></p>
@@ -109,7 +109,8 @@
           <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg></span>
           <h2 id="titulo-form" tabindex="-1">Incluir informação</h2>
         </div>
-        <form id="form-bloco" novalidate>
+        <p id="aviso-importacao" class="aviso-dados" role="note" hidden>Conteúdo antigo: confira e atualize esta orientação antes de salvar.</p>
+        <form id="form-bloco" novalidate aria-describedby="aviso-importacao">
           <div class="campo">
             <label for="bloco-titulo">Tema da informação</label>
             <input id="bloco-titulo" name="titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="bloco-titulo-erro" />

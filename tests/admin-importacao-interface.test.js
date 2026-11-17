@@ -43,7 +43,7 @@ test('II1. resumirCandidatos: só o que a tela usa; rótulos em linguagem comum;
   for (const ruim of [null, [], {}, { revisao: 'abc', candidatos: [] }, { revisao: REV }, { revisao: REV, candidatos: 'x' }]) assert.equal(resumirCandidatos(ruim), null);
   for (const rotulo of Object.values(ROTULOS_CANDIDATO)) assert.doesNotMatch(rotulo, /[a-z]+-[a-z0-9]+|\bid\b|json|bloco/i);
   assert.equal(resumirCandidatos({ revisao: REV, candidatos: [] }).candidatos.length, 0);
-  assert.match(FRASE_SEM_CANDIDATOS, /Não há conteúdo existente/);
+  assert.match(FRASE_SEM_CANDIDATOS, /Nenhuma orientação encontrada/);
 });
 
 test('II2. prévia do texto: sem quebras, limitada e com reticências', () => {
@@ -105,7 +105,10 @@ test('II5. mensagens: já importado, revisão divergente e versão congelada ped
   assert.deepEqual([g.ok, g.recarregar], [false, true]);
   assert.equal((await cliente.carregarCandidatosDeImportacao('lac')).ok, false);
   assert.match(MENSAGEM_IMPORTADA, /em elaboração.*não está disponível no chatbot/);
-  assert.match(TEXTO_IMPORTACAO, /um item por vez/);
+  assert.equal(TEXTO_IMPORTACAO, 'Escolha somente as orientações que ainda são úteis. Os documentos e normas continuam disponíveis como fontes.');
+  assert.match(HTML, /<h2 id="titulo-importacao" tabindex="-1">Orientações encontradas no conteúdo antigo<\/h2>/);
+  assert.ok(JS.includes("'1 orientação encontrada.' : `${n} orientações encontradas.`"));
+  assert.equal(ROTULOS_CANDIDATO.requisitos, 'Condições e requisitos');
 });
 
 test('II6. a página: botão, lista com "Importar" por item, foco/teclado, sem innerHTML nem armazenamento; nada é gravado ao abrir', () => {
@@ -129,4 +132,16 @@ test('II6. a página: botão, lista com "Importar" por item, foco/teclado, sem i
   // o botão só aparece para versão editável; congelada exige "Criar nova versão para editar" (já existente)
   assert.match(JS, /\$\('botao-importar'\)\.hidden = !permitido/);
   assert.match(HTML, /Criar nova versão para editar/);
+});
+
+test('II7. aviso "Conteúdo antigo": fora do campo de texto, acessível, só no formulário importado e nunca enviado', () => {
+  assert.match(HTML, /<p id="aviso-importacao"[^>]*role="note"[^>]*hidden>Conteúdo antigo: confira e atualize esta orientação antes de salvar\.<\/p>/);
+  assert.match(HTML, /<form id="form-bloco"[^>]*aria-describedby="aviso-importacao"/);
+  const escolher = JS.slice(JS.indexOf('function escolherCandidato'), JS.indexOf("$('botao-importar').addEventListener"));
+  assert.match(escolher, /\$\('aviso-importacao'\)\.hidden = false/);
+  assert.doesNotMatch(escolher, /bloco-texto'\)\.value = .*aviso/i);
+  assert.match(JS, /\$\('aviso-importacao'\)\.hidden = true/);
+  assert.doesNotMatch(LOGICA, /Conteúdo antigo: confira/);
+  const v = validarFormConhecimento({ titulo: 'T', texto: 'Texto.', alertas: '', selecionadas: [{ fonteId: 'f-um', localizacao: 'p. 1' }] }, [{ id: 'f-um', titulo: 'F', revogada: false }]);
+  assert.doesNotMatch(JSON.stringify(corpoDaImportacao('descricao', v.dados, REV)), /Conteúdo antigo/);
 });
