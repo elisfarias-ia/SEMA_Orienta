@@ -13,7 +13,7 @@ import { criarArmazenamento } from './armazenamento.js';
 import { validarHistorico, validarRegistro } from './decisoes.js';
 
 export const ATOR_DEMONSTRACAO = Object.freeze({ responsavel: 'Servidor de demonstração', unidade: 'Ambiente local de demonstração' });
-export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'importar_conteudo', 'concluir_revisao', 'nova_versao']);
+export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'importar_conteudo', 'concluir_revisao', 'autorizar_publicacao', 'publicar', 'nova_versao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
 

@@ -199,7 +199,7 @@ test('EI9. admin.js: nada é enviado ao abrir; cada gravação passa pelo client
   assert.doesNotMatch(JS, /textContent\s*=\s*[^;]*\.(id|temaId)\b/);
   assert.doesNotMatch(JS, /setAttribute\('aria-label',[^)]*\.id/);
   // o servidor decide: o cliente só envia o que mudou
-  assert.doesNotMatch(LOGICA.slice(LOGICA.indexOf('async editarServico')), /sigla|statusValidacao|publicado/);
+  assert.doesNotMatch(LOGICA.slice(LOGICA.indexOf('async editarServico'), LOGICA.indexOf('// ---------- Revisão do conteúdo')), /sigla|statusValidacao|publicado/);
 });
 
 test('EI10. este arquivo não grava nada em disco e os arquivos de admin/ continuam os mesmos', () => {

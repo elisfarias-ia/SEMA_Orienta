@@ -160,7 +160,7 @@
           <ol id="passos-pendencias" class="passos" hidden></ol>
           <ul id="pendencias" class="pendencias"></ul>
         </div>
-        <p id="conclusao-explicacao" class="ajuda">Ao concluir, o conteúdo desta versão fica bloqueado para edição. A conclusão não publica nada no chatbot.</p>
+        <p id="conclusao-explicacao" class="ajuda">Ao concluir, o conteúdo desta versão fica bloqueado para edição. Concluir a revisão não publica nada: depois dela ainda é preciso autorizar e, em seguida, publicar.</p>
         <p id="conclusao-pronta" class="situacao__aviso" hidden></p>
         <p id="nova-versao-explicacao" class="ajuda" hidden>Para fazer novas alterações, crie uma nova versão. Ela começa em elaboração e nada é publicado.</p>
         <div class="acoes-form">
@@ -168,7 +168,40 @@
           <button type="button" class="botao" id="botao-nova-versao" data-acao="nova-versao" data-indisponivel="false" hidden>Criar nova versão para editar</button>
         </div>
       </section>
+
+      <section id="cartao-publicacao" class="cartao" aria-labelledby="titulo-publicacao" hidden>
+        <div class="cartao__titulo">
+          <h2 id="titulo-publicacao" tabindex="-1">Autorizar e publicar</h2>
+        </div>
+        <p id="publicacao-diferenca" class="ajuda"></p>
+        <p id="publicacao-estado" class="situacao__aviso"></p>
+        <div class="acoes-form">
+          <button type="button" class="botao" id="botao-autorizar" data-acao="autorizar" data-indisponivel="false" hidden>Autorizar publicação</button>
+          <button type="button" class="botao" id="botao-publicar" data-acao="publicar" data-indisponivel="false" hidden>Publicar</button>
+        </div>
+      </section>
     </main>
+
+    <dialog id="dialogo-autorizacao" class="dialogo" aria-labelledby="autorizacao-titulo" aria-describedby="autorizacao-descricao">
+      <h2 id="autorizacao-titulo">Autorizar a publicação?</h2>
+      <p id="autorizacao-descricao" class="ajuda"></p>
+      <dl id="autorizacao-resumo" class="resumo"></dl>
+      <p id="autorizacao-aviso" class="aviso-dados" role="note"></p>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="autorizacao-voltar">Voltar</button>
+        <button type="button" class="botao" id="autorizacao-confirmar">Confirmar autorização</button>
+      </div>
+    </dialog>
+
+    <dialog id="dialogo-publicacao" class="dialogo" aria-labelledby="publicacao-titulo-dialogo" aria-describedby="publicacao-descricao-dialogo">
+      <h2 id="publicacao-titulo-dialogo">Publicar para o cidadão?</h2>
+      <p id="publicacao-descricao-dialogo" class="ajuda"></p>
+      <dl id="publicacao-resumo" class="resumo"></dl>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="publicacao-voltar">Voltar</button>
+        <button type="button" class="botao" id="publicacao-confirmar">Confirmar publicação</button>
+      </div>
+    </dialog>
 
     <dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">
       <h2 id="confirmacao-titulo">Confirmar</h2>

@@ -9,6 +9,9 @@ import { selecionarBlocosAssistente } from '../services/assistant-content.js';
 import { FRASE_ESCOPO, FAIXA_TESTE_LOCAL } from '../services/assistant-messages.js';
 import { lerDadosDaBase } from '../services/assistant-endpoint.js';
 import { localizarVersaoAtual } from '../services/versao-atual.js';
+import { isDeepStrictEqual } from 'node:util';
+import { PADRAO_ARQUIVO_PUBLICO, validarConteudoPublico } from '../services/publicacao-publica.js';
+import { listarArquivosPublicados, PASTA_NO_DIST } from '../services/conteudo-publico-build.js';
 
 export const NOMES_INTERNOS = ['/__assistente', '__assistente', 'teste_local', 'conteudo-assistente', 'assistant-content'];
 
@@ -121,11 +124,39 @@ export function termosProibidos(raiz) {
 }
 
 /** Retorna a lista de ocorrências encontradas em `dist` (vazia quando o build está limpo). */
+// Origens de termos que são NOMES (não textos de conteúdo): valem também para o arquivo de conteúdo público autorizado.
+const ORIGENS_DE_NOMES = new Set(['nome interno', 'nome administrativo', 'nome do servidor MCP', 'informações do chatbot (administração)', 'entradas de texto (administração)']);
+
+/**
+ * Arquivos públicos autorizados: os apontados por versaoPublicadaId de cada serviço, validados pela leitura segura.
+ * Retorna { permitidos: Map(nome -> conteudo), erro } (erro = true se algum serviço publicado tiver conteúdo inválido).
+ */
+function arquivosPublicosAutorizados(raiz) {
+  try {
+    return { permitidos: new Map(listarArquivosPublicados(raiz).map((a) => [a.nome, a.conteudo])), erro: false };
+  } catch {
+    return { permitidos: new Map(), erro: true };
+  }
+}
+
+/** Confere um arquivo de conteúdo público dentro do dist/: nome pelo hash, esquema fechado, integridade e igualdade com o autorizado. */
+function arquivoPublicoValido(arquivo, relativo, permitidos) {
+  if (relativo.length !== 2 || relativo[0] !== PASTA_NO_DIST || !PADRAO_ARQUIVO_PUBLICO.test(relativo[1]) || !permitidos.has(relativo[1])) return false;
+  try {
+    const obj = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+    return validarConteudoPublico(obj).length === 0 && isDeepStrictEqual(obj, permitidos.get(relativo[1]));
+  } catch {
+    return false;
+  }
+}
+
 export function conferirDist(raiz) {
   const dist = path.join(raiz, 'dist');
   if (!fs.existsSync(dist)) throw new Error('dist/ não encontrado: rode "npm run build" antes.');
   const termos = termosProibidos(raiz);
   const encontrados = [];
+  const { permitidos, erro } = arquivosPublicosAutorizados(raiz);
+  if (erro) encontrados.push({ arquivo: 'services/', origem: 'conteúdo público inválido', texto: 'serviço publicado sem arquivo público válido' });
   for (const arquivo of listar(dist)) {
     // A pasta admin/ e seus arquivos nunca podem estar no build.
     const relativo = path.relative(dist, arquivo).split(path.sep);
@@ -136,8 +167,15 @@ export function conferirDist(raiz) {
     if (relativo.slice(0, -1).includes('mcp')) {
       encontrados.push({ arquivo: path.relative(raiz, arquivo), origem: 'arquivo do servidor MCP', texto: relativo.join('/') });
     }
+    // Conteúdo público: só o arquivo autorizado, identificado pelo hash, válido e idêntico ao publicado; qualquer outro é recusado.
+    const ehPublicoAutorizado = arquivoPublicoValido(arquivo, relativo, permitidos);
+    if (!ehPublicoAutorizado && (relativo[0] === PASTA_NO_DIST || PADRAO_ARQUIVO_PUBLICO.test(relativo[relativo.length - 1]))) {
+      encontrados.push({ arquivo: path.relative(raiz, arquivo), origem: 'conteúdo público não autorizado ou inválido', texto: relativo.join('/') });
+      continue;
+    }
     const conteudo = fs.readFileSync(arquivo, 'utf8');
     for (const { origem, texto } of termos) {
+      if (ehPublicoAutorizado && !ORIGENS_DE_NOMES.has(origem)) continue; // o texto publicado é legítimo neste arquivo
       if (conteudo.includes(texto)) encontrados.push({ arquivo: path.relative(raiz, arquivo), origem, texto: texto.slice(0, 60) });
     }
   }

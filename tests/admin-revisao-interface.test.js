@@ -169,7 +169,13 @@ test('RV7. gravarRevisao: rota certa para cada ação, JSON, revisão enviada e 
   assert.equal(ultima.url, `${base}/nova-versao`);
   assert.equal(ultima.corpoTexto, '{}', 'corpo exatamente {}');
   assert.equal(ultima.cabecalhos['Content-Type'], 'application/json');
-  assert.equal((await c.gravarRevisao('publicar', 'servico-ficticio', {})).ok, false, 'não existe ação de publicação');
+  assert.equal((await c.gravarRevisao('publicar-tudo', 'servico-ficticio', {})).ok, false, 'só existem as ações fixas');
+  // 5C: autorizar e publicar são as únicas ações de publicação, cada uma com a revisão atual e rota própria
+  for (const [acao, rota] of [['autorizar', 'autorizacao'], ['publicar', 'publicacao']]) {
+    assert.equal((await c.gravarRevisao(acao, 'servico-ficticio', { revisao: 'r1' })).ok, true, acao);
+    assert.equal(s.chamadas.at(-1).url, `${base}/${rota}`);
+    assert.deepEqual(s.chamadas.at(-1).corpo, { revisao: 'r1' });
+  }
   assert.equal((await c.gravarRevisao('fonte', '../x', {})).ok, false);
 });
 
@@ -235,7 +241,8 @@ test('RV11. /admin/conteudo/: seções, diálogos próprios, texto de confirmaç
   assert.match(HTML_CONTEUDO, /id="botao-concluir"[^>]*hidden>Concluir revisão</);
   const botoes = [...(HTML_CONTEUDO + HTML_ADMIN).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
   assert.ok(botoes.length > 10);
-  for (const b of botoes) assert.doesNotMatch(b, /publicar/i, `botão "${b}"`);
+  // 5C: o único botão com o verbo "Publicar" é o da etapa de publicação (a autorização tem rótulo próprio).
+  assert.deepEqual(botoes.filter((b) => /publicar/i.test(b)), ['Publicar']);
   assert.doesNotMatch(JS_CONTEUDO + JS_ADMIN, /(criar|criarBotao)\([^)]*'Publicar/i);
   assert.doesNotMatch(HTML_CONTEUDO + HTML_ADMIN, /type="radio"|wizard|checkpoint|avançad/i);
   assert.doesNotMatch(HTML_ADMIN, /<details/i);
@@ -286,7 +293,8 @@ test('RV14. CSS: estado pendente com forma além da cor, quebra de texto e sem o
 });
 
 test('RV15. o código de lógica nunca chama publicação nem a rota de rejeição fora da lista fixa', () => {
-  assert.doesNotMatch(LOGICA, /\/publicar|publicacao\/|'publicar'/);
+  assert.doesNotMatch(LOGICA, /\/publicar\b/);
+  assert.match(LOGICA, /autorizar: 'autorizacao',\s+publicar: 'publicacao',/);
   assert.match(LOGICA, /'revisao\/blocos\/rejeitar'/);
 });
 

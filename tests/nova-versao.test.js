@@ -12,6 +12,7 @@ import { congelarVersaoDoServico } from '../services/admin/congelamento.js';
 import { criarGravadorEntradas } from '../services/admin/entradas-gravacao.js';
 import { criarNovaVersaoDoServico, prepararConteudoDaNovaVersao } from '../services/admin/nova-versao.js';
 import { conferirHashDaVersaoEmDisco, lerArquivosDaVersao } from '../services/admin/versao-arquivos.js';
+import { caminhoDoConteudoPublico, gerarConteudoPublico } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,9 +71,21 @@ function v1Publicada(raiz) {
   const fo = lerJ(raiz, ...arq(1, 'fontes.json'));
   fo.fontes.find((x) => x.id === 'sema-orientacoes-lac').publicado = true;
   gravarJ(raiz, arq(1, 'fontes.json'), fo);
+  // Uma informação aceita fictícia: sem ela não há conteúdo público a gerar (Passo 5C exige o arquivo público da versão publicada).
+  const ca = lerJ(raiz, ...arq(1, 'conteudo-assistente.json'));
+  ca.blocos.push({
+    id: 'bc-aceito', tipo: 'conhecimento', titulo: 'Informação aceita fictícia', texto: 'Texto aprovado fictício.', fonteIds: ['sema-orientacoes-lac'],
+    referencias: [{ fonteId: 'sema-orientacoes-lac', localizacao: 'página 1' }], origem: 'fonte', ambiente: 'publico', statusValidacao: 'validado',
+    publicado: false, revisaoAtualidade: 'concluida', criadoEm: '2026-11-10', atualizadoEm: '2026-11-10',
+  });
+  gravarJ(raiz, arq(1, 'conteudo-assistente.json'), ca);
   assert.equal(congelarVersaoDoServico({ raiz, servicoId: 'lac', agora: AGORA, verificarFinal: () => [] }).ok, true);
   const m = lerJ(raiz, ...arq(1, 'versao.json'));
-  gravarJ(raiz, arq(1, 'versao.json'), { ...m, estado: 'publicado' });
+  gravarJ(raiz, arq(1, 'versao.json'), { ...m, estado: 'publicado', publicadoEm: '2026-11-16' });
+  const publico = gerarConteudoPublico({ service: lerJ(raiz, ...arq(1, 'service.json')), fontes: lerJ(raiz, ...arq(1, 'fontes.json')), conteudoAssistente: ca }, { temaNome: 'Licenciamento Ambiental' });
+  assert.equal(publico.ok, true);
+  fs.mkdirSync(path.join(raiz, 'services', 'lac', 'publico'));
+  gravarJ(raiz, caminhoDoConteudoPublico('lac', m.hashConteudo).split('/'), publico.conteudo);
   const r = registro(raiz);
   r.servicos = r.servicos.map((s) => (s.id === 'lac' ? { ...s, statusValidacao: 'validado', publicado: true, versaoPublicadaId: 'lac-v1' } : s));
   gravarJ(raiz, ['services', 'registry.json'], r);

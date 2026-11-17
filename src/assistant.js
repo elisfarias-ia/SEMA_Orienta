@@ -199,3 +199,84 @@ export function responderPergunta(pergunta, conteudo) {
   }
   return { tipo, partes: escolhidos.map((b) => b.texto), fontes, avisos };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Conteúdo PÚBLICO publicado (Passo 5C). O arquivo vem do próprio site (meta "conteudo-publico"); aqui só se confere o formato
+// e se monta a resposta, palavra por palavra, a partir das informações publicadas. Sem IA externa e sem rede nesta etapa.
+// Informação de texto não mostra fonte; informação de link mostra só a URL.
+// ---------------------------------------------------------------------------------------------------------------------
+
+export const RESPOSTA_SEM_INFORMACAO_PUBLICADA =
+  'Não encontrei essa informação no conteúdo publicado. Para saber mais, consulte os canais oficiais da SEMA.';
+export const AVISO_ANALISE_DA_SEMA =
+  'Não é possível dizer se o seu caso se enquadra: isso depende da análise da SEMA.';
+
+const CHAVES_PUBLICO = ['formato', 'servico', 'tema', 'informacoes', 'integridade'];
+const CHAVES_INFORMACAO = ['titulo', 'texto', 'tipo', 'links', 'alertas'];
+const mesmasChaves = (obj, esperadas) => ehObjeto(obj) && Object.keys(obj).length === esperadas.length && esperadas.every((k) => Object.hasOwn(obj, k));
+const textoNaoVazio = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** Confere o formato fechado do conteúdo publicado. Retorna { servico, tema, informacoes } ou null (nada é usado se algo divergir). */
+export function validarConteudoPublicado(json) {
+  if (!mesmasChaves(json, CHAVES_PUBLICO) || json.formato !== 1) return null;
+  if (!mesmasChaves(json.servico, ['nome']) || !textoNaoVazio(json.servico.nome)) return null;
+  if (!mesmasChaves(json.tema, ['nome']) || !textoNaoVazio(json.tema.nome)) return null;
+  if (!Array.isArray(json.informacoes) || json.informacoes.length === 0) return null;
+  for (const i of json.informacoes) {
+    if (!mesmasChaves(i, CHAVES_INFORMACAO) || !textoNaoVazio(i.titulo) || !textoNaoVazio(i.texto)) return null;
+    if (!Array.isArray(i.links) || !i.links.every((l) => mesmasChaves(l, ['url']) && urlHttps(l.url))) return null;
+    if (i.tipo !== (i.links.length > 0 ? 'link' : 'texto')) return null;
+    if (!Array.isArray(i.alertas) || !i.alertas.every(textoNaoVazio)) return null;
+  }
+  return {
+    servico: json.servico.nome,
+    tema: json.tema.nome,
+    informacoes: json.informacoes.map((i) => ({ titulo: i.titulo, texto: i.texto, links: i.links.map((l) => l.url), alertas: [...i.alertas] })),
+  };
+}
+
+const PALAVRAS_COMUNS = new Set([
+  'para', 'como', 'qual', 'quais', 'quando', 'onde', 'quem', 'sobre', 'esta', 'esse', 'essa', 'isso', 'esta', 'seu', 'sua', 'que',
+  'com', 'por', 'uma', 'uns', 'umas', 'dos', 'das', 'nos', 'nas', 'mais', 'muito', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
+  'saber', 'fazer', 'tenho', 'minha', 'meu', 'voce', 'favor', 'ola', 'bom', 'boa', 'dia', 'tarde', 'noite',
+]);
+
+function palavrasUteis(texto) {
+  return [...new Set(normalizar(texto).split(' ').filter((p) => p.length >= 3 && !PALAVRAS_COMUNS.has(p)))];
+}
+
+const casam = (a, b) => a === b || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
+
+/** Pontua uma informação: palavras da pergunta que aparecem no título (peso 2) ou no texto (peso 1). */
+function pontuar(palavras, informacao) {
+  const titulo = palavrasUteis(informacao.titulo);
+  const corpo = palavrasUteis(informacao.texto);
+  let pontos = 0;
+  for (const p of palavras) {
+    if (titulo.some((t) => casam(p, t))) pontos += 2;
+    else if (corpo.some((t) => casam(p, t))) pontos += 1;
+  }
+  return pontos;
+}
+
+/**
+ * Responde SOMENTE com as informações publicadas (busca simples por palavras, determinística).
+ * @param {string} pergunta
+ * @param {{ informacoes: object[] }|null} publicado resultado de validarConteudoPublicado
+ */
+export function responderComConteudoPublicado(pergunta, publicado) {
+  if (!publicado || !Array.isArray(publicado.informacoes) || publicado.informacoes.length === 0) return respostaIndisponivel();
+  const palavras = palavrasUteis(pergunta);
+  const avisos = reconhecerIntencao(pergunta).intencoes.includes('enquadramento') ? [AVISO_ANALISE_DA_SEMA] : [];
+  const pontuadas = publicado.informacoes
+    .map((informacao, ordem) => ({ informacao, ordem, pontos: pontuar(palavras, informacao) }))
+    .filter((x) => x.pontos > 0)
+    .sort((a, b) => b.pontos - a.pontos || a.ordem - b.ordem);
+  if (pontuadas.length === 0) return { tipo: 'sem_informacao', partes: [RESPOSTA_SEM_INFORMACAO_PUBLICADA], fontes: [], avisos };
+  const melhor = pontuadas[0].pontos;
+  const escolhidas = pontuadas.filter((x) => x.pontos * 2 >= melhor).slice(0, 2).map((x) => x.informacao);
+  const fontes = [];
+  for (const i of escolhidas) for (const url of i.links) if (!fontes.some((f) => f.url === url)) fontes.push({ titulo: url, url });
+  for (const i of escolhidas) for (const alerta of i.alertas) if (!avisos.includes(alerta)) avisos.push(alerta);
+  return { tipo: 'publicado', partes: escolhidas.map((i) => i.texto), fontes, avisos };
+}

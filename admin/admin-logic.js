@@ -665,6 +665,11 @@ export function criarClienteAdmin({ fetchImpl }) {
       if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS.sessao });
       return lerRevisaoDoServico(chamar, servicoId, MENSAGENS.rede);
     },
+    /** Resumo de autorização e publicação (somente leitura). */
+    carregarResumoPublicacao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS.sessao });
+      return lerResumoDePublicacao(chamar, servicoId, MENSAGENS.rede);
+    },
 
     /** Grava uma ação da revisão. Uma gravação por vez; retorna { ok } ou { ok: false, mensagem, recarregar? }. */
     /** Campos atuais de uma fonte para o formulário de edição (o texto original só vem daqui, sob demanda). */
@@ -1114,6 +1119,10 @@ export function criarClienteGestao({ fetchImpl }) {
       if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
       return lerRevisaoDoServico(chamar, servicoId, MENSAGENS_GESTAO.rede);
     },
+    carregarResumoPublicacao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
+      return lerResumoDePublicacao(chamar, servicoId, MENSAGENS_GESTAO.rede);
+    },
     /** Cria uma nova versão editável a partir da versão concluída. Envia exatamente `{}`. */
     async criarNovaVersao(servicoId) {
       if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
@@ -1206,6 +1215,8 @@ const ACOES_REVISAO = Object.freeze({
   'bloco-reabrir': 'revisao/blocos/reabrir',
   concluir: 'revisao/concluir',
   'nova-versao': 'nova-versao',
+  autorizar: 'autorizacao',
+  publicar: 'publicacao',
 });
 const textoCurto = (v, limite = 200) => (ehTexto(v) ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, limite) : '');
 const idSeguro = (v) => ehTexto(v) && PADRAO_ID.test(v);
@@ -1345,7 +1356,123 @@ export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensag
   const r = await chamar('POST', `/__admin/servicos/${encodeURIComponent(servicoId)}/${ACOES_REVISAO[acao]}`, acao === 'nova-versao' ? {} : corpo);
   if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
   if (r.status === (acao === 'nova-versao' ? 201 : 200)) return { ok: true };
-  return { ok: false, ...mensagemDaRevisao(r.status, r.corpo) };
+  return { ok: false, ...(acao === 'autorizar' || acao === 'publicar' ? mensagemDaPublicacao(r.status, r.corpo, acao) : mensagemDaRevisao(r.status, r.corpo)) };
+}
+
+// ---------- Autorizar e publicar (Passo 5C) ----------
+// Três etapas distintas: revisar (conferir e concluir), autorizar (registrar a decisão; nada vira público) e publicar (disponibilizar
+// ao cidadão). Nada aqui mostra hash, ids ou códigos internos.
+
+export const TEXTO_DIFERENCA_ETAPAS = 'Revisar é conferir as informações e os documentos e concluir a revisão. Autorizar é registrar que esta versão pode ser publicada, sem disponibilizá-la. Publicar é disponibilizar o conteúdo ao cidadão no chatbot.';
+export const AVISO_AUTORIZACAO = 'A próxima ação disponibilizará conteúdo ao cidadão.';
+export const TEXTO_CONFIRMAR_AUTORIZACAO = 'Autorizar registra a decisão de que esta versão pode ser publicada. Ainda não publica nada: o chatbot continua sem este conteúdo até a publicação, que é uma ação à parte.';
+export const TEXTO_CONFIRMAR_PUBLICACAO = 'Ao publicar, as informações desta versão passam a ser usadas pelo chatbot nas respostas ao cidadão. A versão publicada não poderá mais ser editada; para alterar, será necessário criar uma nova versão.';
+export const AVISO_CONCLUIR_NAO_PUBLICA = 'Concluir a revisão não publica nada. Depois dela ainda é preciso autorizar e, em seguida, publicar.';
+export const MENSAGENS_PUBLICACAO = Object.freeze({
+  autorizada: 'Publicação autorizada. O conteúdo ainda não está disponível ao cidadão: use "Publicar" quando quiser disponibilizá-lo.',
+  publicada: 'Versão publicada. O conteúdo já está disponível ao cidadão. Para alterar, crie uma nova versão.',
+  indisponivel: 'Não foi possível ler a situação da publicação agora. Recarregue a página e tente de novo.',
+});
+
+/** Data em dd/mm/aaaa a partir do início de um texto ISO (sem fuso do navegador); texto inválido vira null. */
+export function dataDaRevisaoBr(valor) {
+  const m = ehTexto(valor) ? /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(valor) : null;
+  return m === null ? null : `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Resume GET .../publicacao/resumo só com o que a tela usa; null se o formato não for o esperado. `etapa`: autorizar, publicar, publicado ou indisponivel. */
+export function resumirPublicacao(corpo) {
+  if (!ehObjeto(corpo) || !Number.isInteger(corpo.versao) || corpo.versao < 1) return null;
+  const publicado = corpo.publicado === true;
+  const podePublicar = !publicado && corpo.podePublicar === true;
+  const podeAutorizar = !publicado && !podePublicar && corpo.podeAutorizar === true;
+  return {
+    versao: corpo.versao,
+    rotulo: textoCurto(corpo.rotulo, 60) || ROTULO_PADRAO_SITUACAO,
+    dataRevisao: dataDaRevisaoBr(corpo.dataRevisao),
+    dataPublicacao: dataDaRevisaoBr(corpo.dataPublicacao),
+    informacoesAceitas: contagem(corpo.informacoesAceitas),
+    links: contagem(corpo.links),
+    textos: contagem(corpo.textos),
+    podeAutorizar,
+    podePublicar,
+    publicado,
+    etapa: publicado ? 'publicado' : podePublicar ? 'publicar' : podeAutorizar ? 'autorizar' : 'indisponivel',
+  };
+}
+
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+/** Linhas (rótulo e valor) do diálogo de autorização e do de publicação. */
+export function linhasDoResumoDePublicacao(r) {
+  return [
+    { rotulo: 'Versão', valor: String(r.versao) },
+    { rotulo: 'Data da revisão', valor: r.dataRevisao ?? 'Não informada' },
+    { rotulo: 'Informações aceitas', valor: String(r.informacoesAceitas) },
+    { rotulo: 'Links', valor: String(r.links) },
+    { rotulo: 'Textos', valor: String(r.textos) },
+  ];
+}
+
+/** Frase do estado de publicação para o painel (sem termos internos). */
+export function frasePublicacao(r) {
+  const itens = `${plural(r.informacoesAceitas, 'informação aceita', 'informações aceitas')}, ${plural(r.links, 'link', 'links')} e ${plural(r.textos, 'texto', 'textos')}`;
+  const dataBase = r.dataRevisao === null ? '' : ` Revisão concluída em ${r.dataRevisao}.`;
+  const data = r.etapa === 'publicado' && r.dataPublicacao !== null ? ` Publicado em ${r.dataPublicacao}.` : dataBase;
+  switch (r.etapa) {
+    case 'publicado': return `Publicado. Esta versão (${r.versao}) já está disponível ao cidadão e não pode mais ser editada.${data} ${itens}.`;
+    case 'publicar': return `Publicação autorizada, mas ainda não publicada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
+    case 'autorizar': return `Revisão concluída; a publicação ainda não foi autorizada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
+    default: return 'Autorizar ou publicar não está disponível agora. Recarregue a página; se continuar assim, procure a equipe responsável.';
+  }
+}
+
+/** Visibilidade dos botões por etapa. `ocupado`: uma requisição está em andamento (tudo desabilitado). */
+export function botoesDePublicacao(r, ocupado = false) {
+  const etapa = r === null ? 'indisponivel' : r.etapa;
+  return {
+    autorizar: { visivel: etapa === 'autorizar', habilitado: etapa === 'autorizar' && !ocupado },
+    publicar: { visivel: etapa === 'publicar', habilitado: etapa === 'publicar' && !ocupado },
+    novaVersao: { visivel: etapa === 'publicado', habilitado: etapa === 'publicado' && !ocupado },
+  };
+}
+
+/** Corpo das ações de autorizar e publicar: só a revisão que a pessoa viu. */
+export const corpoDaPublicacao = (revisaoAtual) => ({ revisao: revisaoAtual });
+
+/** Mensagem por código de erro ao autorizar ou publicar. Nunca usa texto bruto da resposta. */
+export function mensagemDaPublicacao(status, corpo, acao = 'autorizar') {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  const verbo = acao === 'publicar' ? 'publicar' : 'autorizar';
+  if (status === 401 || status === 403 || status === 404 || status === 413) return mensagemDaRevisao(status, corpo);
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'estado_invalido') return { mensagem: `Esta versão não está mais na etapa de ${verbo}. Os dados foram atualizados.`, recarregar: true };
+    return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.`, recarregar: true };
+  }
+  if (status === 422) {
+    if (erro === 'sem_informacao_aceita') return { mensagem: 'Não há nenhuma informação aceita para publicar. Nada foi alterado.', recarregar: true };
+    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências na revisão. Nada foi alterado.', recarregar: true };
+    if (erro === 'conteudo_excluido_citado') return { mensagem: 'Há informação que ainda cita um documento ou link excluído. Nada foi alterado; crie uma nova versão para corrigir.', recarregar: true };
+    if (erro === 'hash_divergente' || erro === 'historico_incompativel') return { mensagem: `A conferência do conteúdo não permitiu ${verbo}. Nada foi alterado; procure a equipe responsável.`, recarregar: true };
+    return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.` };
+  }
+  if (status === 500) {
+    if (erro === 'desfazer_incompleto') return { mensagem: 'A operação não terminou por completo. Recarregue a página e confira os dados.', recarregar: true };
+    return { mensagem: `O servidor local não conseguiu ${verbo}. Nada foi alterado; tente de novo.` };
+  }
+  return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.` };
+}
+
+/** Leitura do resumo de publicação (GET, somente leitura; nada é gravado). */
+export async function lerResumoDePublicacao(chamar, servicoId, mensagemRede) {
+  if (!idSeguro(servicoId)) return { ok: false, mensagem: MENSAGENS_PUBLICACAO.indisponivel };
+  const r = await chamar('GET', `/__admin/servicos/${encodeURIComponent(servicoId)}/publicacao/resumo`);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  const resumo = r.ok ? resumirPublicacao(r.corpo) : null;
+  if (resumo === null) return { ok: false, mensagem: r.status === 401 ? mensagemDaRevisao(401).mensagem : MENSAGENS_PUBLICACAO.indisponivel };
+  return { ok: true, ...resumo };
 }
 
 /** `?pendencias=1`: abre a área de pendências ao carregar a página de conteúdo. */

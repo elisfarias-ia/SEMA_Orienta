@@ -2,10 +2,11 @@
 // (admin-logic.js) ao DOM. Regras: somente textContent e APIs seguras do DOM, sem armazenamento do navegador, sem cookies e sem log;
 // o token fica dentro do cliente (memória); ids, hashes, origem, ambiente, estados internos e datas ISO nunca aparecem; nada é
 // gravado ao abrir a página: toda gravação exige ação explícita (e confirmação quando é irreversível), uma por vez.
-// A publicação não existe nesta tela.
+// Autorizar e publicar são ações separadas, depois de concluir a revisão; cada uma pede confirmação própria e envia uma única requisição.
 
 import {
   corpoDaImportacao, corpoDoConhecimento, criarClienteAdmin, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
+  AVISO_AUTORIZACAO, MENSAGENS_PUBLICACAO, TEXTO_CONFIRMAR_AUTORIZACAO, TEXTO_CONFIRMAR_PUBLICACAO, TEXTO_DIFERENCA_ETAPAS, botoesDePublicacao, frasePublicacao, linhasDoResumoDePublicacao,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
 } from '../admin-logic.js';
 
@@ -14,6 +15,7 @@ const $ = (id) => document.getElementById(id);
 
 let catalogo = null;
 let contexto = null; // { servicoId, nomeServico, numero, estado, editavel, fontes, blocos }
+let publicacao = null; // resumo de autorização e publicação (admin-logic.js) ou null quando não pôde ser lido
 let revisao = null; // resumo da revisão (admin-logic.js) ou null quando não pôde ser lida
 let editando = null; // id do bloco em edição (só em memória, nunca exibido)
 let pendente = null; // { operacao, servicoId, blocoId, corpo, dados, gatilho }
@@ -104,12 +106,14 @@ function preencherServicos() {
 function limparContexto(mensagem = 'Escolha um serviço para ver as informações.') {
   contexto = null;
   revisao = null;
+  publicacao = null;
   editando = null;
   $('servico-situacao').hidden = true;
   $('blocos').replaceChildren(criar('p', 'vazio', mensagem));
   $('blocos').setAttribute('aria-busy', 'false');
   renderizarFontesRevisao();
   renderizarConclusao();
+  renderizarPublicacao();
   renderizarFontes();
   limparFormulario();
   formAberto = false;
@@ -139,7 +143,7 @@ function renderizarSituacao() {
     ? 'A situação da revisão não está disponível agora.'
     : frasePendenciasParaConcluir(revisao.resumo);
   const s = servicoDoCatalogo($('servico').value);
-  $('situacao-publicacao').textContent = s && s.versaoPublicadaId ? 'Existe versão publicada; a versão atual não está publicada' : 'Não publicada';
+  $('situacao-publicacao').textContent = publicacao !== null && publicacao.publicado ? 'Publicado' : s && s.versaoPublicadaId ? 'Existe versão publicada; a versão atual não está publicada' : 'Não publicada';
   $('situacao-edicao').textContent = contexto.editavel
     ? 'Esta versão está em elaboração: você pode cadastrar, editar, aceitar ou excluir informações.'
     : 'Esta versão está bloqueada: cadastro, edição, aceite e exclusão estão bloqueados. Para alterar, crie uma nova versão.';
@@ -293,6 +297,18 @@ function renderizarBlocos() {
     item.__bloco = b;
   });
   raiz.append(lista);
+}
+
+/** Cartão "Autorizar e publicar": aparece só com a versão bloqueada; mostra só o botão da etapa em que a versão está. */
+function renderizarPublicacao() {
+  const cartao = $('cartao-publicacao');
+  cartao.hidden = contexto === null || revisao === null || !revisao.congelada;
+  if (cartao.hidden) return;
+  const b = botoesDePublicacao(publicacao, false);
+  $('publicacao-diferenca').textContent = TEXTO_DIFERENCA_ETAPAS;
+  $('publicacao-estado').textContent = publicacao === null ? MENSAGENS_PUBLICACAO.indisponivel : frasePublicacao(publicacao);
+  $('botao-autorizar').hidden = !b.autorizar.visivel;
+  $('botao-publicar').hidden = !b.publicar.visivel;
 }
 
 function renderizarConclusao() {
@@ -512,7 +528,7 @@ function atualizarPermissoes() {
   $('botao-nova-orientacao').disabled = !livre;
   $('botao-importar').disabled = !livre;
   const parada = !cliente.sessaoPronta() || cliente.gravando() || ocupado;
-  for (const botao of document.querySelectorAll('#blocos button[data-acao], #importacao-lista button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao]')) {
+  for (const botao of document.querySelectorAll('#blocos button[data-acao], #importacao-lista button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao], #cartao-publicacao button[data-acao]')) {
     botao.disabled = parada || botao.dataset.indisponivel === 'true';
   }
 }
@@ -751,6 +767,7 @@ async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio =
       if (foco !== null && atualizado.ok) {
         if (foco.bloco !== undefined) alvo = itemDoBloco(foco.bloco);
         else if (foco.fonte !== undefined) alvo = itemDaFonte(foco.fonte);
+        else if (foco.elemento !== undefined) alvo = $(foco.elemento);
         else if (posicaoDoBloco >= 0 && contexto !== null) {
           const restantes = [...document.querySelectorAll('#blocos li.bloco')];
           alvo = restantes[Math.min(posicaoDoBloco, restantes.length - 1)] ?? null;
@@ -788,8 +805,10 @@ function ligarDialogo(dlg, voltar, confirmarBtn, aoConfirmar) {
     voltar.disabled = true;
     confirmarBtn.disabled = true;
     dlg.setAttribute('aria-busy', 'true');
+    confirmarBtn.setAttribute('aria-busy', 'true');
     await aoConfirmar(fechar);
     dlg.removeAttribute('aria-busy');
+    confirmarBtn.removeAttribute('aria-busy');
     // Se nada foi enviado (por exemplo, outra gravação em andamento), o diálogo não pode ficar preso: reabilita e devolve o foco.
     if (dlg.open) {
       voltar.disabled = false;
@@ -829,6 +848,36 @@ const abrirConclusao = ligarDialogo($('dialogo-conclusao'), $('conclusao-voltar'
 $('botao-concluir').addEventListener('click', (evento) => {
   if (ocupado || cliente.gravando() || revisao === null || !revisao.podeConcluir) return;
   abrirConclusao(evento.currentTarget);
+});
+// Autorizar e publicar: diálogos distintos, cada um com o resumo da versão. A revisão enviada é a lida por último (nunca exibida).
+function preencherResumo(listaId) {
+  const lista = $(listaId);
+  lista.replaceChildren();
+  for (const { rotulo, valor } of linhasDoResumoDePublicacao(publicacao)) {
+    lista.append(criar('dt', '', rotulo));
+    lista.append(criar('dd', '', valor));
+  }
+}
+
+const abrirAutorizacao = ligarDialogo($('dialogo-autorizacao'), $('autorizacao-voltar'), $('autorizacao-confirmar'), async (fechar) => {
+  await executarRevisao('autorizar', {}, MENSAGENS_PUBLICACAO.autorizada, fechar, { elemento: 'titulo-publicacao' });
+});
+const abrirPublicacao = ligarDialogo($('dialogo-publicacao'), $('publicacao-voltar'), $('publicacao-confirmar'), async (fechar) => {
+  await executarRevisao('publicar', {}, MENSAGENS_PUBLICACAO.publicada, fechar, { elemento: 'titulo-publicacao' });
+});
+
+$('botao-autorizar').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || publicacao === null || !publicacao.podeAutorizar) return;
+  $('autorizacao-descricao').textContent = TEXTO_CONFIRMAR_AUTORIZACAO;
+  $('autorizacao-aviso').textContent = AVISO_AUTORIZACAO;
+  preencherResumo('autorizacao-resumo');
+  abrirAutorizacao(evento.currentTarget);
+});
+$('botao-publicar').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || publicacao === null || !publicacao.podePublicar) return;
+  $('publicacao-descricao-dialogo').textContent = TEXTO_CONFIRMAR_PUBLICACAO;
+  preencherResumo('publicacao-resumo');
+  abrirPublicacao(evento.currentTarget);
 });
 $('botao-nova-versao').addEventListener('click', () => executarRevisao('nova-versao', {}, 'Nova versão criada. Ela está em elaboração e nada foi publicado.'));
 
@@ -1049,7 +1098,7 @@ async function carregarServico(servicoId) {
   }
   $('blocos').setAttribute('aria-busy', 'true');
   $('fontes-revisao').setAttribute('aria-busy', 'true');
-  const [r, rev] = await Promise.all([cliente.carregarConhecimento(servicoId), cliente.carregarRevisao(servicoId)]);
+  const [r, rev, pub] = await Promise.all([cliente.carregarConhecimento(servicoId), cliente.carregarRevisao(servicoId), cliente.carregarResumoPublicacao(servicoId)]);
   if (minha !== sequencia) return r;
   if (!r.ok) {
     limparContexto('Não foi possível mostrar as informações deste serviço.');
@@ -1057,6 +1106,7 @@ async function carregarServico(servicoId) {
     return r;
   }
   revisao = rev.ok ? rev : null;
+  publicacao = pub.ok && revisao !== null && revisao.congelada ? pub : null;
   const editavel = r.editavel && (revisao === null || revisao.editavel);
   const mantidaEdicao = editando !== null && editavel && r.blocos.some((b) => b.id === editando && b.editavel);
   const outroServico = contexto === null || contexto.servicoId !== servicoId;
@@ -1075,6 +1125,7 @@ async function carregarServico(servicoId) {
   renderizarFontesRevisao();
   renderizarBlocos();
   renderizarConclusao();
+  renderizarPublicacao();
   renderizarImportacao();
   atualizarPermissoes();
   if (!rev.ok) mostrarStatus(rev.mensagem, 'erro');

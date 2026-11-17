@@ -277,7 +277,7 @@ test('C2. sem responsável, a conversa usa a mensagem segura (comportamento ante
   assert.equal(par.assistente.texto, RESPOSTA_TEMPORARIA);
 });
 
-test('C3. o código da interface usa DOM seguro, não grava dados e só busca o endpoint em desenvolvimento', () => {
+test('C3. o código da interface usa DOM seguro, não grava dados; só busca o conteúdo público indicado pelo site e, em desenvolvimento, o endpoint de teste', () => {
   const arquivos = ['src/main.js', 'src/chat.js', 'src/assistant.js'];
   for (const arquivo of arquivos) {
     const texto = lerTexto(arquivo);
@@ -285,10 +285,11 @@ test('C3. o código da interface usa DOM seguro, não grava dados e só busca o 
     assert.doesNotMatch(texto, /localStorage|sessionStorage|indexedDB|document\.cookie|navigator\.sendBeacon|XMLHttpRequest|WebSocket/, arquivo);
   }
   const main = lerTexto('src', 'main.js');
-  assert.equal((main.match(/fetch\(/g) ?? []).length, 1, 'uma única chamada de rede');
-  const ate = main.indexOf('fetch(');
-  assert.ok(main.lastIndexOf('import.meta.env.DEV', ate) !== -1, 'a chamada fica atrás de import.meta.env.DEV');
-  assert.match(main, /method: 'GET'/);
+  assert.equal((main.match(/fetch\(/g) ?? []).length, 2, 'duas chamadas de rede, ambas GET: conteúdo público e endpoint de teste');
+  const ultima = main.lastIndexOf('fetch(');
+  assert.ok(main.lastIndexOf('import.meta.env.DEV', ultima) !== -1, 'a chamada ao endpoint de teste fica atrás de import.meta.env.DEV');
+  assert.equal((main.match(/method: 'GET'/g) ?? []).length, 2);
+  assert.ok(main.includes('/^\\/conteudo-publico\\/conteudo-[0-9a-f]{16}\\.json$/'), 'só busca o caminho de conteúdo público identificado pelo hash');
   assert.doesNotMatch(main, /body:|JSON\.stringify|\?pergunta|campo\.value\s*\+/, 'a pergunta não é enviada');
   assert.match(main, /faixa\.textContent = payload\.mensagens\.faixa/);
   assert.match(main, /destino\.protocol !== 'https:'/);

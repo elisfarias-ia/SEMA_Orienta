@@ -4,7 +4,7 @@
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
 
 import {
-  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, criarClienteGestao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
+  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, criarClienteGestao, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
   servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from './admin-logic.js';
 
@@ -289,7 +289,7 @@ function atualizarServico() {
 async function carregarRevisao() {
   if (servicoAtual === null) return;
   const minha = ++sequenciaRevisao;
-  const r = await cliente.carregarRevisao(servicoAtual.id);
+  const [r, pub] = await Promise.all([cliente.carregarRevisao(servicoAtual.id), cliente.carregarResumoPublicacao(servicoAtual.id)]);
   if (minha !== sequenciaRevisao) return;
   const situacao = $('painel-situacao-texto');
   situacao.replaceChildren();
@@ -305,7 +305,10 @@ async function carregarRevisao() {
   $('editar-servico-ajuda').hidden = !r.congelada;
   situacao.append('Situação: ', criar('strong', '', r.rotulo));
   if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
-  $('painel-resumo').textContent = frasePendenciasParaConcluir(r.resumo);
+  // Versão bloqueada: o painel mostra a etapa de publicação (a ação em si fica na página de revisão).
+  const etapa = r.congelada && pub.ok ? pub : null;
+  $('painel-resumo').textContent = etapa !== null ? frasePublicacao(etapa) : frasePendenciasParaConcluir(r.resumo);
+  $('painel-revisar').textContent = etapa === null ? 'Revisar informações' : { autorizar: 'Autorizar publicação', publicar: 'Publicar', publicado: 'Ver informações' }[etapa.etapa] ?? 'Revisar informações';
   $('painel-nova-versao').hidden = !r.congelada;
   $('painel-resolver').hidden = r.congelada || r.pendencias.length === 0;
   if (servicoAtual !== null) $('painel-resolver').href = `./conteudo/?servico=${encodeURIComponent(servicoAtual.id)}&pendencias=1`;
