@@ -44,7 +44,7 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 
 - `index.html` e `src/`: interface pública do chat (cidadão). Não conhece a administração.
 - `services/`: base de conteúdo. `registry.json` (catálogo de serviços), `assuntos.json`, `schemas/` (documentação dos formatos) e `<serviço>/versoes/v<N>/` (um manifesto `versao.json` e arquivos modulares: `service.json`, `roteiro.md`, `documentos.json`, `perguntas-frequentes.json`, `fontes.json`, `conteudo-assistente.json`).
-- `services/assistant-*.js` e `src/assistant.js`: assistente em teste local, sem IA externa; o modo público segue sem conteúdo.
+- `services/assistant-*.js` e `src/assistant.js`: assistente sem IA externa. Lê somente o conteúdo público publicado (`services/<serviço>/publico/conteudo-<hash16>.json`, imutável, esquema fechado, `services/publicacao-publica.js`); sem publicação, mantém o conteúdo de teste local, só no `npm run dev`, com faixa de aviso.
 - `services/admin/` e `admin/`: módulo administrativo **local**, só no servidor de desenvolvimento. Cadastro de assunto, serviço e fonte, com ids gerados pelo servidor, versões, hashes, escrita atômica e desfazer.
 - `scripts/validate-services.js` valida a base; `scripts/check-dist.js` garante que o build público não contém conteúdo de teste nem administrativo.
 - `tests/`: testes automatizados (`node --test`, sem bibliotecas externas), sempre em cópias temporárias fora do repositório quando gravam arquivos.
@@ -60,11 +60,11 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 
 ## Limites atuais
 
-- Só a LAC tem conteúdo; ele está **em validação e não publicado**. Nenhuma validação material ou publicação foi autorizada.
+- Só a LAC tem conteúdo; ele está **em validação e não publicado**. Nenhuma validação material ou publicação real foi autorizada ou criada.
 - Não há IA externa, API de produção, autenticação, banco de dados nem persistência de conversas.
 - A administração é local e **sem autenticação**: o token só impede uso por outro site aberto no navegador; não comprova identidade.
-- Decisões com identificação pessoal ficam fora do Git (`data/admin-private/` está no `.gitignore`; nada é criado ali por enquanto).
-- Não há edição, exclusão, validação, decisão ou publicação pela interface administrativa.
+- Decisões e histórico ficam fora do Git (`data/admin-private/` está no `.gitignore`); a pasta é criada em uso, com metadados sem título, URL nem texto.
+- A administração local edita, exclui (de forma lógica), valida, decide, autoriza e publica, tudo sem autenticação real; a "autorização" é feita pelo "Servidor de demonstração" e não equivale à validação material da área competente da SEMA.
 
 ## Segurança (permanente)
 

@@ -257,3 +257,19 @@ Conferência manual feita pela usuária em 16/11/2026, em ambiente temporário (
 | Edição e exclusão de fontes (documentos, textos e links) | **Ficaram para o 5B3**, como requisito obrigatório |
 
 A manutenção de documentos, textos e links passa a ser requisito do Passo 5B3. Nada foi publicado e nenhum dado real foi alterado na conferência.
+
+### Execução — Sprint 5 (fechamento)
+
+Resultados **automatizados**. A conferência manual dos passos 5B3b, 5B3c e 5C **ainda não foi feita pela usuária**: está **pendente de conferência**, sem aprovação registrada.
+
+| Verificação | Resultado |
+|---|---|
+| `npm run validate:services` | ok |
+| `npm test` | 917 testes: 913 ok, 0 falha, 4 NÃO TESTADOS (links simbólicos, EPERM no Windows) |
+| e2e simulado | 34 ok |
+| e2e real | 73 ok |
+| `npm run build` | ok |
+| `node scripts/check-dist.js` | limpo (151 termos) |
+| Auditorias 5B3a, 5B3b, 5B3c, 5C e final | final aprovada, sem bloqueantes nem importantes |
+
+A "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e não equivale à validação material pela área competente da SEMA. Nenhuma publicação real foi criada; a LAC segue não publicada.
