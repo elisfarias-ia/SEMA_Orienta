@@ -482,7 +482,8 @@ test('AD20. o plugin só vale no servidor de desenvolvimento: sem build, sem pre
   assert.equal('configurePreviewServer' in plugin, false);
   assert.ok(config.plugins.some((p) => p.name === 'sema-orienta-admin-dev' && p.apply === 'serve'));
   assert.ok(config.plugins.some((p) => p.name === 'sema-orienta-assistente-dev' && p.apply === 'serve'));
-  assert.ok(config.plugins.every((p) => p.apply === 'serve' && !('configurePreviewServer' in p)));
+  assert.ok(config.plugins.filter((p) => p.name !== 'sema-orienta-conteudo-publico').every((p) => p.apply === 'serve' && !('configurePreviewServer' in p)));
+  assert.ok(config.plugins.every((p) => !('configurePreviewServer' in p)));
   const registrados = [];
   plugin.configureServer({ middlewares: { use: (fn) => registrados.push(fn) } });
   assert.equal(registrados.length, 1);
@@ -501,5 +502,5 @@ test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: se
   assert.match(codigo, /crypto\.timingSafeEqual/);
   assert.doesNotMatch(codigo, /console\./);
   const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './reutilizacao.js', './saude.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './edicao-fonte.js', './edicao-tema-servico.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './importacao-conteudo.js', './publicacao.js', './reutilizacao.js', './revisao-servico.js', './revisao.js', './saude.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });

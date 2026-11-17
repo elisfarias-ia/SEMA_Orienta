@@ -242,3 +242,62 @@ Conferência manual feita pela usuária em 15/11/2026, em `http://localhost:5173
 | Responsividade | **Reprovada inicialmente e corrigida** neste ajuste (largura mínima fixa em rem na grade de saúde e palavras longas nos rótulos de fonte alargavam a página com texto ampliado; placeholder cortado) |
 
 O que cobre a correção (executado): `e2e-real/responsivo.spec.js` (desktop 1280, 390 × 844, e 390 × 844 com texto a 150% e a 200%: sem rolagem horizontal, nada fora da tela nem cortado, textos longos quebrando e foco visível por Tab) e as especificações de `e2e/`. A nova conferência visual da usuária aprovou a responsividade em desktop e celular (15/11/2026).
+
+### Execução — revisão de conteúdo (Sprint 5, Passo 5B2)
+
+Conferência manual feita pela usuária em 16/11/2026, em ambiente temporário (cópia de `services/` e histórico fora do repositório).
+
+| Aspecto | Resultado |
+|---|---|
+| Revisão (revisar fonte, aceitar, reabrir, excluir informação, concluir revisão, nova versão) e navegação | **Aprovadas** |
+| Nomenclatura ("Conteúdo para respostas", "Informações cadastradas", "Incluir informação", "Excluir informação") | **Aprovada** |
+| Cadastro de texto simplificado (somente título e texto) | **Aprovado** |
+| Contato institucional do domínio configurado no texto informado | **Aceito** (e-mail externo continua bloqueado) |
+| Responsividade (desktop, 390 px e texto ampliado) | **Aprovada** |
+| Edição e exclusão de fontes (documentos, textos e links) | **Ficaram para o 5B3**, como requisito obrigatório |
+
+A manutenção de documentos, textos e links passa a ser requisito do Passo 5B3. Nada foi publicado e nenhum dado real foi alterado na conferência.
+
+### Execução — Sprint 5 (fechamento)
+
+Resultados **automatizados**. A conferência manual dos passos 5B3b, 5B3c e 5C **ainda não foi feita pela usuária**: está **pendente de conferência**, sem aprovação registrada.
+
+| Verificação | Resultado |
+|---|---|
+| `npm run validate:services` | ok |
+| `npm test` | 917 testes: 913 ok, 0 falha, 4 NÃO TESTADOS (links simbólicos, EPERM no Windows) |
+| e2e simulado | 34 ok |
+| e2e real | 73 ok |
+| `npm run build` | ok |
+| `node scripts/check-dist.js` | limpo (151 termos) |
+| Auditorias 5B3a, 5B3b, 5B3c, 5C e final | final aprovada, sem bloqueantes nem importantes |
+
+A "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e não equivale à validação material pela área competente da SEMA. Nenhuma publicação real foi criada; a LAC segue não publicada.
+
+### Execução — importação de conteúdo existente (Sprint 5, ajuste do 5B3c)
+
+Conferência manual feita pela usuária, em ambiente temporário (cópia de `services/`); **aprovada**.
+
+| Aspecto | Resultado |
+|---|---|
+| Lista "Orientações encontradas no conteúdo antigo" com 24 candidatos da LAC (descrição, etapas, condições e requisitos, 21 perguntas com resposta) | **Aprovada** |
+| Documentos, normas, links e conteúdos de teste fora da lista (continuam como fontes) | **Aprovado** |
+| Frase padronizada "pendente de confirmação pela área competente antes da publicação" removida só no preenchimento; arquivo antigo intacto | **Aprovada** |
+| Aviso "Conteúdo antigo: confira e atualize esta orientação antes de salvar." (não gravado) | **Aprovado** |
+| Importação sempre em elaboração, sem aceitação, revisão ou publicação automática | **Aprovada** |
+
+Depois do ajuste foram executados apenas os testes direcionados (Node da importação: 27 ok; Playwright real da importação: 6 ok; `validate:services` ok; `git diff --check` limpo). A bateria completa e o build não foram repetidos depois do filtro; os últimos resultados completos estão na seção de fechamento acima. Nenhum dado real foi alterado e nada foi publicado.
+
+### Execução — seleção de respostas do chat publicado (Sprint 5, correção do 5C)
+
+Conferência manual feita pela usuária, em ambiente temporário (cópia de `services/`, com dados fictícios e a LAC da cópia publicada); **aprovada**. A primeira conferência encontrou uma falha de relevância: a pergunta sobre `zorbulante` trazia também o bloco de link e sua URL, por coincidência de palavras genéricas. A seleção foi corrigida (termos distintivos pesam mais; termos presentes em mais da metade das informações valem zero; o segundo bloco só entra com pontuação comparável) e conferida de novo.
+
+| Pergunta (termo fictício) | Resultado |
+|---|---|
+| `zorbulante` | Retornou **somente** o texto cadastrado, sem fonte nem URL |
+| `quimerônico` | Retornou **somente** o bloco de link e a sua URL |
+| Pergunta combinada | Utilizou **os dois** blocos |
+| `pendurabilis` (em elaboração) e `excluidônio` (excluído) | **Não revelaram** conteúdo |
+| Perguntas genéricas | Podem retornar a resposta de limitação, pois a busca atual é textual e determinística (sem IA) |
+
+Nenhum dado real foi alterado e nada da LAC real foi publicado.

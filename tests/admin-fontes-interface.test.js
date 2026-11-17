@@ -258,8 +258,8 @@ test('FI10. envio duplicado de fonte é bloqueado enquanto há gravação em and
 
 test('FI12. o cliente administrativo só usa os métodos esperados e não usa APIs inseguras', () => {
   // A tela de cadastro (index.html e admin.js) não oferece edição nem exclusão; os blocos de conhecimento têm página própria (/admin/conteudo/).
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 4, 'cadastrar, gravarConhecimento (criar), e na gestão por serviço: gravar e buscarLinks');
-  assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 2, 'só em gravarConhecimento');
+  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 6, 'cadastrar, gravarConhecimento (criar), na gestão por serviço: gravar e buscarLinks, a ação de revisão (enviarAcaoDeRevisao) e importarConteudo (5B3c)');
+  assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 6, 'gravarConhecimento (PATCH e DELETE), editarFonte, excluirFonte e, na gestão por serviço, editarTema e editarServico (5B3b)');
   assert.doesNotMatch(LOGICA, /['"`]PUT['"`]/);
   assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(contexto\.servicoId\)\}\/fontes`/);
   assert.doesNotMatch(`${JS}\n${LOGICA}`, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|document\.cookie|console\./);

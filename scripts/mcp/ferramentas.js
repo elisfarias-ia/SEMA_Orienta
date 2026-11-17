@@ -380,7 +380,7 @@ export function criarFerramentas({ raiz, sistema, limiteResposta = LIMITE_RESPOS
     if (!r.ok || !ehObjeto(r.dados) || !Array.isArray(r.dados.fontes)) return falhar('versao_indisponivel');
     const doc = r.dados;
     // Fonte textual ainda não publicada é omitida por completo (título, descrição e existência); o texto original nunca é lido aqui.
-    let fontes = doc.fontes.filter((f) => ehObjeto(f) && !((f.formaEntrada === 'texto' || f.tipo === 'texto_cadastrado') && f.publicado !== true));
+    let fontes = doc.fontes.filter((f) => ehObjeto(f) && !((f.formaEntrada === 'texto' || f.tipo === 'texto_cadastrado') && f.publicado !== true) && f.excluidaEm == null);
     if (fonteId !== undefined) {
       fontes = fontes.filter((f) => f.id === fonteId);
       if (fontes.length === 0) return falhar('fonte_nao_encontrada');

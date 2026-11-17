@@ -22,6 +22,7 @@ export function fonteReutilizavel(fonte) {
   if (forma !== 'link' || fonte.tipo === 'texto_cadastrado' || 'entradaId' in fonte) return false;
   if (fonte.statusValidacao !== 'validado') return false;
   if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') return false;
+  if (fonte.excluidaEm != null) return false; // fonte excluída logicamente não é reutilizável
   return urlNormalizada(fonte.url) !== null;
 }
 
@@ -101,7 +102,7 @@ export function criarCopiaDeLink(origem, contexto) {
   const lin = { servicoId: origem.servicoId, versaoId: origem.versaoId, fonteId: f.id };
   const fontesAtuais = contexto.documentoFontes.fontes;
   const url = urlNormalizada(f.url);
-  if (fontesAtuais.some((x) => ehObjeto(x) && urlNormalizada(x.url) === url)) return { ok: false, erro: 'url_duplicada' };
+  if (fontesAtuais.some((x) => ehObjeto(x) && x.excluidaEm == null && urlNormalizada(x.url) === url)) return { ok: false, erro: 'url_duplicada' };
   const id = gerarId(f.titulo, new Set(fontesAtuais.map((x) => x.id)));
   if (id === null) return { ok: false, erro: 'dados_invalidos' };
 

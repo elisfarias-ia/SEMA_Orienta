@@ -199,3 +199,103 @@ export function responderPergunta(pergunta, conteudo) {
   }
   return { tipo, partes: escolhidos.map((b) => b.texto), fontes, avisos };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Conteúdo PÚBLICO publicado (Passo 5C). O arquivo vem do próprio site (meta "conteudo-publico"); aqui só se confere o formato
+// e se monta a resposta, palavra por palavra, a partir das informações publicadas. Sem IA externa e sem rede nesta etapa.
+// Informação de texto não mostra fonte; informação de link mostra só a URL.
+// ---------------------------------------------------------------------------------------------------------------------
+
+export const RESPOSTA_SEM_INFORMACAO_PUBLICADA =
+  'Não encontrei essa informação no conteúdo publicado. Para saber mais, consulte os canais oficiais da SEMA.';
+export const AVISO_ANALISE_DA_SEMA =
+  'Não é possível dizer se o seu caso se enquadra: isso depende da análise da SEMA.';
+
+const CHAVES_PUBLICO = ['formato', 'servico', 'tema', 'informacoes', 'integridade'];
+const CHAVES_INFORMACAO = ['titulo', 'texto', 'tipo', 'links', 'alertas'];
+const mesmasChaves = (obj, esperadas) => ehObjeto(obj) && Object.keys(obj).length === esperadas.length && esperadas.every((k) => Object.hasOwn(obj, k));
+const textoNaoVazio = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** Confere o formato fechado do conteúdo publicado. Retorna { servico, tema, informacoes } ou null (nada é usado se algo divergir). */
+export function validarConteudoPublicado(json) {
+  if (!mesmasChaves(json, CHAVES_PUBLICO) || json.formato !== 1) return null;
+  if (!mesmasChaves(json.servico, ['nome']) || !textoNaoVazio(json.servico.nome)) return null;
+  if (!mesmasChaves(json.tema, ['nome']) || !textoNaoVazio(json.tema.nome)) return null;
+  if (!Array.isArray(json.informacoes) || json.informacoes.length === 0) return null;
+  for (const i of json.informacoes) {
+    if (!mesmasChaves(i, CHAVES_INFORMACAO) || !textoNaoVazio(i.titulo) || !textoNaoVazio(i.texto)) return null;
+    if (!Array.isArray(i.links) || !i.links.every((l) => mesmasChaves(l, ['url']) && urlHttps(l.url))) return null;
+    if (i.tipo !== (i.links.length > 0 ? 'link' : 'texto')) return null;
+    if (!Array.isArray(i.alertas) || !i.alertas.every(textoNaoVazio)) return null;
+  }
+  return {
+    servico: json.servico.nome,
+    tema: json.tema.nome,
+    informacoes: json.informacoes.map((i) => ({ titulo: i.titulo, texto: i.texto, links: i.links.map((l) => l.url), alertas: [...i.alertas] })),
+  };
+}
+
+const PALAVRAS_COMUNS = new Set([
+  'para', 'como', 'qual', 'quais', 'quando', 'onde', 'quem', 'sobre', 'esta', 'esse', 'essa', 'isso', 'esta', 'seu', 'sua', 'que',
+  'com', 'por', 'uma', 'uns', 'umas', 'dos', 'das', 'nos', 'nas', 'mais', 'muito', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
+  'saber', 'fazer', 'tenho', 'minha', 'meu', 'voce', 'favor', 'ola', 'bom', 'boa', 'dia', 'tarde', 'noite',
+]);
+
+function palavrasUteis(texto) {
+  return [...new Set(normalizar(texto).split(' ').filter((p) => p.length >= 3 && !PALAVRAS_COMUNS.has(p)))];
+}
+
+const casam = (a, b) => a === b || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
+
+/**
+ * Termos distintivos da pergunta: os que casam com alguma informação, mas NÃO com todas (ou quase todas) elas.
+ * Palavra comum a todos os blocos (ex.: "orientação", "fictícia") não distingue nada e não conta. Com uma única informação não há
+ * como distinguir, então toda palavra útil que casar conta.
+ */
+function termosDistintivos(palavras, bases) {
+  const n = bases.length;
+  const resultado = [];
+  for (const p of palavras) {
+    const df = bases.filter((b) => b.titulo.some((t) => casam(p, t)) || b.corpo.some((t) => casam(p, t))).length;
+    if (df === 0) continue;
+    if (n >= 2 && df / n > 0.5) continue; // presente em mais da metade dos blocos: genérico
+    resultado.push({ palavra: p, peso: Math.log(1 + n / df) });
+  }
+  return resultado;
+}
+
+/** Pontua uma informação só pelos termos distintivos: título pesa o dobro do texto. */
+function pontuar(distintivos, base) {
+  let pontos = 0;
+  for (const { palavra, peso } of distintivos) {
+    if (base.titulo.some((t) => casam(palavra, t))) pontos += 2 * peso;
+    else if (base.corpo.some((t) => casam(palavra, t))) pontos += peso;
+  }
+  return pontos;
+}
+
+/**
+ * Responde SOMENTE com as informações publicadas (busca simples por palavras, determinística, sem IA).
+ * Só entra a informação que casa ao menos um termo distintivo da pergunta; as que casam apenas palavras genéricas compartilhadas ficam
+ * de fora, e a segunda informação só entra se tiver pontuação comparável (pelo menos 60%) à da melhor.
+ * @param {string} pergunta
+ * @param {{ informacoes: object[] }|null} publicado resultado de validarConteudoPublicado
+ */
+export function responderComConteudoPublicado(pergunta, publicado) {
+  if (!publicado || !Array.isArray(publicado.informacoes) || publicado.informacoes.length === 0) return respostaIndisponivel();
+  const palavras = palavrasUteis(pergunta);
+  const avisos = reconhecerIntencao(pergunta).intencoes.includes('enquadramento') ? [AVISO_ANALISE_DA_SEMA] : [];
+  const bases = publicado.informacoes.map((i) => ({ titulo: palavrasUteis(i.titulo), corpo: palavrasUteis(i.texto) }));
+  const distintivos = termosDistintivos(palavras, bases);
+  const pontuadas = publicado.informacoes
+    .map((informacao, ordem) => ({ informacao, ordem, pontos: pontuar(distintivos, bases[ordem]) }))
+    .filter((x) => x.pontos > 0)
+    .sort((x, y) => y.pontos - x.pontos || x.ordem - y.ordem);
+  if (pontuadas.length === 0) return { tipo: 'sem_informacao', partes: [RESPOSTA_SEM_INFORMACAO_PUBLICADA], fontes: [], avisos };
+  const melhor = pontuadas[0].pontos;
+  const escolhidas = pontuadas.filter((x) => x.pontos >= melhor * 0.6).slice(0, 2).map((x) => x.informacao);
+  const fontes = [];
+  for (const i of escolhidas) for (const url of i.links) if (!fontes.some((f) => f.url === url)) fontes.push({ titulo: url, url });
+  for (const i of escolhidas) for (const alerta of i.alertas) if (!avisos.includes(alerta)) avisos.push(alerta);
+  return { tipo: 'publicado', partes: escolhidas.map((i) => i.texto), fontes, avisos };
+}

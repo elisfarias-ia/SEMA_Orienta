@@ -12,6 +12,7 @@
 // Resultado: { ok: true, ... } ou { ok: false, erro: '<codigo>', detalhes?: [...] } (detalhes nomeiam campos, sem repetir conteúdo).
 
 import { conteudoEditavel } from './fluxo.js';
+import { contemEmailNaoPermitido } from './contatos-permitidos.js';
 import { dataIsoValida, falha, idValido, structuredCloneSeguro, validarVersao } from './versao.js';
 import { CAMPOS_BLOCO_CONHECIMENTO, LIMITES_CONHECIMENTO, validarConteudoAssistente } from '../../scripts/validate-services.js';
 
@@ -31,12 +32,13 @@ const ehConhecimento = (b) => ehObjeto(b) && b.tipo === TIPO_CONHECIMENTO;
 function texto(valor, limite) {
   if (typeof valor !== 'string' || CONTROLE.test(valor)) return null;
   const t = valor.trim();
-  if (t === '' || t.length > limite || PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) return null;
+  if (t === '' || t.length > limite || contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t)) return null;
   return t;
 }
 
 const fontesPorId = (fontes) => new Map((Array.isArray(fontes) ? fontes : []).filter(ehObjeto).map((f) => [f.id, f]));
-const fonteRevogada = (f) => ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada';
+// Fonte revogada (vigência) ou excluída logicamente: não pode fundamentar informação.
+const fonteRevogada = (f) => (ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada') || f.excluidaEm != null;
 
 /**
  * Confere a entrada da pessoa. Retorna { ok: true, dados } (texto aparado) ou { ok: false, campos } com os NOMES dos campos
@@ -106,7 +108,7 @@ function conferirResultado(novo, fontes) {
 }
 
 /** Cria um bloco de conhecimento no fim da lista: rascunho, não publicado, revisão pendente, ambiente publico. */
-export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id, data } = {}) {
+export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id, data, origemImportacao } = {}) {
   const problema = conferirEntrada(versao, conteudo);
   if (problema) return problema;
   if (!idValido(id) || id.length > 60) return falha('id_invalido');
@@ -117,6 +119,8 @@ export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id,
   const bloco = {
     id, tipo: TIPO_CONHECIMENTO, ...v.dados, origem: 'fonte', ambiente: 'publico', statusValidacao: 'rascunho', publicado: false,
     revisaoAtualidade: 'pendente', criadoEm: data, atualizadoEm: data,
+    // Importação de conteúdo existente (5B3c): origem interna, opcional, só para evitar duplicação.
+    ...(origemImportacao !== undefined ? { origemImportacao: { tipo: origemImportacao.tipo, referencia: origemImportacao.referencia } } : {}),
   };
   // criadoEm e atualizadoEm saem de `data`, já conferida acima como AAAA-MM-DD válida (código fechado: data_invalida).
   if (!dataIsoValida(bloco.criadoEm) || !dataIsoValida(bloco.atualizadoEm)) return falha('data_invalida');
@@ -143,6 +147,7 @@ export function alterarBlocoConhecimento(versao, conteudo, fontes, id, entrada, 
   const bloco = {
     id: atual.id, tipo: TIPO_CONHECIMENTO, ...v.dados, origem: 'fonte', ambiente: 'publico', statusValidacao: 'rascunho', publicado: false,
     revisaoAtualidade: 'pendente', criadoEm: atual.criadoEm, atualizadoEm: data,
+    ...(atual.origemImportacao !== undefined ? { origemImportacao: structuredCloneSeguro(atual.origemImportacao) } : {}),
   };
   const blocos = structuredCloneSeguro(conteudo.blocos);
   blocos[indice] = bloco;

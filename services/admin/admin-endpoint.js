@@ -17,6 +17,28 @@
 //   PATCH  /__admin/servicos/<id>/conhecimentos/<blocoId>    -> substitui titulo, texto, fonteIds, referencias e alertas (200)
 //   DELETE /__admin/servicos/<id>/conhecimentos/<blocoId>    -> remove bloco de conhecimento ainda em rascunho (204)
 //
+// Rotas da revisão da versão (Sprint 5, Passo 5B1; exigem token; só na versão atual):
+//   GET  /__admin/servicos/<id>/revisao                  -> situação, pendências e a `revisao` (hash canônico) a devolver nas ações
+//   POST /__admin/servicos/<id>/revisao/fontes           -> revisa uma fonte (não publica)
+//   POST /__admin/servicos/<id>/revisao/blocos/aceitar   -> aceita um bloco de conhecimento (não publica)
+//   POST /__admin/servicos/<id>/revisao/blocos/rejeitar  -> remove um bloco de conhecimento em rascunho
+//   POST /__admin/servicos/<id>/revisao/blocos/reabrir   -> reabre um bloco aceito para correção (só antes de concluir a revisão)
+//   POST /__admin/servicos/<id>/revisao/concluir         -> congela a versão (hash) e leva a "Pronto para publicar"; não autoriza nem publica
+//   POST /__admin/servicos/<id>/nova-versao              -> nova versão a partir da atual congelada
+//   GET  /__admin/servicos/<id>/publicacao/resumo        -> resumo da versão (número, data, quantidades, se pode autorizar/publicar); sem hash nem ids (5C)
+//   POST /__admin/servicos/<id>/autorizacao              -> autoriza a publicação (validado_materialmente -> autorizado_publicacao); revisão no corpo ou em X-Revisao (5C)
+//   POST /__admin/servicos/<id>/publicacao               -> publica (autorizado_publicacao -> publicado) e gera o conteúdo público; mesma revisão (5C)
+//   GET    /__admin/servicos/<id>/fontes/<fonteId>        -> campos editáveis da fonte (5B3a)
+//   PATCH  /__admin/servicos/<id>/fontes/<fonteId>        -> edita link ou texto; reinicia a revisão e reabre as informações que a usam
+//   GET    /__admin/servicos/<id>/fontes/<fonteId>/impacto -> o que a exclusão afetaria (informações e conteúdo antigo)
+//   DELETE /__admin/servicos/<id>/fontes/<fonteId>        -> exclusão LÓGICA em cascata (cabeçalho X-Revisao); retira as referências ativas
+//   GET   /__admin/servicos/<id>/importacao -> candidatos a importar do conteúdo existente (somente leitura; 5B3c)
+//   POST  /__admin/servicos/<id>/importacao -> importa UM item como informação em elaboração (revisão otimista; não aceita nem publica)
+//   GET   /__admin/servicos/<id>/edicao   -> nome, tema e informações aceitas do serviço (versão em elaboração) e a `revisao` (5B3b)
+//   PATCH /__admin/servicos/<id>/edicao   -> altera nome e/ou tema; exige `confirmado` se o tema muda ou há informações aceitas
+//   GET   /__admin/temas/<id>/edicao      -> nome do tema e nomes dos serviços que o usam, mais a `revisao`
+//   PATCH /__admin/temas/<id>/edicao      -> altera só o nome do tema; exige `confirmado: true` (catálogo gravado de forma atômica)
+//
 // Este módulo NÃO tem autenticação de pessoas: o token só impede que outro site aberto no navegador use o endpoint.
 // Não decide, não valida conteúdo, não publica e não exclui nada. Não lê dados privados (data/admin-private/); não usa
 // cookies, armazenamento do navegador, variáveis de ambiente nem registro em log. Erros são códigos genéricos, sem
@@ -39,6 +61,12 @@ import { prepararCadastroGuiado, validarPedidoGuiado } from './cadastro-guiado.j
 import { alterarBlocoConhecimento, montarBlocoConhecimento, removerBlocoConhecimento } from './conhecimento.js';
 import { verificarSaude } from './saude.js';
 import { criarGravadorEntradas } from './entradas-gravacao.js';
+import { criarServicoRevisao } from './revisao-servico.js';
+import { validarCorpoDaAcao } from './revisao.js';
+import { criarServicoPublicacao, validarCorpoDePublicacao } from './publicacao.js';
+import { fonteIdValido, validarCorpoEdicaoFonte } from './edicao-fonte.js';
+import { criarEdicaoTema, validarCorpoEdicaoServico, validarCorpoEdicaoTema } from './edicao-tema-servico.js';
+import { validarCorpoImportacao } from './importacao-conteudo.js';
 import { buscarLinksReutilizaveis, criarCopiaDeLink } from './reutilizacao.js';
 import { validarBuscaLink, validarCamposLinkNovo, validarCorpoServicoSimples, validarIdentidadeLink } from './gestao-simples.js';
 import { validarVersao } from './versao.js';
@@ -69,6 +97,33 @@ const PADRAO_ROTA_LINKS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links$/;
 const PADRAO_ROTA_LINKS_EXISTENTES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links-existentes$/;
 const PADRAO_ROTA_BUSCA_LINKS = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/links-existentes\/busca$/;
 const PADRAO_ROTA_INFORMACOES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/informacoes$/;
+const PADRAO_ROTA_FONTE_ITEM = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes\/([a-z][a-z0-9-]{0,59})$/;
+const PADRAO_ROTA_FONTE_IMPACTO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes\/([a-z][a-z0-9-]{0,59})\/impacto$/;
+const PADRAO_ROTA_EDICAO_SERVICO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/edicao$/;
+const PADRAO_ROTA_IMPORTACAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/importacao$/;
+const PADRAO_ROTA_EDICAO_TEMA = /^\/__admin\/temas\/([a-z][a-z0-9-]*)\/edicao$/;
+const PADRAO_REVISAO_CABECALHO = /^[0-9a-f]{64}$/;
+const PADRAO_ROTA_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/revisao$/;
+const PADRAO_ROTA_RESUMO_PUBLICACAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/publicacao\/resumo$/;
+const PADRAO_ROTA_PUBLICAR = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(autorizacao|publicacao)$/;
+const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/blocos\/reabrir|revisao\/concluir|nova-versao)$/;
+const ACAO_DA_ROTA = Object.freeze({
+  'revisao/fontes': 'revisar_fonte',
+  'revisao/blocos/aceitar': 'aceitar_bloco',
+  'revisao/blocos/rejeitar': 'rejeitar_bloco',
+  'revisao/blocos/reabrir': 'reabrir_bloco',
+  'revisao/concluir': 'concluir_revisao',
+  'nova-versao': 'nova_versao',
+});
+const STATUS_DA_REVISAO = Object.freeze({
+  servico_nao_encontrado: 404, fonte_nao_encontrada: 404, bloco_nao_encontrado: 404,
+  versao_congelada: 409, revisao_divergente: 409, fonte_ja_revisada: 409, bloco_ja_aceito: 409, estado_nao_permite_nova_versao: 409, validacao_em_andamento: 409,
+  revisao_incompleta: 422, fonte_pendente: 422, fonte_revogada: 422, fonte_inexistente: 422, bloco_nao_aceitavel: 422, bloco_nao_aceito: 422, bloco_nao_removivel: 422, bloco_sem_fonte: 422,
+  fonte_excluida: 409, fonte_ja_excluida: 409, fonte_em_uso: 409, fonte_em_conteudo_antigo: 409, url_duplicada: 409,
+  ja_importado: 409, candidato_nao_encontrado: 404,
+  estado_invalido: 409, conteudo_excluido_citado: 422, historico_incompativel: 422, sem_informacao_aceita: 422, conteudo_publico_invalido: 422, tema_indisponivel: 422,
+  entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
+});
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
@@ -167,6 +222,9 @@ export function criarManipuladorAdmin({
   let escrevendo = false;
   const armazenamento = criarArmazenamento({ raiz, sistema });
   const gravadorEntradas = criarGravadorEntradas({ raiz, sistema, agora, verificarFinal });
+  const servicoRevisao = criarServicoRevisao({ raiz, sistema, agora, verificarFinal, gerarIdBloco });
+  const servicoPublicacao = criarServicoPublicacao({ raiz, sistema, agora, verificarFinal });
+  const edicaoTema = criarEdicaoTema({ raiz, sistema, agora, verificarFinal });
 
   const tokenValido = (recebido) => {
     if (token === null || typeof recebido !== 'string' || !PADRAO_TOKEN.test(recebido)) return false;
@@ -318,7 +376,7 @@ export function criarManipuladorAdmin({
     if (hashConteudo(doc) !== dados.revisao) return { status: 409, corpo: { erro: 'revisao_divergente' } };
     if (doc.fontes.some((f) => f.id === dados.id)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'id' } };
     const normalizada = urlNormalizada(dados.url);
-    if (doc.fontes.some((f) => urlNormalizada(f.url) === normalizada)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
+    if (doc.fontes.some((f) => f.excluidaEm == null && urlNormalizada(f.url) === normalizada)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
     const fonte = montarFonte(dados, dataLocal(agora()));
     const novo = { ...doc, fontes: [...doc.fontes, fonte] };
     const r = aplicar([{ caminho: versao.arquivos.fontes, tipo: 'json', conteudo: novo, validar: (d) => validarFontes(d) }]);
@@ -452,7 +510,7 @@ export function criarManipuladorAdmin({
     if (manifesto.arquivos && manifesto.arquivos.entradas === `${versao.pasta}/entradas.json`) {
       for (const e of lerJson(manifesto.arquivos.entradas).entradas) textos.set(e.id, e);
     }
-    const itens = fontes.map((f) => {
+    const itens = fontes.filter((f) => f.excluidaEm == null).map((f) => {
       if (f.formaEntrada === 'texto') {
         const e = textos.get(f.entradaId);
         const letras = e ? Array.from(e.texto) : [];
@@ -548,6 +606,54 @@ export function criarManipuladorAdmin({
     return g.falha ?? { status: 204, corpo: null };
   }
 
+  /** Resposta HTTP de uma ação de revisão: códigos genéricos, sem caminhos, conteúdo original nem detalhes internos. */
+  function respostaDaRevisao(r, statusOk = 200) {
+    if (r.ok) {
+      const corpo = {};
+      if (typeof r.revisao === 'string') corpo.revisao = r.revisao;
+      if (typeof r.hash === 'string') corpo.revisao = r.hash;
+      if (typeof r.estado === 'string') corpo.estado = r.estado;
+      if (typeof r.numero === 'number') corpo.numero = r.numero;
+      if (typeof r.blocosReabertos === 'number') corpo.blocosReabertos = r.blocosReabertos;
+      return { status: statusOk, corpo };
+    }
+    const status = STATUS_DA_REVISAO[r.erro];
+    if (status === undefined) {
+      const conhecido = r.erro === 'desfazer_incompleto' || r.erro === 'historico_indisponivel';
+      return { status: 500, corpo: { erro: conhecido ? r.erro : 'indisponivel' } };
+    }
+    const corpo = { erro: r.erro };
+    if (Array.isArray(r.pendencias)) corpo.pendencias = r.pendencias.map((p) => ({ codigo: p.codigo, ...(typeof p.id === 'string' ? { id: p.id } : {}), ...(typeof p.titulo === 'string' ? { titulo: p.titulo } : {}) }));
+    if (Array.isArray(r.fontes)) corpo.fontes = r.fontes.filter((x) => typeof x === 'string');
+    if (Array.isArray(r.informacoes)) corpo.informacoes = r.informacoes.filter((x) => typeof x === 'string');
+    if (Array.isArray(r.campos)) corpo.campos = r.campos.filter((x) => typeof x === 'string');
+    return { status, corpo };
+  }
+
+  /** Resposta HTTP da edição de tema e de serviço: códigos próprios e, no restante, os mesmos da revisão (nunca o conteúdo digitado). */
+  function respostaDaEdicao(r) {
+    if (r.ok) return respostaDaRevisao(r);
+    switch (r.erro) {
+      case 'nome_duplicado': return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
+      case 'tema_nao_encontrado': return { status: 404, corpo: { erro: 'nao_encontrado' } };
+      case 'tema_invalido': return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['tema'] } };
+      case 'confirmacao_necessaria': return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['confirmacao'] } };
+      case 'nada_a_alterar': return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nada_a_alterar'] } };
+      default: return respostaDaRevisao(r);
+    }
+  }
+
+  function executarAcaoRevisao(acao, servicoId, dados) {
+    switch (acao) {
+      case 'revisar_fonte': return respostaDaRevisao(servicoRevisao.revisarFonte(servicoId, dados));
+      case 'aceitar_bloco': return respostaDaRevisao(servicoRevisao.aceitarBloco(servicoId, dados));
+      case 'rejeitar_bloco': return respostaDaRevisao(servicoRevisao.rejeitarBloco(servicoId, dados));
+      case 'reabrir_bloco': return respostaDaRevisao(servicoRevisao.reabrirBloco(servicoId, dados));
+      case 'concluir_revisao': return respostaDaRevisao(servicoRevisao.concluirRevisao(servicoId, dados));
+      default: return respostaDaRevisao(servicoRevisao.criarNovaVersao(servicoId), 201);
+    }
+  }
+
   /** Uma gravação por vez: se outra estiver em andamento, esta é recusada com 409 (nada é enfileirado). */
   async function comTrava(operacao) {
     if (escrevendo) return { status: 409, corpo: { erro: 'operacao_em_andamento' } };
@@ -599,11 +705,20 @@ export function criarManipuladorAdmin({
     const rotaBuscaLinks = PADRAO_ROTA_BUSCA_LINKS.exec(caminho);
     const rotaInformacoes = PADRAO_ROTA_INFORMACOES.exec(caminho);
     const rotaSimples = rotaEntradasTexto ?? rotaLinks ?? rotaLinksExistentes ?? rotaBuscaLinks;
-    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || caminho === ROTA_SERVICO_COM_TEMA || rotaDeFontes !== null || rotaDeConhecimentos !== null || rotaSimples !== null;
-    const metodosPermitidos = rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
+    const rotaRevisao = PADRAO_ROTA_REVISAO.exec(caminho);
+    const rotaFonteItem = PADRAO_ROTA_FONTE_ITEM.exec(caminho);
+    const rotaFonteImpacto = PADRAO_ROTA_FONTE_IMPACTO.exec(caminho);
+    const rotaAcaoRevisao = PADRAO_ROTA_ACAO_REVISAO.exec(caminho);
+    const rotaResumoPublicacao = PADRAO_ROTA_RESUMO_PUBLICACAO.exec(caminho);
+    const rotaPublicar = PADRAO_ROTA_PUBLICAR.exec(caminho);
+    const rotaEdicaoServico = PADRAO_ROTA_EDICAO_SERVICO.exec(caminho);
+    const rotaEdicaoTema = PADRAO_ROTA_EDICAO_TEMA.exec(caminho);
+    const rotaImportacao = PADRAO_ROTA_IMPORTACAO.exec(caminho);
+    const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || caminho === ROTA_SERVICO_COM_TEMA || rotaDeFontes !== null || rotaDeConhecimentos !== null || rotaSimples !== null || rotaAcaoRevisao !== null || rotaPublicar !== null;
+    const metodosPermitidos = rotaImportacao !== null ? ['GET', 'POST'] : rotaEdicaoServico !== null || rotaEdicaoTema !== null ? ['GET', 'PATCH'] : rotaFonteItem !== null ? ['GET', 'PATCH', 'DELETE'] : rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
     if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
     // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
-    const temCorpo = rotaDeCadastro || (rotaDeConhecimento !== null && req.method === 'PATCH');
+    const temCorpo = rotaDeCadastro || (rotaImportacao !== null && req.method === 'POST') || (rotaDeConhecimento !== null && req.method === 'PATCH') || (rotaFonteItem !== null && req.method === 'PATCH') || ((rotaEdicaoServico !== null || rotaEdicaoTema !== null) && req.method === 'PATCH');
     const tamanho = req.headers['content-length'];
     if (indice !== -1) return responder(400, { erro: 'requisicao_invalida' });
     if (!temCorpo && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
@@ -621,9 +736,54 @@ export function criarManipuladorAdmin({
       }
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
-      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes)?.[1];
+      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes ?? rotaRevisao ?? rotaAcaoRevisao ?? rotaResumoPublicacao ?? rotaPublicar ?? rotaFonteItem ?? rotaFonteImpacto ?? rotaEdicaoServico ?? rotaImportacao)?.[1];
       if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {
         return responder(404, { erro: 'nao_encontrado' });
+      }
+      if (rotaResumoPublicacao !== null) {
+        // Somente leitura: nada é gravado; sem hash nem ids.
+        const r = servicoPublicacao.resumo(rotaResumoPublicacao[1]);
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson(r.resumo);
+      }
+      if (rotaImportacao !== null && req.method === 'GET') {
+        // Somente leitura: lista os candidatos em elaboração; nada é gravado ao abrir.
+        const r = servicoRevisao.listarCandidatosDeImportacao(rotaImportacao[1]);
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson({ candidatos: r.candidatos, revisao: r.revisao });
+      }
+      if (rotaEdicaoServico !== null && req.method === 'GET') {
+        const r = servicoRevisao.lerServicoParaEdicao(rotaEdicaoServico[1]);
+        if (!r.ok) return responderResultado(respostaDaEdicao(r));
+        return responderJson({ ...r.edicao, revisao: r.revisao });
+      }
+      if (rotaEdicaoTema !== null && req.method === 'GET') {
+        const r = edicaoTema.ler(rotaEdicaoTema[1]);
+        if (!r.ok) return responderResultado(respostaDaEdicao(r));
+        return responderJson({ ...r.edicao, revisao: r.revisao });
+      }
+      if (rotaFonteImpacto !== null) {
+        // O que a exclusão vai afetar (somente leitura): informações e conteúdo antigo, em termos que a tela mostra.
+        if (!fonteIdValido(rotaFonteImpacto[2])) return responder(404, { erro: 'nao_encontrado' });
+        const r = servicoRevisao.impactoDaFonte(rotaFonteImpacto[1], rotaFonteImpacto[2]);
+        if (!r.ok && (r.erro === 'fonte_nao_encontrada' || r.erro === 'servico_nao_encontrado')) return responder(404, { erro: 'nao_encontrado' });
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson({ ...r.impacto, revisao: r.revisao });
+      }
+      if (rotaFonteItem !== null && req.method === 'GET') {
+        if (!fonteIdValido(rotaFonteItem[2])) return responder(404, { erro: 'nao_encontrado' });
+        const r = servicoRevisao.lerFonteParaEdicao(rotaFonteItem[1], rotaFonteItem[2]);
+        if (!r.ok && (r.erro === 'fonte_nao_encontrada' || r.erro === 'servico_nao_encontrado')) return responder(404, { erro: 'nao_encontrado' });
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson({ ...r.edicao, revisao: r.revisao });
+      }
+      if (rotaFonteItem !== null && req.method === 'DELETE') {
+        // Exclusão lógica. Sem corpo: a revisão otimista vai no cabeçalho X-Revisao.
+        const revisaoRecebida = req.headers['x-revisao'];
+        if (typeof revisaoRecebida !== 'string' || !PADRAO_REVISAO_CABECALHO.test(revisaoRecebida) || !fonteIdValido(rotaFonteItem[2])) {
+          return responder(422, { erro: 'dados_invalidos', campos: ['revisao'] });
+        }
+        return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.excluirFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: revisaoRecebida }))));
       }
       if (rotaDeConhecimento !== null && req.method === 'DELETE') {
         return responderResultado(await comTrava(() => removerConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2])));
@@ -643,6 +803,26 @@ export function criarManipuladorAdmin({
         } catch {
           return responder(400, { erro: 'requisicao_invalida' });
         }
+        if (rotaImportacao !== null) {
+          const v = validarCorpoImportacao(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.importarConteudo(rotaImportacao[1], v.dados), 201)));
+        }
+        if (rotaEdicaoServico !== null) {
+          const v = validarCorpoEdicaoServico(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => respostaDaEdicao(servicoRevisao.editarServico(rotaEdicaoServico[1], v.dados))));
+        }
+        if (rotaEdicaoTema !== null) {
+          const v = validarCorpoEdicaoTema(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => respostaDaEdicao(edicaoTema.editar(rotaEdicaoTema[1], v.dados))));
+        }
+        if (rotaFonteItem !== null) {
+          const v = validarCorpoEdicaoFonte(corpo);
+          if (!v.ok || !fonteIdValido(rotaFonteItem[2])) return responder(422, { erro: 'dados_invalidos', campos: v.ok ? ['fonteId'] : v.campos });
+          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.editarFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: v.dados.revisao, campos: v.dados.campos }))));
+        }
         if (rotaDeConhecimentos !== null || rotaDeConhecimento !== null) {
           // Os campos são conferidos pelas funções puras (somente titulo, texto, fonteIds, referencias e alertas), com as fontes da versão.
           if (corpo === null || typeof corpo !== 'object' || Array.isArray(corpo)) return responder(422, { erro: 'dados_invalidos', campos: ['corpo'] });
@@ -650,6 +830,18 @@ export function criarManipuladorAdmin({
             ? criarConhecimento(rotaDeConhecimentos[1], corpo)
             : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo)));
           return responderResultado(resultado);
+        }
+        if (rotaPublicar !== null) {
+          const v = validarCorpoDePublicacao(corpo, req.headers['x-revisao']);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          const servico = rotaPublicar[1];
+          return responderResultado(await comTrava(() => respostaDaRevisao(rotaPublicar[2] === 'autorizacao' ? servicoPublicacao.autorizar(servico, v.dados) : servicoPublicacao.publicar(servico, v.dados))));
+        }
+        if (rotaAcaoRevisao !== null) {
+          const acao = ACAO_DA_ROTA[rotaAcaoRevisao[2]];
+          const v = validarCorpoDaAcao(acao, corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => executarAcaoRevisao(acao, rotaAcaoRevisao[1], v.dados)));
         }
         if (caminho === ROTA_SERVICO_COM_TEMA) {
           const v = validarCorpoServicoSimples(corpo);
@@ -710,6 +902,11 @@ export function criarManipuladorAdmin({
       if (caminho === ROTA_CATALOGO) return responderJson(montarCatalogo());
       if (caminho === ROTA_SAUDE) return responderJson(verificarSaude({ raiz, sistema, agora, diretorioTemporario }));
       if (rotaInformacoes !== null) return responderJson(montarInformacoes(rotaInformacoes[1]));
+      if (rotaRevisao !== null) {
+        const r = servicoRevisao.consultar(rotaRevisao[1]);
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson(r.situacao);
+      }
       const m = PADRAO_ROTA_VERSAO.exec(caminho);
       if (m) {
         const versao = montarVersaoAtual(m[1]);

@@ -40,6 +40,8 @@ function fonteLiberada(fonte) {
   if (!ehObjeto(fonte) || fonte.publicado !== true) return false;
   // Exclusão defensiva: fonte textual (texto cadastrado na administração) nunca é liberada para o chat.
   if (fonte.formaEntrada === 'texto' || fonte.tipo === 'texto_cadastrado') return false;
+  // Fonte excluída logicamente pela administração nunca é liberada.
+  if (fonte.excluidaEm != null) return false;
   return !(ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada');
 }
 

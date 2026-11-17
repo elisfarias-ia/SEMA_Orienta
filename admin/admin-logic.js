@@ -5,6 +5,8 @@
 // O token da sessão fica numa variável DENTRO do cliente (memória): não há como lê-lo de fora, e ele nunca é devolvido,
 // exibido, gravado ou registrado. As mensagens de erro vêm de uma tabela fixa em português, nunca da resposta bruta.
 
+import { contemEmailNaoPermitido } from '../services/admin/contatos-permitidos.js';
+
 export const LIMITES = Object.freeze({ id: 60, nome: 120, descricao: 1000, sigla: 20, termos: 20, termo: 120 });
 export const ROTAS = Object.freeze({
   sessao: '/__admin/sessao',
@@ -54,7 +56,7 @@ function textoLivre(valor, limite, nomeDoCampo, erros, campo) {
   if (t === '') erros[campo] = `Preencha ${nomeDoCampo}.`;
   else if (CONTROLE.test(valor)) erros[campo] = `${capitalizar(nomeDoCampo)} contém caracteres não permitidos.`;
   else if (t.length > limite) erros[campo] = `${capitalizar(nomeDoCampo)} deve ter no máximo ${limite} caracteres.`;
-  else if (PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
+  else if (contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
   else return t;
   return null;
 }
@@ -382,7 +384,7 @@ function textoLongo(valor, limite, nomeDoCampo, erros, campo) {
   if (!ehTexto(valor) || valor.trim() === '') erros[campo] = `Preencha ${nomeDoCampo}.`;
   else if (CONTROLE_LONGO.test(valor)) erros[campo] = `${capitalizar(nomeDoCampo)} contém caracteres não permitidos.`;
   else if (valor.trim().length > limite) erros[campo] = `${capitalizar(nomeDoCampo)} deve ter no máximo ${limite} caracteres.`;
-  else if (PADRAO_EMAIL.test(valor) || PADRAO_TELEFONE.test(valor)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
+  else if (contemEmailNaoPermitido(valor) || PADRAO_TELEFONE.test(valor)) erros[campo] = `Não informe e-mail nem telefone em ${nomeDoCampo}.`;
   else return valor.trim();
   return null;
 }
@@ -396,7 +398,7 @@ export function validarFormConhecimento(valores, fontes = []) {
   const L = LIMITES_CONHECIMENTO;
   const erros = {};
   const titulo = textoLivre(v.titulo, L.titulo, 'o tema da informação', erros, 'titulo');
-  const texto = textoLongo(v.texto, L.texto, 'a informação que o chatbot pode usar', erros, 'texto');
+  const texto = textoLongo(v.texto, L.texto, 'o que o chatbot deve informar ao cidadão', erros, 'texto');
 
   const disponiveis = new Map(fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => [f.id, f]));
   const selecionadas = Array.isArray(v.selecionadas) ? v.selecionadas : [];
@@ -421,7 +423,7 @@ export function validarFormConhecimento(valores, fontes = []) {
   if (alertas.length > L.alertas) erros.alertas = `Informe no máximo ${L.alertas} avisos.`;
   else if (alertas.some((a) => a.length > L.alerta)) erros.alertas = `Cada aviso deve ter no máximo ${L.alerta} caracteres.`;
   else if (alertas.some((a) => CONTROLE.test(a))) erros.alertas = 'Os avisos contêm caracteres não permitidos.';
-  else if (alertas.some((a) => PADRAO_EMAIL.test(a) || PADRAO_TELEFONE.test(a))) erros.alertas = 'Não informe e-mail nem telefone nos avisos.';
+  else if (alertas.some((a) => contemEmailNaoPermitido(a) || PADRAO_TELEFONE.test(a))) erros.alertas = 'Não informe e-mail nem telefone nos avisos.';
 
   if (Object.keys(erros).length) return { ok: false, erros };
   return { ok: true, dados: { titulo, texto, fonteIds: referencias.map((r) => r.fonteId), referencias, alertas } };
@@ -442,7 +444,7 @@ export function resumoDoConhecimento(dados, fontes = [], servico = null) {
   return [
     { rotulo: 'Serviço', valor: servico ?? 'não identificado' },
     { rotulo: 'Tema da informação', valor: dados.titulo },
-    { rotulo: 'Informação que o chatbot pode usar', valor: dados.texto },
+    { rotulo: 'O que o chatbot deve informar ao cidadão?', valor: dados.texto },
     { rotulo: 'Documentos ou links usados', valor: dados.referencias.map((r) => `${titulos.get(r.fonteId) ?? 'Fonte'} — ${r.localizacao}`).join('; ') },
     { rotulo: 'Avisos ou limitações', valor: dados.alertas.length ? dados.alertas.join('; ') : 'nenhum' },
     { rotulo: 'Situação inicial', valor: 'Em elaboração (rascunho); ainda não disponível no chatbot' },
@@ -458,7 +460,7 @@ export function resumirConhecimento(c) {
   if (!ehObjeto(c) || !ehObjeto(c.manifesto) || !ehTexto(c.manifesto.estado) || !Number.isInteger(c.manifesto.numero)) return null;
   if (!ehObjeto(c.service) || !ehObjeto(c.fontes) || !Array.isArray(c.fontes.fontes)) return null;
   if (!ehObjeto(c.conteudoAssistente) || !Array.isArray(c.conteudoAssistente.blocos)) return null;
-  const fontes = c.fontes.fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => ({
+  const fontes = c.fontes.fontes.filter((f) => ehObjeto(f) && ehTexto(f.id) && !ehTexto(f.excluidaEm)).map((f) => ({
     id: f.id, titulo: ehTexto(f.titulo) ? f.titulo : 'Fonte', tipo: rotuloTipoFonte(f.tipo), revogada: ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada',
   }));
   const titulos = new Map(fontes.map((f) => [f.id, f.titulo]));
@@ -485,7 +487,7 @@ const ROTULO_DO_CAMPO = Object.freeze({
   id: 'identificador', nome: 'nome', descricao: 'descrição', assuntoId: 'assunto', sigla: 'sigla', termosEquivalentes: 'termos equivalentes',
   titulo: 'título', tipo: 'tipo', orgaoResponsavel: 'órgão responsável', url: 'URL', origemOficial: 'origem oficial', dataPublicacao: 'data de publicação',
   dispositivoRelevante: 'dispositivo relevante', revisao: 'revisão das fontes',
-  texto: 'informação que o chatbot pode usar', fonteIds: 'fontes', referencias: 'onde a informação aparece na fonte', alertas: 'avisos ou limitações',
+  texto: 'o que o chatbot deve informar ao cidadão', fonteIds: 'fontes', referencias: 'onde a informação aparece na fonte', alertas: 'avisos ou limitações',
 });
 export const MENSAGENS = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se o servidor de desenvolvimento está ativo e recarregue a página.',
@@ -549,8 +551,8 @@ export function criarClienteAdmin({ fetchImpl }) {
   let token = null;
   let gravando = false;
 
-  async function chamar(metodo, caminho, corpo, { comToken = true } = {}) {
-    const cabecalhos = { Accept: 'application/json' };
+  async function chamar(metodo, caminho, corpo, { comToken = true, extras = {} } = {}) {
+    const cabecalhos = { Accept: 'application/json', ...extras };
     if (comToken) cabecalhos[CABECALHO_TOKEN] = token;
     const opcoes = { method: metodo, headers: cabecalhos, cache: 'no-store', credentials: 'omit', redirect: 'error' };
     if (corpo !== undefined) {
@@ -658,6 +660,110 @@ export function criarClienteAdmin({ fetchImpl }) {
       }
     },
 
+    /** Lê a situação da revisão do serviço (fontes, informações, pendências e a revisão otimista a devolver em cada ação). */
+    carregarRevisao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS.sessao });
+      return lerRevisaoDoServico(chamar, servicoId, MENSAGENS.rede);
+    },
+    /** Resumo de autorização e publicação (somente leitura). */
+    carregarResumoPublicacao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS.sessao });
+      return lerResumoDePublicacao(chamar, servicoId, MENSAGENS.rede);
+    },
+
+    /** Grava uma ação da revisão. Uma gravação por vez; retorna { ok } ou { ok: false, mensagem, recarregar? }. */
+    /** Campos atuais de uma fonte para o formulário de edição (o texto original só vem daqui, sob demanda). */
+    async carregarFonteParaEdicao(servicoId, fonteId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirFonteParaEdicao(r.corpo) : null;
+      if (resumo === null) return { ok: false, mensagem: r.status === 401 || r.status === 404 || r.status === 409 ? mensagemDaFonte(r.status, r.corpo).mensagem : 'Não foi possível carregar esta fonte. Tente de novo.' };
+      return { ok: true, ...resumo };
+    },
+
+    /** Impacto da exclusão de uma fonte (somente leitura): informações e conteúdo antigo afetados, em linguagem comum. */
+    async carregarImpactoDaFonte(servicoId, fonteId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}/impacto`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirImpacto(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o impacto da exclusão. Tente de novo.' } : mensagemDaFonte(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+
+    /** Edita uma fonte (PATCH): `campos` só com o que mudou; a revisão atual vai junto. Retorna { ok, blocosReabertos } ou { ok: false, mensagem, ... }. */
+    async editarFonte(servicoId, fonteId, campos, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId) || !ehObjeto(campos) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`, { ...campos, revisao: revisaoAtual });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 200) return { ok: true, blocosReabertos: ehObjeto(r.corpo) && Number.isInteger(r.corpo.blocosReabertos) && r.corpo.blocosReabertos > 0 ? r.corpo.blocosReabertos : 0 };
+        return { ok: false, ...mensagemDaFonte(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
+    /** Exclusão LÓGICA (DELETE sem corpo; a revisão atual vai no cabeçalho X-Revisao). */
+    async excluirFonte(servicoId, fonteId, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('DELETE', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`, undefined, { extras: { 'X-Revisao': revisaoAtual } });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 200) return { ok: true };
+        return { ok: false, ...mensagemDaFonte(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
+    async gravarRevisao(acao, servicoId, corpo) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        return await enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, MENSAGENS.rede);
+      } finally {
+        gravando = false;
+      }
+    },
+
+    /** Candidatos à importação de conteúdo existente (GET, somente leitura; nada é gravado). */
+    async carregarCandidatosDeImportacao(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/importacao`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirCandidatos(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o conteúdo existente. Tente de novo.' } : mensagemDaRevisao(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+
+    /** Importa UM item (POST): informação em elaboração. Retorna { ok } ou { ok: false, mensagem, recarregar? }. */
+    async importarConteudo(servicoId, corpo) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !ehObjeto(corpo)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('POST', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/importacao`, corpo);
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 201) return { ok: true };
+        return { ok: false, ...mensagemDaRevisao(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
     /**
      * Cadastra um assunto, um serviço ou uma fonte (nesse caso, `contexto.servicoId` indica o serviço).
      * Retorna { ok, item } ou { ok: false, mensagem }.
@@ -708,11 +814,11 @@ export const TIPOS_LINK = Object.freeze([
 export const AVISO_DADOS_PESSOAIS = 'Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.';
 export const MENSAGENS_GESTAO = Object.freeze({
   rede: 'Não foi possível falar com o servidor local. Confira se ele está ativo e tente de novo.',
-  entrada: 'Não foi possível entrar na demonstração. Tente de novo.',
+  entrada: 'Não foi possível acessar a administração. Tente de novo.',
   catalogo: 'Não foi possível carregar os serviços. Tente de novo.',
   informacoes: 'Não foi possível carregar as informações deste serviço. Tente de novo.',
   busca: 'Não foi possível buscar os links cadastrados. Tente de novo.',
-  semEntrada: 'Entre na demonstração para continuar.',
+  semEntrada: 'Acesse a administração para continuar.',
   expirada: 'Sua entrada expirou. Saia e entre de novo.',
   acessoLocal: 'Acesso recusado. Esta área só funciona neste computador.',
   ocupado: 'Há outra gravação em andamento, tente de novo.',
@@ -766,7 +872,7 @@ export function resolverTema(texto, temas) {
 /** Verdadeiro se o texto parece ter e-mail, telefone, CPF ou credencial (a conferência definitiva é do servidor). */
 export function pareceDadoPessoal(texto) {
   const t = String(texto ?? '');
-  return PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t)
+  return contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t) || /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t)
     || /\b(senha|password|token|api[ _-]?key|chave de acesso)\s*[:=]/i.test(t);
 }
 
@@ -1009,6 +1115,25 @@ export function criarClienteGestao({ fetchImpl }) {
       return { ok: true, ...resumo };
     },
 
+    carregarRevisao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
+      return lerRevisaoDoServico(chamar, servicoId, MENSAGENS_GESTAO.rede);
+    },
+    carregarResumoPublicacao(servicoId) {
+      if (token === null) return Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
+      return lerResumoDePublicacao(chamar, servicoId, MENSAGENS_GESTAO.rede);
+    },
+    /** Cria uma nova versão editável a partir da versão concluída. Envia exatamente `{}`. */
+    async criarNovaVersao(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        return await enviarAcaoDeRevisao(chamar, servicoId, 'nova-versao', {}, MENSAGENS_GESTAO.rede);
+      } finally {
+        gravando = false;
+      }
+    },
     criarServico: (corpo) => gravar(ROTAS_GESTAO.servicoComTema, corpo, (c) => (
       ehObjeto(c.servico) && ehTexto(c.servico.id) && PADRAO_ID.test(c.servico.id) && ehTexto(c.servico.nome)
         ? { servico: { id: c.servico.id, nome: c.servico.nome, temaNome: ehTexto(c.servico.temaNome) ? c.servico.temaNome : '' }, temaCriado: c.temaCriado === true }
@@ -1022,5 +1147,660 @@ export function criarClienteGestao({ fetchImpl }) {
     usarLinkExistente: (servicoId, item) => (idOk(servicoId) && ehObjeto(item) && ehObjeto(item.identidade)
       ? gravar(rotaDoServico(servicoId, 'links-existentes'), corpoDoLinkExistente(item), (c) => (ehObjeto(c.fonte) ? {} : null), 'link-existente')
       : recusa()),
+
+    /** Nome e serviços afetados de um tema (somente leitura), com a revisão a devolver ao salvar. */
+    async carregarEdicaoDoTema(temaId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(temaId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const r = await chamar('GET', `/__admin/temas/${encodeURIComponent(temaId)}/edicao`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirEdicaoDoTema(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o tema. Tente de novo.' } : mensagemDaEdicao(r.status, r.corpo, 'tema')) };
+      return { ok: true, ...resumo };
+    },
+    /** Nome, tema e informações aceitas do serviço aberto (somente leitura), com a revisão a devolver ao salvar. */
+    async carregarEdicaoDoServico(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const r = await chamar('GET', rotaDoServico(servicoId, 'edicao'));
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirEdicaoDoServico(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o serviço. Tente de novo.' } : mensagemDaEdicao(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+    /** Altera o nome do tema (PATCH). A confirmação já foi dada pela pessoa no diálogo de impacto. Uma gravação por vez. */
+    async editarTema(temaId, nome, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(temaId) || !ehTexto(nome) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', `/__admin/temas/${encodeURIComponent(temaId)}/edicao`, { revisao: revisaoAtual, nome, confirmado: true });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+        if (r.status === 200) return { ok: true };
+        return { ok: false, ...mensagemDaEdicao(r.status, r.corpo, 'tema') };
+      } finally {
+        gravando = false;
+      }
+    },
+    /** Altera nome e/ou tema do serviço (PATCH): `corpo` só com o que mudou; `confirmado` só depois do diálogo de impacto. */
+    async editarServico(servicoId, corpo, revisaoAtual, confirmado) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId) || !ehObjeto(corpo) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', rotaDoServico(servicoId, 'edicao'), { ...corpo, revisao: revisaoAtual, ...(confirmado === true ? { confirmado: true } : {}) });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+        if (r.status === 200) return { ok: true, blocosReabertos: ehObjeto(r.corpo) && Number.isInteger(r.corpo.blocosReabertos) ? r.corpo.blocosReabertos : 0 };
+        return { ok: false, ...mensagemDaEdicao(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
   };
+}
+
+// ---------- Revisão do conteúdo (Passo 5B2) ----------
+// Lógica pura mais os trechos de cliente compartilhados pelas duas páginas ("Gestão de conteúdo"). Nunca exibe ids, hashes,
+// códigos internos nem nomes técnicos de estado: tudo vem de rótulos em linguagem comum. A publicação não existe nesta etapa.
+
+export const TEXTO_CONFIRMAR_CONCLUSAO = 'Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.';
+export const MENSAGEM_REVISAO_DIVERGENTE = 'O conteúdo mudou. Os dados foram atualizados; confira e tente de novo.';
+const ROTULO_PADRAO_SITUACAO = 'Situação indisponível';
+const ACOES_REVISAO = Object.freeze({
+  fonte: 'revisao/fontes',
+  'bloco-aceitar': 'revisao/blocos/aceitar',
+  'bloco-rejeitar': 'revisao/blocos/rejeitar',
+  'bloco-reabrir': 'revisao/blocos/reabrir',
+  concluir: 'revisao/concluir',
+  'nova-versao': 'nova-versao',
+  autorizar: 'autorizacao',
+  publicar: 'publicacao',
+});
+const textoCurto = (v, limite = 200) => (ehTexto(v) ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, limite) : '');
+const idSeguro = (v) => ehTexto(v) && PADRAO_ID.test(v);
+const contagem = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+
+/** Rótulo do tipo da fonte: nunca devolve o texto original. */
+export const rotuloFormaDaFonte = (forma) => (forma === 'link' ? 'Link' : 'Texto informado');
+export function rotuloSituacaoDaFonte(f) {
+  if (f.excluida) return 'Excluída';
+  if (f.revogada) return 'Revogada';
+  if (f.revisada) return 'Revisado';
+  // Fonte que nenhum bloco usa pode ficar sem revisão: não é pendência para concluir.
+  return f.usadaPorBloco === false ? 'Ainda não revisada' : 'Revisão pendente';
+}
+export const rotuloSituacaoDoBloco = (aceito) => (aceito ? 'Aceita' : 'Em elaboração');
+
+/** Resumo em uma frase: só blocos pendentes e fontes usadas por eles contam como pendência para concluir. */
+export function frasePendenciasParaConcluir(resumo) {
+  const n = resumo.pendenciasParaConcluir;
+  const pendencias = n === 0 ? 'Nenhuma pendência para concluir.' : n === 1 ? '1 pendência para concluir.' : `${n} pendências para concluir.`;
+  const nao = resumo.fontesNaoUsadas;
+  const naoUsadas = nao > 0 ? ` ${nao === 1 ? '1 documento ou link ainda não é usado por nenhuma informação' : `${nao} documentos ou links ainda não são usados por nenhuma informação`}; isso não impede a conclusão.` : '';
+  return `${pendencias} Informações aceitas: ${resumo.informacoesAceitas}.${naoUsadas}`;
+}
+
+/** Traduz uma pendência da API para uma frase comum. O título (nome dado pelo servidor) é o único dado variável. */
+export function traduzirPendencia(p) {
+  const titulo = ehObjeto(p) ? textoCurto(p.titulo) : '';
+  const nome = titulo === '' ? '' : ` "${titulo}"`;
+  switch (ehObjeto(p) ? p.codigo : null) {
+    case 'sem_bloco_aceito': return FRASE_SEM_INFORMACAO_ACEITA;
+    case 'bloco_pendente': return `A informação${nome} ainda não foi aceita nem excluída.`;
+    case 'fonte_pendente': return `O documento ou link${nome} ainda não foi revisado.`;
+    case 'fonte_revogada': return `O documento ou link${nome} foi revogado e não pode mais ser usado.`;
+    case 'fonte_inexistente': return `A informação${nome} usa um documento ou link que não existe mais. Edite a informação.`;
+    case 'entrada_invalida': return 'Há um dado inválido neste serviço. Procure a equipe responsável.';
+    default: return 'Há uma pendência a resolver antes de concluir a revisão.';
+  }
+}
+
+/** Resume GET .../revisao só com o que a tela usa. Retorna null se o formato não for o esperado. */
+export function resumirRevisao(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.revisao) || corpo.revisao === '' || corpo.revisao.length > 200) return null;
+  if (!ehObjeto(corpo.resumo) || !Array.isArray(corpo.fontes) || !Array.isArray(corpo.blocos) || !Array.isArray(corpo.pendencias)) return null;
+  const fontes = corpo.fontes.filter(ehObjeto).filter((f) => idSeguro(f.id)).map((f) => {
+    const base = { id: f.id, titulo: textoCurto(f.titulo) || 'Documento ou link', forma: f.forma === 'link' ? 'link' : 'texto', revisada: f.revisada === true, revogada: f.revogada === true, excluida: f.excluida === true, usadaPorBloco: f.usadaPorBloco === true, podeRevisar: f.podeRevisar === true, podeEditar: f.podeEditar === true, podeExcluir: f.podeExcluir === true };
+    return { ...base, rotuloForma: rotuloFormaDaFonte(base.forma), situacao: rotuloSituacaoDaFonte(base) };
+  });
+  const blocos = corpo.blocos.filter(ehObjeto).filter((b) => idSeguro(b.id)).map((b) => ({
+    id: b.id,
+    titulo: textoCurto(b.titulo),
+    aceito: b.aceito === true,
+    situacao: rotuloSituacaoDoBloco(b.aceito === true),
+    fontesPendentes: Array.isArray(b.fontesPendentes) ? b.fontesPendentes.filter(idSeguro) : [],
+    podeAceitar: b.podeAceitar === true,
+    podeReabrir: b.podeReabrir === true,
+    podeRejeitar: b.podeRejeitar === true,
+  }));
+  const pendenciasDetalhe = corpo.pendencias.filter(ehObjeto).map((p) => ({ codigo: ehTexto(p.codigo) ? p.codigo : '', id: idSeguro(p.id) ? p.id : null, titulo: textoCurto(p.titulo), frase: traduzirPendencia(p) }));
+  const pendencias = pendenciasDetalhe.map((p) => p.frase);
+  const editavel = corpo.editavel === true;
+  return {
+    revisao: corpo.revisao,
+    rotulo: textoCurto(corpo.rotulo, 60) || ROTULO_PADRAO_SITUACAO,
+    // Fonte única dos números e do selo: a própria lista de impedimentos devolvida pela API.
+    revisaoPendente: pendencias.length > 0,
+    editavel,
+    congelada: !editavel,
+    resumo: {
+      informacoesAceitas: contagem(corpo.resumo.informacoesAceitas),
+      fontesNaoUsadas: contagem(corpo.resumo.fontesNaoUsadas),
+      pendenciasParaConcluir: pendencias.length,
+    },
+    fontes,
+    blocos,
+    pendencias,
+    pendenciasDetalhe,
+    podeConcluir: corpo.podeConcluir === true && editavel,
+  };
+}
+
+/** Títulos das fontes pendentes de um bloco, em frase comum. */
+export function explicarFontesPendentes(bloco, fontes) {
+  const nomes = bloco.fontesPendentes.map((id) => fontes.find((f) => f.id === id)).filter(Boolean).map((f) => `"${f.titulo}"`);
+  if (nomes.length === 0) return '';
+  return `Para aceitar esta informação, marque antes como revisado: ${nomes.join(', ')}.`;
+}
+
+/** Mensagem curta por código de erro da revisão. Nunca usa texto bruto da resposta. `recarregar`: a tela deve buscar os dados de novo. */
+export function mensagemDaRevisao(status, corpo) {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  if (status === 401) return { mensagem: 'A sessão administrativa é inválida ou expirou. Recarregue a página para iniciar uma nova sessão.' };
+  if (status === 403) return { mensagem: 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.' };
+  if (status === 404) return { mensagem: 'Não encontramos este item. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'ja_importado') return { mensagem: 'Este conteúdo já foi importado. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'fonte_ja_revisada') return { mensagem: 'Este documento ou link já foi revisado. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'bloco_ja_aceito') return { mensagem: 'Esta informação já foi aceita. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'estado_nao_permite_nova_versao') return { mensagem: 'Ainda não é possível criar uma nova versão. Conclua a revisão antes.', recarregar: true };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências. Resolva-as antes de concluir a revisão.', recarregar: true };
+    if (erro === 'fonte_pendente') return { mensagem: 'Marque antes como revisados os documentos ou links usados por esta informação.', recarregar: true };
+    if (erro === 'fonte_revogada') return { mensagem: 'Um dos documentos ou links foi revogado e não pode ser usado.', recarregar: true };
+    if (erro === 'bloco_sem_fonte') return { mensagem: 'Esta informação não tem documento ou link. Edite e escolha uma fonte antes de aceitar.', recarregar: true };
+    if (erro === 'bloco_nao_aceitavel' || erro === 'bloco_nao_aceito') return { mensagem: 'Esta ação não é possível para a informação neste momento. Os dados foram atualizados.', recarregar: true };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) {
+    if (erro === 'desfazer_incompleto') return { mensagem: 'A operação não terminou por completo. Recarregue a página e confira os dados.', recarregar: true };
+    return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  }
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+/** Leitura da revisão (GET). `chamar` é o `chamar` do cliente que a usa; falha de rede e 401 viram mensagens fixas. */
+export async function lerRevisaoDoServico(chamar, servicoId, mensagemRede) {
+  if (!idSeguro(servicoId)) return { ok: false, mensagem: 'Não foi possível carregar a revisão deste serviço. Tente de novo.' };
+  const r = await chamar('GET', `/__admin/servicos/${encodeURIComponent(servicoId)}/revisao`);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  const resumo = r.ok ? resumirRevisao(r.corpo) : null;
+  if (resumo === null) return { ok: false, mensagem: r.status === 401 ? mensagemDaRevisao(401).mensagem : 'Não foi possível carregar a revisão deste serviço. Tente de novo.' };
+  return { ok: true, ...resumo };
+}
+
+/**
+ * Grava uma ação da revisão (sempre POST JSON). `acao`: fonte, bloco-aceitar, bloco-rejeitar, bloco-reabrir, concluir ou nova-versao.
+ * Para nova-versao o corpo é exatamente `{}`; nas demais, `corpo` já traz a `revisao` atual.
+ */
+export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensagemRede) {
+  if (!idSeguro(servicoId) || !Object.hasOwn(ACOES_REVISAO, acao)) return { ok: false, mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+  const r = await chamar('POST', `/__admin/servicos/${encodeURIComponent(servicoId)}/${ACOES_REVISAO[acao]}`, acao === 'nova-versao' ? {} : corpo);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  if (r.status === (acao === 'nova-versao' ? 201 : 200)) return { ok: true };
+  return { ok: false, ...(acao === 'autorizar' || acao === 'publicar' ? mensagemDaPublicacao(r.status, r.corpo, acao) : mensagemDaRevisao(r.status, r.corpo)) };
+}
+
+// ---------- Autorizar e publicar (Passo 5C) ----------
+// Três etapas distintas: revisar (conferir e concluir), autorizar (registrar a decisão; nada vira público) e publicar (disponibilizar
+// ao cidadão). Nada aqui mostra hash, ids ou códigos internos.
+
+export const TEXTO_DIFERENCA_ETAPAS = 'Revisar é conferir as informações e os documentos e concluir a revisão. Autorizar é registrar que esta versão pode ser publicada, sem disponibilizá-la. Publicar é disponibilizar o conteúdo ao cidadão no chatbot.';
+export const AVISO_AUTORIZACAO = 'A próxima ação disponibilizará conteúdo ao cidadão.';
+export const TEXTO_CONFIRMAR_AUTORIZACAO = 'Autorizar registra a decisão de que esta versão pode ser publicada. Ainda não publica nada: o chatbot continua sem este conteúdo até a publicação, que é uma ação à parte.';
+export const TEXTO_CONFIRMAR_PUBLICACAO = 'Ao publicar, as informações desta versão passam a ser usadas pelo chatbot nas respostas ao cidadão. A versão publicada não poderá mais ser editada; para alterar, será necessário criar uma nova versão.';
+export const AVISO_CONCLUIR_NAO_PUBLICA = 'Concluir a revisão não publica nada. Depois dela ainda é preciso autorizar e, em seguida, publicar.';
+export const MENSAGENS_PUBLICACAO = Object.freeze({
+  autorizada: 'Publicação autorizada. O conteúdo ainda não está disponível ao cidadão: use "Publicar" quando quiser disponibilizá-lo.',
+  publicada: 'Versão publicada. O conteúdo já está disponível ao cidadão. Para alterar, crie uma nova versão.',
+  indisponivel: 'Não foi possível ler a situação da publicação agora. Recarregue a página e tente de novo.',
+});
+
+/** Data em dd/mm/aaaa a partir do início de um texto ISO (sem fuso do navegador); texto inválido vira null. */
+export function dataDaRevisaoBr(valor) {
+  const m = ehTexto(valor) ? /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(valor) : null;
+  return m === null ? null : `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Resume GET .../publicacao/resumo só com o que a tela usa; null se o formato não for o esperado. `etapa`: autorizar, publicar, publicado ou indisponivel. */
+export function resumirPublicacao(corpo) {
+  if (!ehObjeto(corpo) || !Number.isInteger(corpo.versao) || corpo.versao < 1) return null;
+  const publicado = corpo.publicado === true;
+  const podePublicar = !publicado && corpo.podePublicar === true;
+  const podeAutorizar = !publicado && !podePublicar && corpo.podeAutorizar === true;
+  return {
+    versao: corpo.versao,
+    rotulo: textoCurto(corpo.rotulo, 60) || ROTULO_PADRAO_SITUACAO,
+    dataRevisao: dataDaRevisaoBr(corpo.dataRevisao),
+    dataPublicacao: dataDaRevisaoBr(corpo.dataPublicacao),
+    informacoesAceitas: contagem(corpo.informacoesAceitas),
+    links: contagem(corpo.links),
+    textos: contagem(corpo.textos),
+    podeAutorizar,
+    podePublicar,
+    publicado,
+    etapa: publicado ? 'publicado' : podePublicar ? 'publicar' : podeAutorizar ? 'autorizar' : 'indisponivel',
+  };
+}
+
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+/** Linhas (rótulo e valor) do diálogo de autorização e do de publicação. */
+export function linhasDoResumoDePublicacao(r) {
+  return [
+    { rotulo: 'Versão', valor: String(r.versao) },
+    { rotulo: 'Data da revisão', valor: r.dataRevisao ?? 'Não informada' },
+    { rotulo: 'Informações aceitas', valor: String(r.informacoesAceitas) },
+    { rotulo: 'Links', valor: String(r.links) },
+    { rotulo: 'Textos', valor: String(r.textos) },
+  ];
+}
+
+/** Frase do estado de publicação para o painel (sem termos internos). */
+export function frasePublicacao(r) {
+  const itens = `${plural(r.informacoesAceitas, 'informação aceita', 'informações aceitas')}, ${plural(r.links, 'link', 'links')} e ${plural(r.textos, 'texto', 'textos')}`;
+  const dataBase = r.dataRevisao === null ? '' : ` Revisão concluída em ${r.dataRevisao}.`;
+  const data = r.etapa === 'publicado' && r.dataPublicacao !== null ? ` Publicado em ${r.dataPublicacao}.` : dataBase;
+  switch (r.etapa) {
+    case 'publicado': return `Publicado. Esta versão (${r.versao}) já está disponível ao cidadão e não pode mais ser editada.${data} ${itens}.`;
+    case 'publicar': return `Publicação autorizada, mas ainda não publicada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
+    case 'autorizar': return `Revisão concluída; a publicação ainda não foi autorizada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
+    default: return 'Autorizar ou publicar não está disponível agora. Recarregue a página; se continuar assim, procure a equipe responsável.';
+  }
+}
+
+/** Visibilidade dos botões por etapa. `ocupado`: uma requisição está em andamento (tudo desabilitado). */
+export function botoesDePublicacao(r, ocupado = false) {
+  const etapa = r === null ? 'indisponivel' : r.etapa;
+  return {
+    autorizar: { visivel: etapa === 'autorizar', habilitado: etapa === 'autorizar' && !ocupado },
+    publicar: { visivel: etapa === 'publicar', habilitado: etapa === 'publicar' && !ocupado },
+    novaVersao: { visivel: etapa === 'publicado', habilitado: etapa === 'publicado' && !ocupado },
+  };
+}
+
+/** Corpo das ações de autorizar e publicar: só a revisão que a pessoa viu. */
+export const corpoDaPublicacao = (revisaoAtual) => ({ revisao: revisaoAtual });
+
+/** Mensagem por código de erro ao autorizar ou publicar. Nunca usa texto bruto da resposta. */
+export function mensagemDaPublicacao(status, corpo, acao = 'autorizar') {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  const verbo = acao === 'publicar' ? 'publicar' : 'autorizar';
+  if (status === 401 || status === 403 || status === 404 || status === 413) return mensagemDaRevisao(status, corpo);
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'estado_invalido') return { mensagem: `Esta versão não está mais na etapa de ${verbo}. Os dados foram atualizados.`, recarregar: true };
+    return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.`, recarregar: true };
+  }
+  if (status === 422) {
+    if (erro === 'sem_informacao_aceita') return { mensagem: 'Não há nenhuma informação aceita para publicar. Nada foi alterado.', recarregar: true };
+    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências na revisão. Nada foi alterado.', recarregar: true };
+    if (erro === 'conteudo_excluido_citado') return { mensagem: 'Há informação que ainda cita um documento ou link excluído. Nada foi alterado; crie uma nova versão para corrigir.', recarregar: true };
+    if (erro === 'hash_divergente' || erro === 'historico_incompativel') return { mensagem: `A conferência do conteúdo não permitiu ${verbo}. Nada foi alterado; procure a equipe responsável.`, recarregar: true };
+    return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.` };
+  }
+  if (status === 500) {
+    if (erro === 'desfazer_incompleto') return { mensagem: 'A operação não terminou por completo. Recarregue a página e confira os dados.', recarregar: true };
+    return { mensagem: `O servidor local não conseguiu ${verbo}. Nada foi alterado; tente de novo.` };
+  }
+  return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.` };
+}
+
+/** Leitura do resumo de publicação (GET, somente leitura; nada é gravado). */
+export async function lerResumoDePublicacao(chamar, servicoId, mensagemRede) {
+  if (!idSeguro(servicoId)) return { ok: false, mensagem: MENSAGENS_PUBLICACAO.indisponivel };
+  const r = await chamar('GET', `/__admin/servicos/${encodeURIComponent(servicoId)}/publicacao/resumo`);
+  if (r.falhaDeRede) return { ok: false, mensagem: mensagemRede };
+  const resumo = r.ok ? resumirPublicacao(r.corpo) : null;
+  if (resumo === null) return { ok: false, mensagem: r.status === 401 ? mensagemDaRevisao(401).mensagem : MENSAGENS_PUBLICACAO.indisponivel };
+  return { ok: true, ...resumo };
+}
+
+/** `?pendencias=1`: abre a área de pendências ao carregar a página de conteúdo. */
+export const pendenciasDaUrl = (busca) => { try { return new URLSearchParams(ehTexto(busca) ? busca : '').get('pendencias') === '1'; } catch { return false; } };
+
+/** Lê `?servico=` e devolve o id apenas se tiver o formato válido; qualquer outro valor é ignorado. */
+export function servicoDaUrl(busca) {
+  let valor = null;
+  try { valor = new URLSearchParams(ehTexto(busca) ? busca : '').get('servico'); } catch { return null; }
+  return ehTexto(valor) && valor.length <= LIMITES.id && PADRAO_ID.test(valor) ? valor : null;
+}
+
+// ---------- Editar e excluir fontes (Passo 5B3a) ----------
+
+export const TEXTO_CONFIRMAR_EXCLUSAO_FONTE = 'Este item não aparecerá mais na gestão. O histórico será preservado.';
+export const TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO = 'A exclusão será aplicada ao chatbot após a publicação desta versão.';
+export const FRASE_SEM_INFORMACAO_ACEITA = 'Inclua e aceite pelo menos uma informação para concluir a revisão.';
+export const PASSOS_PARA_RESOLVER = Object.freeze(['Incluir ou editar uma informação.', 'Relacionar ao menos uma fonte ativa.', 'Revisar a fonte usada.', 'Aceitar a informação.', 'Concluir a revisão.']);
+export const AVISO_EDITAR_FONTE = 'Ao salvar, esta fonte volta para revisão e as informações aceitas que a usam voltam para Em elaboração.';
+export const MENSAGEM_URL_DUPLICADA = 'Já existe outro link com este endereço neste serviço.';
+const CAMPOS_FORMULARIO_FONTE = Object.freeze({ link: ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao'], texto: ['titulo', 'texto'] });
+export const LIMITES_EDICAO_FONTE = Object.freeze({ localizacao: 200 });
+
+const DESFECHOS = Object.freeze({
+  continua: 'continuará com outras fontes',
+  volta_para_elaboracao: 'voltará para Em elaboração',
+  sai_do_conteudo_ativo: 'sairá do conteúdo ativo',
+});
+
+export function fraseBlocosReabertos(n) {
+  if (!Number.isInteger(n) || n <= 0) return '';
+  return n === 1 ? '1 informação voltou para Em elaboração.' : `${n} informações voltaram para Em elaboração.`;
+}
+
+/**
+ * GET .../fontes/<id>/impacto: o que a exclusão causa, em linguagem comum e sem ids. Retorna null se o formato não for o esperado.
+ * informacoes: título e desfecho; conteudoAntigo: o que sai do conteúdo ativo e os campos do serviço que ficam pendentes.
+ */
+export function resumirImpacto(corpo) {
+  if (!ehObjeto(corpo) || !Array.isArray(corpo.informacoes)) return null;
+  const informacoes = corpo.informacoes.filter(ehObjeto).map((i) => ({
+    titulo: textoCurto(i.titulo),
+    desfecho: Object.hasOwn(DESFECHOS, i.desfecho) ? i.desfecho : 'volta_para_elaboracao',
+    frase: DESFECHOS[Object.hasOwn(DESFECHOS, i.desfecho) ? i.desfecho : 'volta_para_elaboracao'],
+  }));
+  const a = ehObjeto(corpo.conteudoAntigo) ? corpo.conteudoAntigo : {};
+  const antigo = {
+    blocosDeTeste: contagem(a.blocosDeTeste),
+    documentos: contagem(a.documentos),
+    perguntas: contagem(a.perguntas),
+    camposDoServico: Array.isArray(a.camposDoServico) ? a.camposDoServico.filter(ehTexto).map((t) => textoCurto(t, 80)).filter((t) => t !== '').slice(0, 30) : [],
+    normasRelacionadas: contagem(a.normasRelacionadas),
+    secoesDoRoteiro: Array.isArray(a.secoesDoRoteiro) ? a.secoesDoRoteiro.filter(ehTexto).map((t) => textoCurto(t, 80)).filter((t) => t !== '').slice(0, 30) : [],
+  };
+  return { informacoes, conteudoAntigo: antigo };
+}
+
+/** Frases do que sai do conteúdo antigo (só o que existir). */
+export function frasesConteudoAntigo(a) {
+  const frases = [];
+  const plural = (n, um, varios) => (n === 1 ? `1 ${um}` : `${n} ${varios}`);
+  if (a.documentos > 0) frases.push(`${plural(a.documentos, 'documento', 'documentos')} do conteúdo antigo sairá do conteúdo ativo.`.replace('sairá', a.documentos === 1 ? 'sairá' : 'sairão'));
+  if (a.perguntas > 0) frases.push(`${plural(a.perguntas, 'pergunta frequente', 'perguntas frequentes')} do conteúdo antigo ${a.perguntas === 1 ? 'sairá' : 'sairão'} do conteúdo ativo.`);
+  if (a.blocosDeTeste > 0) frases.push(`${plural(a.blocosDeTeste, 'bloco de teste', 'blocos de teste')} do conteúdo antigo ${a.blocosDeTeste === 1 ? 'sairá' : 'sairão'} do conteúdo ativo.`);
+  if (a.camposDoServico.length > 0) frases.push(`O texto dos campos do serviço que dependem só desta fonte será apagado e eles ficarão pendentes: ${a.camposDoServico.join(', ')}.`);
+  if ((a.secoesDoRoteiro ?? []).length > 0) frases.push(`No roteiro do serviço, ficarão pendentes as seções: ${a.secoesDoRoteiro.join(', ')}.`);
+  if (a.normasRelacionadas > 0) frases.push(`A relação entre normas será ajustada em ${plural(a.normasRelacionadas, 'fonte', 'fontes')}.`);
+  return frases;
+}
+
+/** GET ...: só os campos de edição (strings) e a revisão. Retorna null se o formato não for o esperado. */
+export function resumirFonteParaEdicao(corpo) {
+  if (!ehObjeto(corpo) || (corpo.forma !== 'link' && corpo.forma !== 'texto')) return null;
+  const campos = {};
+  for (const c of CAMPOS_FORMULARIO_FONTE[corpo.forma]) campos[c] = ehTexto(corpo[c]) ? corpo[c] : '';
+  return { forma: corpo.forma, campos, revisao: ehTexto(corpo.revisao) ? corpo.revisao : '' };
+}
+
+function mensagemDeUrlInvalida(url) {
+  if (url === '') return 'Informe o endereço do link.';
+  if (url.length > LIMITES_GESTAO.url) return `Use até ${LIMITES_GESTAO.url} caracteres no endereço.`;
+  let objeto = null;
+  try { objeto = new URL(url); } catch { /* inválido, tratado abaixo */ }
+  if (objeto === null || objeto.protocol !== 'https:' || !objeto.hostname.includes('.')) return 'Use um endereço completo que comece com https://.';
+  if (objeto.username !== '' || objeto.password !== '' || /\s/.test(url)) return 'O endereço não pode ter usuário, senha nem espaços.';
+  if (pareceDadoPessoal(url)) return 'O endereço parece ter dado pessoal ou senha. Use o endereço público da página.';
+  return null;
+}
+
+/**
+ * Valida o formulário de edição de uma fonte. `original`: campos carregados (para enviar só o que mudou).
+ * Retorna { ok: true, corpo } (corpo pode ser vazio: nada mudou) ou { ok: false, erros } com mensagens por campo.
+ */
+export function validarEdicaoDeFonte(forma, valores, original) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const novo = {};
+  const dados = {};
+  validarTitulo(v, erros, dados);
+  novo.titulo = dados.titulo;
+  if (forma === 'texto') {
+    const texto = ehTexto(v.texto) ? v.texto.trim() : '';
+    if (texto === '') erros.texto = 'Escreva o texto.';
+    else if (Array.from(texto).length > LIMITES_GESTAO.texto) erros.texto = `Use até ${LIMITES_GESTAO.texto.toLocaleString('pt-BR')} caracteres no texto.`;
+    else if (pareceDadoPessoal(texto)) erros.texto = 'O texto parece ter dado pessoal, telefone, e-mail ou senha. Retire essa parte e tente de novo.';
+    novo.texto = texto;
+  } else {
+    const url = ehTexto(v.url) ? v.url.trim() : '';
+    const erroUrl = mensagemDeUrlInvalida(url);
+    if (erroUrl !== null) erros.url = erroUrl;
+    novo.url = url;
+    const orgao = textoAparado(v.orgaoResponsavel);
+    if (orgao === '') erros.orgaoResponsavel = 'Informe o órgão que publicou o conteúdo.';
+    else if (orgao.length > LIMITES_GESTAO.orgao) erros.orgaoResponsavel = `Use até ${LIMITES_GESTAO.orgao} caracteres no órgão.`;
+    novo.orgaoResponsavel = orgao;
+    const descricao = textoAparado(v.descricao);
+    if (descricao.length > LIMITES_GESTAO.descricao) erros.descricao = `Use até ${LIMITES_GESTAO.descricao} caracteres na descrição.`;
+    else if (pareceDadoPessoal(descricao)) erros.descricao = 'A descrição não pode ter dados pessoais nem senhas.';
+    novo.descricao = descricao;
+    const data = ehTexto(v.dataPublicacao) ? v.dataPublicacao.trim() : '';
+    if (data !== '' && !dataIsoValida(data)) erros.dataPublicacao = 'Use uma data válida, ou deixe em branco.';
+    novo.dataPublicacao = data;
+    const localizacao = textoAparado(v.localizacao);
+    if (localizacao.length > LIMITES_EDICAO_FONTE.localizacao) erros.localizacao = `Use até ${LIMITES_EDICAO_FONTE.localizacao} caracteres.`;
+    else if (pareceDadoPessoal(localizacao)) erros.localizacao = 'A referência não pode ter dados pessoais nem senhas.';
+    novo.localizacao = localizacao;
+  }
+  if (Object.keys(erros).length) return { ok: false, erros };
+  const corpo = {};
+  for (const [campo, valor] of Object.entries(novo)) {
+    const antes = ehTexto(o[campo]) ? (campo === 'texto' ? o[campo].trim() : textoAparado(o[campo])) : '';
+    if (valor !== antes) corpo[campo] = valor;
+  }
+  return { ok: true, erros: {}, corpo };
+}
+
+/** Mensagem curta por código (editar e excluir fonte). Nunca usa texto da resposta, exceto os títulos de informações que usam a fonte. */
+export function mensagemDaFonte(status, corpo) {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  if (status === 401 || status === 403) return mensagemDaRevisao(status, corpo);
+  if (status === 404) return { mensagem: 'Não encontramos esta fonte. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'url_duplicada') return { mensagem: MENSAGEM_URL_DUPLICADA, erros: { url: MENSAGEM_URL_DUPLICADA } };
+    if (erro === 'fonte_excluida' || erro === 'fonte_ja_excluida') return { mensagem: 'Esta fonte não está mais disponível. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos.filter((c) => ehTexto(c) && ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao', 'texto'].includes(c)) : [];
+    if (campos.length) return { mensagem: 'Revise os campos indicados e tente de novo.', erros: Object.fromEntries(campos.map((c) => [c, 'Revise este campo.'])) };
+    return { mensagem: 'Revise os dados e tente de novo.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+// ---------- Editar tema e serviço (Passo 5B3b) ----------
+// Lógica pura: validação do formulário, texto do impacto em linguagem comum (sem ids, hashes nem nomes técnicos) e mensagens por
+// código. O id do tema e do serviço fica só na memória da tela; nunca é mostrado nem editável.
+
+export const MENSAGEM_NOME_TEMA_REPETIDO = 'Já existe um tema com este nome.';
+export const MENSAGEM_NOME_SERVICO_REPETIDO = 'Já existe um serviço com este nome.';
+export const MENSAGEM_VERSAO_CONCLUIDA_PARA_EDITAR = 'Esta versão já foi concluída e não pode mais ser editada. Use "Criar nova versão para editar".';
+export const AVISO_SERVICO_CONCLUIDO_PARA_EDITAR = 'Para editar o nome ou o tema deste serviço, use "Criar nova versão para editar".';
+
+/** Todos os temas do catálogo (ativos ou não), para conferir nomes repetidos: só id e nome. */
+export function todosOsTemas(catalogo) {
+  const lista = ehObjeto(catalogo) && Array.isArray(catalogo.assuntos) ? catalogo.assuntos : [];
+  return lista
+    .filter((a) => ehObjeto(a) && ehTexto(a.id) && PADRAO_ID.test(a.id) && ehTexto(a.nome) && a.nome !== '')
+    .map((a) => ({ id: a.id, nome: a.nome }))
+    .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+}
+
+function validarNomeEditado(valor, rotulo, erros, campo) {
+  const nome = textoAparado(valor);
+  if (nome === '') erros[campo] = `Escreva o nome do ${rotulo}.`;
+  else if (nome.length > LIMITES_GESTAO.nome) erros[campo] = `Use até ${LIMITES_GESTAO.nome} caracteres no nome.`;
+  else if (!/[\p{L}\p{N}]/u.test(nome)) erros[campo] = 'O nome precisa ter letras ou números.';
+  else if (pareceDadoPessoal(nome)) erros[campo] = 'O nome não pode ter dados pessoais nem senhas.';
+  return nome;
+}
+
+/**
+ * Formulário de edição de TEMA. `original`: { id, nome }; `temas`: todos os temas { id, nome }.
+ * Retorna { ok: true, mudou, nome } ou { ok: false, erros: { nome } }. O nome repetido (sem acento nem maiúscula) é recusado.
+ */
+export function validarEdicaoDeTema(valores, original, temas) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const nome = validarNomeEditado(v.nome, 'tema', erros, 'nome');
+  if (erros.nome === undefined && (Array.isArray(temas) ? temas : []).some((t) => ehObjeto(t) && t.id !== o.id && normalizar(t.nome) === normalizar(nome))) erros.nome = MENSAGEM_NOME_TEMA_REPETIDO;
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, erros: {}, mudou: nome !== textoAparado(o.nome), nome };
+}
+
+/**
+ * Formulário de edição de SERVIÇO. `original`: { id, nome, temaId }; `temas`: temas ativos; `servicos`: serviços do catálogo { id, nome }.
+ * Retorna { ok: true, mudou, temaMudou, corpo } (corpo só com o que mudou: nome e/ou temaId) ou { ok: false, erros }.
+ */
+export function validarEdicaoDeServico(valores, original, temas, servicos) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const nome = validarNomeEditado(v.nome, 'serviço', erros, 'nome');
+  if (erros.nome === undefined && (Array.isArray(servicos) ? servicos : []).some((s) => ehObjeto(s) && s.id !== o.id && normalizar(s.nome) === normalizar(nome))) erros.nome = MENSAGEM_NOME_SERVICO_REPETIDO;
+  const temaId = ehTexto(v.temaId) ? v.temaId : '';
+  if (!(Array.isArray(temas) ? temas : []).some((t) => ehObjeto(t) && t.id === temaId)) erros.tema = 'Escolha um tema da lista.';
+  if (Object.keys(erros).length) return { ok: false, erros };
+  const corpo = {};
+  if (nome !== textoAparado(o.nome)) corpo.nome = nome;
+  const temaMudou = temaId !== o.temaId;
+  if (temaMudou) corpo.temaId = temaId;
+  return { ok: true, erros: {}, mudou: Object.keys(corpo).length > 0, temaMudou, corpo };
+}
+
+/** GET .../temas/<id>/edicao: nome atual, nomes dos serviços que usam o tema e a revisão. Retorna null se o formato não for o esperado. */
+export function resumirEdicaoDoTema(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.nome) || !Array.isArray(corpo.servicos) || !ehTexto(corpo.revisao)) return null;
+  return { nome: corpo.nome, servicos: corpo.servicos.filter(ehTexto).map((t) => textoCurto(t)).filter((t) => t !== '').slice(0, 200), revisao: corpo.revisao };
+}
+
+/** GET .../servicos/<id>/edicao: nome, tema atual (id, só na memória), títulos das informações aceitas e a revisão. */
+export function resumirEdicaoDoServico(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.nome) || !ehTexto(corpo.temaId) || !Array.isArray(corpo.informacoesAceitas) || !ehTexto(corpo.revisao)) return null;
+  return {
+    nome: corpo.nome, temaId: corpo.temaId, revisao: corpo.revisao,
+    informacoesAceitas: corpo.informacoesAceitas.filter(ehTexto).map((t) => textoCurto(t)).filter((t) => t !== '').slice(0, 200),
+  };
+}
+
+/** Texto do impacto da edição de um tema, em linguagem comum. Retorna { frases, lista }. */
+export function impactoDaEdicaoDoTema(nomeAtual, nomeNovo, servicos) {
+  const nomes = Array.isArray(servicos) ? servicos : [];
+  const quem = nomes.length === 0 ? 'Nenhum serviço usa este tema agora.'
+    : nomes.length === 1 ? 'Este serviço usa o tema e passará a mostrar o novo nome:' : 'Estes serviços usam o tema e passarão a mostrar o novo nome:';
+  return { frases: [`O tema "${nomeAtual}" passará a se chamar "${nomeNovo}".`, quem], lista: nomes };
+}
+
+/**
+ * Texto do impacto da edição de um serviço, em linguagem comum. `d`: { nomeAtual, nomeNovo, temaAtualNome, temaNovoNome, informacoesAceitas }.
+ * `exigeConfirmacao` segue a regra do servidor: mudança de tema ou informações aceitas que voltam para elaboração.
+ */
+export function impactoDaEdicaoDoServico(d) {
+  const frases = [];
+  if (d.nomeNovo !== d.nomeAtual) frases.push(`O serviço "${d.nomeAtual}" passará a se chamar "${d.nomeNovo}".`);
+  const temaMudou = d.temaNovoNome !== d.temaAtualNome;
+  if (temaMudou) frases.push(`O serviço sairá do tema "${d.temaAtualNome}" e passará para o tema "${d.temaNovoNome}".`);
+  const aceitas = Array.isArray(d.informacoesAceitas) ? d.informacoesAceitas : [];
+  if (aceitas.length > 0) frases.push(aceitas.length === 1 ? 'Esta informação aceita voltará para "Em elaboração" e precisará ser revisada e aceita de novo:' : 'Estas informações aceitas voltarão para "Em elaboração" e precisarão ser revisadas e aceitas de novo:');
+  return { frases, lista: aceitas, exigeConfirmacao: temaMudou || aceitas.length > 0 };
+}
+
+const MENSAGEM_DO_CAMPO_EDICAO = Object.freeze({
+  nome: 'Revise o nome.',
+  tema: 'Escolha um tema da lista.',
+});
+
+/** Mensagem curta por código (editar tema e serviço). Nunca usa texto da resposta. `recarregar`: a tela deve buscar os dados de novo. */
+export function mensagemDaEdicao(status, corpo, contexto = 'servico') {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
+  if (status === 401 || status === 403) return mensagemDaRevisao(status, corpo);
+  if (status === 404) return { mensagem: 'Não encontramos este item. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'versao_congelada') return { mensagem: MENSAGEM_VERSAO_CONCLUIDA_PARA_EDITAR, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'ja_existe' && campo === 'nome') {
+      const m = contexto === 'tema' ? MENSAGEM_NOME_TEMA_REPETIDO : MENSAGEM_NOME_SERVICO_REPETIDO;
+      return { mensagem: m, erros: { nome: m } };
+    }
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos : [];
+    if (campos.includes('nada_a_alterar')) return { mensagem: 'Nenhuma alteração para salvar.' };
+    if (campos.includes('confirmacao')) return { mensagem: 'Confirme a alteração para continuar.' };
+    const erros = {};
+    for (const c of campos) if (ehTexto(c) && Object.hasOwn(MENSAGEM_DO_CAMPO_EDICAO, c)) erros[c] = MENSAGEM_DO_CAMPO_EDICAO[c];
+    return Object.keys(erros).length ? { mensagem: 'Revise os campos indicados e tente de novo.', erros } : { mensagem: 'Revise os dados e tente de novo.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+// ---------- Importar conteúdo existente (Passo 5B3c) ----------
+
+export const ROTULOS_CANDIDATO = Object.freeze({
+  descricao: 'Descrição', etapas: 'Etapas', requisitos: 'Condições e requisitos', link: 'Link', norma: 'Norma', bloco: 'Conteúdo anterior', documento: 'Documento exigido', pergunta: 'Pergunta frequente',
+});
+export const TEXTO_IMPORTACAO = 'Escolha somente as orientações que ainda são úteis. Os documentos e normas continuam disponíveis como fontes.';
+export const FRASE_SEM_CANDIDATOS = 'Nenhuma orientação encontrada no conteúdo antigo.';
+export const MENSAGEM_IMPORTADA = 'Informação importada. Ela está em elaboração e ainda não está disponível no chatbot. O conteúdo existente continua preservado.';
+const LIMITE_PREVIA = 300;
+
+/** Prévia curta do texto (sem quebras), para a lista de candidatos. */
+export const previaDoTexto = (texto, limite = LIMITE_PREVIA) => {
+  const t = textoCurto(texto, 100000).replace(/\s+/g, ' ');
+  return t.length > limite ? `${t.slice(0, limite).trimEnd()}…` : t;
+};
+
+/**
+ * Resume GET .../importacao só com o que a tela usa. `ref` e `fonteIds` são internos (nunca exibidos). Retorna null se o formato
+ * não for o esperado.
+ */
+export function resumirCandidatos(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.revisao) || !/^[0-9a-f]{64}$/.test(corpo.revisao) || !Array.isArray(corpo.candidatos)) return null;
+  const candidatos = corpo.candidatos.filter(ehObjeto).filter((c) => ehTexto(c.ref) && /^[a-z]+(:[a-z][a-z0-9-]*)?$/.test(c.ref) && Object.hasOwn(ROTULOS_CANDIDATO, c.tipo) && ehTexto(c.titulo) && ehTexto(c.texto)).map((c) => ({
+    ref: c.ref,
+    tipo: c.tipo,
+    rotulo: ROTULOS_CANDIDATO[c.tipo],
+    titulo: c.titulo,
+    texto: c.texto,
+    previa: previaDoTexto(c.texto),
+    referencias: (Array.isArray(c.referencias) ? c.referencias : []).filter(ehObjeto).filter((r) => idSeguro(r.fonteId)).map((r) => ({ fonteId: r.fonteId, localizacao: ehTexto(r.localizacao) ? r.localizacao : '' })),
+    alertas: (Array.isArray(c.alertas) ? c.alertas : []).filter(ehTexto),
+  }));
+  return { revisao: corpo.revisao, candidatos };
+}
+
+/** Corpo do POST: só o que a pessoa conferiu no formulário mais a referência do item e a revisão vista. Nunca estados nem ids novos. */
+export function corpoDaImportacao(ref, dados, revisaoAtual) {
+  return { ...corpoDoConhecimento(dados), ref, revisao: revisaoAtual };
 }

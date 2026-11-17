@@ -6,6 +6,7 @@
 // sigla e termos equivalentes) entra no esqueleto.
 
 import { criarVersao } from './versao.js';
+import { contemEmailNaoPermitido } from './contatos-permitidos.js';
 import { acrescentarEntradasAoEsqueleto } from './entradas.js';
 import { caminhosDaVersao } from '../versao-atual.js';
 import { analisarUrl, dataValida, TIPOS_FONTE } from '../../scripts/validate-services.js';
@@ -59,14 +60,14 @@ export function contemCredencial(texto) {
 /** Texto com dado pessoal ou credencial: e-mail, telefone ou credencial de alta confiança. Retorna booleano. */
 export function contemDadoSensivel(texto) {
   if (typeof texto !== 'string') return false;
-  return PADRAO_EMAIL.test(texto) || PADRAO_TELEFONE.test(texto) || contemCredencial(texto);
+  return contemEmailNaoPermitido(texto) || PADRAO_TELEFONE.test(texto) || contemCredencial(texto);
 }
 
 /** Texto livre aceitável: string, sem caracteres de controle, sem e-mail nem telefone e dentro do limite. Retorna o texto aparado ou null. */
 export function textoLivre(valor, limite) {
   if (typeof valor !== 'string' || CONTROLE.test(valor)) return null;
   const t = valor.trim().replace(/ {2,}/g, ' ');
-  if (t === '' || t.length > limite || PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t)) return null;
+  if (t === '' || t.length > limite || contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t)) return null;
   return t;
 }
 const idAceitavel = (v) => typeof v === 'string' && v.length <= LIMITE_ID && PADRAO_ID.test(v);

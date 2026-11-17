@@ -127,7 +127,7 @@ npm run build
 
 Só existe no servidor de desenvolvimento (`npm run dev`), sem autenticação, e não entra no build:
 
-- `http://localhost:5173/admin/`: **Gestão de conteúdo por serviço**, com entrada de demonstração (não é autenticação real): criar ou escolher um serviço e adicionar informação como texto, link novo ou link já cadastrado; tudo em rascunho, sem publicar nada e sem chegar ao chat público;
+- `http://localhost:5173/admin/`: **Gestão de conteúdo por serviço**, com entrada de demonstração (não é autenticação real): criar ou escolher um serviço, adicionar, editar e excluir (de forma lógica) textos e links, editar temas e serviços, importar conteúdo existente, revisar, concluir a revisão, autorizar e publicar a versão. Só a publicação, feita por ação separada, leva conteúdo ao chat público;
 - `http://localhost:5173/admin/conteudo/`: **Informações do chatbot** (cadastro, edição e exclusão de informações em rascunho, com fontes que as comprovam; nada chega ao chat público);
 - `http://localhost:5173/admin/saude/`: **Saúde do sistema**, com verificações reais da aplicação, da base, do armazenamento e do conteúdo publicado. Banco de dados, IA externa e processamento de fontes aparecem como "Não implementados", em contagem separada: isso não é falha.
 
@@ -171,4 +171,7 @@ A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](
 - Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes) concluídos tecnicamente e em revisão na PR #4; a Issue #3 segue aberta até o merge.
 - Sprint 2 — engenharia assistida: skills, subagentes e MCP local de consulta da base, com evidências em [docs/EVIDENCIAS_SPRINT_2.md](docs/EVIDENCIAS_SPRINT_2.md). O hook de proteção (2D) foi cancelado e não foi implementado.
 - Sprint 3 — informações do chatbot: blocos de conhecimento em rascunho (modelo, endpoints locais e a página `/admin/conteudo/`), sem publicação e sem alterar o chat público, com evidências em [docs/EVIDENCIAS_SPRINT_3.md](docs/EVIDENCIAS_SPRINT_3.md). O cadastro guiado de assunto, serviço e fontes ficou para a Sprint 4 (Issue #8).
+- Sprint 4 — cadastro guiado de assunto, serviço e fontes e gestão simples por serviço, com evidências em [docs/EVIDENCIAS_SPRINT_4.md](docs/EVIDENCIAS_SPRINT_4.md).
+- Sprint 5 — revisão e publicação: concluída tecnicamente, aguardando PR. Revisão humana, edição e exclusão lógica de fontes, edição de temas e serviços, importação de conteúdo existente e publicação segura em arquivo público imutável, usado pelo chatbot e pelo build. A LAC continua em validação e **não publicada**; não há IA externa nem autenticação real. A conferência manual da usuária dos passos 5B3b, 5B3c e 5C está pendente.
+- Próximas sprints: 6 (links seguros e agente integrado), 7 (busca e respostas inteligentes) e 8 (endurecimento e evidências).
 - Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.

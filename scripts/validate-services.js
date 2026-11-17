@@ -5,7 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validarVersao } from '../services/admin/versao.js';
+import { contemEmailNaoPermitido } from '../services/admin/contatos-permitidos.js';
+import { conferirHashDaVersaoEmDisco } from '../services/admin/versao-arquivos.js';
 import { CAMPOS_FONTE_TEXTO, CHAVE_ENTRADAS, NOME_ARQUIVO_ENTRADAS, validarArquivoEntradas } from '../services/admin/entradas.js';
+import { PADRAO_ARQUIVO_PUBLICO, PASTA_PUBLICA, lerConteudoPublicado, validarConteudoPublico } from '../services/publicacao-publica.js';
 import { ARQUIVOS_DA_VERSAO, NOME_DO_MANIFESTO, caminhosDaVersao, pastaDaVersao } from '../services/versao-atual.js';
 
 export const STATUS_VALIDOS = ['rascunho', 'em_validacao', 'validado'];
@@ -46,10 +49,13 @@ export const TEMAS_PERGUNTA = [
 ];
 export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'link', 'sem_conteudo', 'conhecimento'];
 // Campos exclusivos do bloco de conhecimento e conjunto completo de campos permitidos nele.
-export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm'];
+export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm', 'origemImportacao'];
+// Origem da importação de conteúdo existente (Passo 5B3c): campo interno e opcional, só tipo + referência estável do item de origem.
+export const TIPOS_ORIGEM_IMPORTACAO = ['descricao', 'etapas', 'requisitos', 'link', 'norma', 'bloco', 'documento', 'pergunta'];
+const PADRAO_REFERENCIA_IMPORTACAO = /^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*)?$/;
 export const CAMPOS_BLOCO_CONHECIMENTO = [
   'id', 'tipo', 'titulo', 'texto', 'origem', 'fonteIds', 'referencias', 'alertas', 'ambiente', 'statusValidacao', 'publicado',
-  'revisaoAtualidade', 'criadoEm', 'atualizadoEm',
+  'revisaoAtualidade', 'criadoEm', 'atualizadoEm', 'origemImportacao',
 ];
 export const AMBIENTES_ASSISTENTE = ['teste_local', 'publico'];
 export const BLOQUEIOS_PERGUNTA = [
@@ -192,7 +198,8 @@ export function validarFontes(doc, rotulo = 'fontes') {
       if (fonte.url !== null) erros.push(`${ref}: fonte textual não tem url (deve ser null)`);
       if (typeof fonte.entradaId !== 'string' || !PADRAO_ID.test(fonte.entradaId)) erros.push(`${ref}: entradaId obrigatório e válido na fonte textual`);
       if (fonte.origemOficial !== false) erros.push(`${ref}: fonte textual deve ter origemOficial false`);
-      if (fonte.statusValidacao !== 'rascunho') erros.push(`${ref}: fonte textual deve estar em rascunho`);
+      // A fonte textual nasce em rascunho e pode ser REVISADA por uma pessoa (em_validacao ou validado, com dataConsulta);
+      // nunca nasce validada e continua sem publicação (verificada abaixo).
       if (!ehObjeto(fonte.vigencia) || fonte.vigencia.situacao !== 'nao_se_aplica') erros.push(`${ref}: fonte textual deve ter vigencia nao_se_aplica`);
       if (fonte.publicado !== false) erros.push(`${ref}: fonte textual não pode estar publicada`);
       if (Object.keys(fonte).some((k) => !CAMPOS_FONTE_TEXTO.includes(k))) erros.push(`${ref}: fonte textual com campo não previsto`);
@@ -209,8 +216,9 @@ export function validarFontes(doc, rotulo = 'fontes') {
       }
       const url = analisarUrl(fonte.url);
       if (!url.ok) erros.push(`${ref}: ${url.erro}`);
-      else if (urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
-      else urls.add(url.normalizada);
+      // URL repetida só conta entre fontes ATIVAS (uma fonte excluída logicamente libera a URL).
+      else if (fonte.excluidaEm == null && urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
+      else if (fonte.excluidaEm == null) urls.add(url.normalizada);
     }
 
     for (const campo of ['dataConsulta', 'dataPublicacao']) {
@@ -222,6 +230,11 @@ export function validarFontes(doc, rotulo = 'fontes') {
       erros.push(`${ref}: dispositivoRelevante deve ser texto ou null`);
     }
 
+    // Exclusão lógica (Sprint 5, 5B3a): excluidaEm é uma data; fonte excluída nunca é publicada.
+    if ('excluidaEm' in fonte) {
+      if (!dataNulaOuValida(fonte.excluidaEm) || fonte.excluidaEm === null) erros.push(`${ref}: excluidaEm deve ser uma data válida AAAA-MM-DD`);
+      if (fonte.publicado === true) erros.push(`${ref}: fonte excluída não pode estar publicada`);
+    }
     // Origem oficial, validação e publicação são conceitos independentes.
     if ('oficial' in fonte) erros.push(`${ref}: campo "oficial" foi substituído por "origemOficial"`);
     if (typeof fonte.origemOficial !== 'boolean') erros.push(`${ref}: origemOficial deve ser booleano`);
@@ -240,12 +253,15 @@ export function validarFontes(doc, rotulo = 'fontes') {
   });
 
   // Referências entre normas: somente ids existentes no mesmo arquivo.
+  const fontesPorIdLocal = new Map(doc.fontes.filter(ehObjeto).map((f) => [f.id, f]));
   doc.fontes.forEach((fonte, i) => {
     const relacionadas = ehObjeto(fonte) && ehObjeto(fonte.vigencia) ? fonte.vigencia.normasRelacionadas : null;
     if (!Array.isArray(relacionadas)) return;
     for (const idRelacionado of relacionadas) {
       if (!ids.has(idRelacionado)) {
         erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte inexistente "${idRelacionado}"`);
+      } else if (fontesPorIdLocal.get(idRelacionado)?.excluidaEm != null && fonte.excluidaEm == null) {
+        erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte excluída "${idRelacionado}"`);
       } else if (idRelacionado === fonte.id) {
         erros.push(`${rotulo}[${i}]: normasRelacionadas não pode citar a própria fonte`);
       } else if (fonte.tipo !== 'legislacao' && tiposPorId.get(idRelacionado) !== 'legislacao') {
@@ -349,6 +365,8 @@ export function validarDocumentos(doc, { rotulo = 'documentos', idServico, fonte
       fonte = fontesPorId.get(item.fonteId);
       if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${ref}: documento usa fonte revogada "${item.fonteId}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${ref}: documento usa fonte excluída "${item.fonteId}" como fundamento`);
       }
     }
     if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
@@ -446,6 +464,8 @@ export function validarPerguntas(doc, { rotulo = 'perguntas', idServico, fontesP
       fonte = fontesPorId.get(item.fonteId);
       if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${ref}: pergunta usa fonte revogada "${item.fonteId}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${ref}: pergunta usa fonte excluída "${item.fonteId}" como fundamento`);
       }
     }
     if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
@@ -570,21 +590,28 @@ function validarBlocoConhecimento(b, ref, fonteIds) {
       if (!textoPreenchido(r.fonteId) || !ids.includes(r.fonteId)) erros.push(`${rr}: fonteId deve estar em fonteIds`);
       else citadas.push(r.fonteId);
       if (!textoPreenchido(r.localizacao)) erros.push(`${rr}: localizacao obrigatória`);
-      else if (PADRAO_EMAIL.test(r.localizacao) || PADRAO_TELEFONE.test(r.localizacao)) erros.push(`${rr}: localizacao contém e-mail ou telefone`);
+      else if (contemEmailNaoPermitido(r.localizacao) || PADRAO_TELEFONE.test(r.localizacao)) erros.push(`${rr}: localizacao contém e-mail ou telefone`);
     });
     if (new Set(citadas).size !== citadas.length) erros.push(`${ref}: referencias não pode repetir fonte`);
     if (ids.some((id) => !citadas.includes(id))) erros.push(`${ref}: toda fonte de fonteIds exige uma referência`);
   }
 
+  if (b.origemImportacao !== undefined) {
+    const o = b.origemImportacao;
+    if (!ehObjeto(o) || Object.keys(o).some((k) => k !== 'tipo' && k !== 'referencia') || !TIPOS_ORIGEM_IMPORTACAO.includes(o.tipo)
+      || typeof o.referencia !== 'string' || o.referencia.length > 130 || !PADRAO_REFERENCIA_IMPORTACAO.test(o.referencia)) {
+      erros.push(`${ref}: origemImportacao inválida`);
+    }
+  }
   if (b.alertas !== undefined) {
     if (!Array.isArray(b.alertas) || !b.alertas.every(textoPreenchido)) erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
-    else if (b.alertas.some((t) => PADRAO_EMAIL.test(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);
+    else if (b.alertas.some((t) => contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);
   }
   if (!dataValida(b.criadoEm)) erros.push(`${ref}: criadoEm deve ser uma data válida AAAA-MM-DD`);
   if (!dataValida(b.atualizadoEm)) erros.push(`${ref}: atualizadoEm deve ser uma data válida AAAA-MM-DD`);
   else if (dataValida(b.criadoEm) && b.atualizadoEm < b.criadoEm) erros.push(`${ref}: atualizadoEm não pode ser anterior a criadoEm`);
   for (const campo of ['titulo', 'texto']) {
-    if (typeof b[campo] === 'string' && (PADRAO_EMAIL.test(b[campo]) || PADRAO_TELEFONE.test(b[campo]))) {
+    if (typeof b[campo] === 'string' && (contemEmailNaoPermitido(b[campo]) || PADRAO_TELEFONE.test(b[campo]))) {
       erros.push(`${ref}: ${campo} contém e-mail ou telefone; contatos não podem ser armazenados`);
     }
   }
@@ -653,6 +680,8 @@ export function validarConteudoAssistente(doc, { rotulo = 'conteudoAssistente', 
         if (!fonte) erros.push(`${ref}: fonteId "${id}" não existe em fontes.json`);
         else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
           erros.push(`${ref}: bloco usa fonte revogada "${id}" como fundamento`);
+        } else if (fonte.excluidaEm != null) {
+          erros.push(`${ref}: bloco usa fonte excluída "${id}" como fundamento`);
         }
       }
     } else if (b.origem === 'regra_institucional') {
@@ -791,6 +820,8 @@ function validarReferencias(servico, rotulo, fontesPorId) {
       if (!fonte) erros.push(`${rotulo}: referencias.${campo} cita fonte inexistente "${id}"`);
       else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${rotulo}: referencias.${campo} cita fonte revogada "${id}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${rotulo}: referencias.${campo} cita fonte excluída "${id}"`);
       }
     }
   }
@@ -842,6 +873,8 @@ function validarRoteiro(texto, servico, rotulo, fontesPorId = new Map()) {
       if (!fonte) erros.push(`${rotulo}: ${contexto} cita fonte inexistente "${m[1]}"`);
       else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${rotulo}: ${contexto} cita fonte revogada "${m[1]}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${rotulo}: ${contexto} cita fonte excluída "${m[1]}"`);
       }
     }
   };
@@ -982,6 +1015,42 @@ function validarAssuntoDoServico(entrada, servico, rotulo, catalogo) {
   return erros;
 }
 
+/** Confere o hash gravado no manifesto com o conteúdo canônico em disco. */
+function conferirHash(raiz, servicoId, versaoId, rotulo, erros) {
+  const r = conferirHashDaVersaoEmDisco({ raiz, servicoId, versaoId });
+  if (!r.ok) erros.push(`${rotulo}: não foi possível conferir o hash da versão ${versaoId} (${r.erro})`);
+  else if (!r.confere) erros.push(`${rotulo}: hashConteudo da versão ${versaoId} não confere com o conteúdo`);
+}
+
+/** `publicadoEm`: obrigatório e válido na versão publicada; proibido nos outros estados (a coerência de formato vem de validarVersao). */
+function errosDePublicadoEm(m, rotulo) {
+  if (!ehObjeto(m)) return [];
+  if (m.estado === 'publicado' && !('publicadoEm' in m)) return [`${rotulo}: versão publicada exige publicadoEm`];
+  return [];
+}
+
+/** versaoPublicadaId diferente da atual: a pasta existe, o manifesto é válido, está publicado, é anterior à atual e tem hash coerente. */
+function validarVersaoPublicadaAnterior(raiz, id, publicada, manifestoAtual, rotulo, erros) {
+  const pastaPublicada = pastaDaVersao(id, publicada);
+  const naoPublicada = `${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`;
+  if (pastaPublicada === null) {
+    erros.push(naoPublicada);
+    return;
+  }
+  const m = lerJson(raiz, `${pastaPublicada}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão publicada`);
+  if (!m) {
+    erros.push(naoPublicada);
+    return;
+  }
+  erros.push(...validarVersao(m).map((e) => `${rotulo} versão publicada: ${e}`), ...errosDePublicadoEm(m, `${rotulo} versão publicada`));
+  if (m.id !== publicada || m.servicoId !== id) erros.push(`${rotulo}: manifesto da versão publicada é incoerente`);
+  if (m.estado !== 'publicado') erros.push(naoPublicada);
+  if (Number.isInteger(m.numero) && Number.isInteger(manifestoAtual.numero) && m.numero >= manifestoAtual.numero) {
+    erros.push(`${rotulo}: a versão publicada deve ser anterior à versão atual`);
+  }
+  if (typeof m.hashConteudo === 'string') conferirHash(raiz, id, publicada, rotulo, erros);
+}
+
 /**
  * Confere a versão atual de um serviço: registro (versaoAtualId, versaoPublicadaId), manifesto versao.json, arquivos
  * da pasta da versão, ausência de arquivos soltos fora da versão e coerência da publicação.
@@ -999,7 +1068,7 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
 
   const manifesto = lerJson(raiz, `${pasta}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão`);
   if (manifesto) {
-    erros.push(...validarVersao(manifesto).map((e) => `${rotulo} versão: ${e}`));
+    erros.push(...validarVersao(manifesto).map((e) => `${rotulo} versão: ${e}`), ...errosDePublicadoEm(manifesto, `${rotulo} versão`));
     if (manifesto.id !== entrada.versaoAtualId) erros.push(`${rotulo}: id do manifesto ("${manifesto.id}") difere de versaoAtualId`);
     if (manifesto.servicoId !== id) erros.push(`${rotulo}: servicoId do manifesto ("${manifesto.servicoId}") difere do serviço`);
     const numeroDaPasta = Number(pasta.slice(pasta.lastIndexOf('/v') + 2));
@@ -1021,12 +1090,23 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
       if (!absoluto || !fs.existsSync(absoluto)) erros.push(`${rotulo} versão: arquivo não encontrado: ${caminho}`);
     }
 
-    // Publicação: somente versão em estado publicado pode ser a publicada.
-    if (publicada !== null && (publicada !== entrada.versaoAtualId || manifesto.estado !== 'publicado')) {
+    // Hash: versão congelada precisa ter o hash coerente com o conteúdo canônico (incluindo entradas.json).
+    if (typeof manifesto.hashConteudo === 'string') conferirHash(raiz, id, manifesto.id, rotulo, erros);
+
+    // Publicação: somente versão em estado publicado pode ser a publicada. A publicada pode ser uma versão ANTERIOR enquanto
+    // a atual (mais nova) está em elaboração; uma versão em estado publicado, porém, só pode ser a atual se for a publicada.
+    if (publicada !== null && publicada === entrada.versaoAtualId && manifesto.estado !== 'publicado') {
       erros.push(`${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`);
     }
     if (manifesto.estado === 'publicado' && publicada !== entrada.versaoAtualId) {
       erros.push(`${rotulo}: versão em estado publicado exige versaoPublicadaId igual a versaoAtualId`);
+    }
+    if (typeof publicada === 'string' && publicada !== '' && publicada !== entrada.versaoAtualId) {
+      validarVersaoPublicadaAnterior(raiz, id, publicada, manifesto, rotulo, erros);
+    }
+    // Publicação (Passo 5C): a versão publicada precisa ter conteúdo público válido, íntegro e idêntico ao regenerado da versão.
+    if (typeof publicada === 'string' && publicada !== '' && lerConteudoPublicado(raiz, id) === null) {
+      erros.push(`${rotulo}: a versão publicada não tem conteúdo público válido`);
     }
   }
   if (typeof entrada.publicado === 'boolean' && entrada.publicado !== (publicada !== null)) {
@@ -1037,14 +1117,57 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
   const pastaServico = resolverDentro(raiz, `services/${id}`);
   if (pastaServico && fs.existsSync(pastaServico)) {
     for (const nome of fs.readdirSync(pastaServico)) {
-      if (nome !== 'versoes') erros.push(`${rotulo}: arquivo fora da pasta da versão: services/${id}/${nome}`);
+      if (nome !== 'versoes' && nome !== PASTA_PUBLICA) erros.push(`${rotulo}: arquivo fora da pasta da versão: services/${id}/${nome}`);
     }
   }
+  validarPastaPublica(raiz, id, rotulo, erros);
   const pastaVersoes = resolverDentro(raiz, `services/${id}/versoes`);
   if (pastaVersoes && fs.existsSync(pastaVersoes)) {
+    const numeroAtual = Number(pasta.slice(pasta.lastIndexOf('/v') + 2));
     for (const nome of fs.readdirSync(pastaVersoes)) {
-      if (`services/${id}/versoes/${nome}` !== pasta) erros.push(`${rotulo}: pasta de versão não registrada: services/${id}/versoes/${nome}`);
+      const caminho = `services/${id}/versoes/${nome}`;
+      if (caminho === pasta) continue;
+      // Versões ANTERIORES à atual ficam preservadas (histórico); precisam ter manifesto válido e coerente. Qualquer outra pasta é erro.
+      const m = /^v([1-9][0-9]*)$/.exec(nome);
+      if (!m || Number(m[1]) >= numeroAtual) {
+        erros.push(`${rotulo}: pasta de versão não registrada: ${caminho}`);
+        continue;
+      }
+      const anterior = lerJson(raiz, `${caminho}/${NOME_DO_MANIFESTO}`, erros, `${rotulo} versão anterior`);
+      if (!anterior) continue;
+      erros.push(...validarVersao(anterior).map((e) => `${rotulo} versão anterior ${nome}: ${e}`), ...errosDePublicadoEm(anterior, `${rotulo} versão anterior ${nome}`));
+      if (anterior.id !== `${id}-${nome}` || anterior.servicoId !== id || anterior.numero !== Number(m[1])) {
+        erros.push(`${rotulo}: manifesto da versão anterior ${nome} é incoerente`);
+      }
+      if (typeof anterior.hashConteudo === 'string') conferirHash(raiz, id, anterior.id, rotulo, erros);
     }
+  }
+}
+
+/**
+ * Pasta services/<id>/publico (Passo 5C): só arquivos conteudo-<hash16>.json válidos (esquema fechado e integridade), cada um
+ * correspondente a uma versão em estado publicado cujo hash começa por esses 16 caracteres. Arquivo órfão ou inválido é erro.
+ */
+function validarPastaPublica(raiz, id, rotulo, erros) {
+  const pasta = resolverDentro(raiz, `services/${id}/${PASTA_PUBLICA}`);
+  if (!pasta || !fs.existsSync(pasta)) return;
+  const hashesPublicados = new Set();
+  const pastaVersoes = resolverDentro(raiz, `services/${id}/versoes`);
+  for (const nome of pastaVersoes && fs.existsSync(pastaVersoes) ? fs.readdirSync(pastaVersoes) : []) {
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(pastaVersoes, nome, NOME_DO_MANIFESTO), 'utf8'));
+      if (m && m.estado === 'publicado' && typeof m.hashConteudo === 'string') hashesPublicados.add(m.hashConteudo.slice(0, 16));
+    } catch { /* manifesto ilegível já é erro em outra regra */ }
+  }
+  for (const nome of fs.readdirSync(pasta)) {
+    const m = PADRAO_ARQUIVO_PUBLICO.exec(nome);
+    if (!m) {
+      erros.push(`${rotulo}: arquivo inesperado na pasta pública: ${nome}`);
+      continue;
+    }
+    const doc = lerJson(raiz, `services/${id}/${PASTA_PUBLICA}/${nome}`, erros, `${rotulo} conteúdo público`);
+    if (doc) erros.push(...validarConteudoPublico(doc).map((e) => `${rotulo} conteúdo público ${nome}: ${e}`));
+    if (!hashesPublicados.has(m[1])) erros.push(`${rotulo}: conteúdo público ${nome} não corresponde a uma versão publicada`);
   }
 }
 
@@ -1142,10 +1265,14 @@ export function validarServicos(raiz) {
 
     if (servico.id !== id) erros.push(`${rotulo}: id do service.json ("${servico.id}") difere do registro`);
     erros.push(...validarAssuntoDoServico(entrada, servico, rotulo, catalogo));
-    if (servico.statusValidacao !== entrada.statusValidacao) {
+    // Com uma versão anterior publicada e a atual em elaboração, o registro descreve a publicada e o service.json, a atual.
+    // Com QUALQUER versão publicada (Passo 5C), a publicação é descrita pelo registro, pelo manifesto e pelo conteúdo público; o
+    // service.json guarda o conteúdo congelado da versão e não é alterado pela publicação (o hash o cobre).
+    const atualEhAPublicada = entrada.versaoPublicadaId === null;
+    if (atualEhAPublicada && servico.statusValidacao !== entrada.statusValidacao) {
       erros.push(`${rotulo}: statusValidacao difere entre registro e service.json`);
     }
-    if (servico.publicado !== entrada.publicado) {
+    if (atualEhAPublicada && servico.publicado !== entrada.publicado) {
       erros.push(`${rotulo}: "publicado" difere entre registro e service.json`);
     }
     if (!STATUS_VALIDOS.includes(servico.statusValidacao)) {
@@ -1203,6 +1330,7 @@ export function validarServicos(raiz) {
             erros.push(`${rotulo}: ${campo} cita fonte inexistente "${refFonte}"`);
             continue;
           }
+          if (fonteCitada.excluidaEm != null) erros.push(`${rotulo}: ${campo} cita fonte excluída "${refFonte}"`);
           if (campo === 'legislacao' && fonteCitada.tipo !== 'legislacao') {
             erros.push(`${rotulo}: legislacao cita fonte "${refFonte}" que não é do tipo legislacao`);
           }

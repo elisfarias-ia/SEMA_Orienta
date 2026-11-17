@@ -1,10 +1,11 @@
-// Área administrativa local (ambiente de demonstração). Só liga a lógica (admin-logic.js) ao DOM.
+// Área administrativa local (ambiente local). Só liga a lógica (admin-logic.js) ao DOM.
 // Regras: textos montados com textContent e createElement (nunca HTML em texto), sem armazenamento do navegador, sem cookies
 // e sem log. A chave da sessão fica dentro do cliente (memória): recarregar a página ou sair exige uma nova entrada.
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
 
 import {
-  AVISO_DADOS_PESSOAIS, criarClienteGestao, servicosDaLista, temasAtivos, validarEntradaTexto, validarLinkNovo, validarNovoServico,
+  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, criarClienteGestao, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
+  servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from './admin-logic.js';
 
 const cliente = criarClienteGestao({ fetchImpl: (...argumentos) => fetch(...argumentos) });
@@ -12,11 +13,11 @@ const $ = (id) => document.getElementById(id);
 
 const CAMPOS = {
   novo: { nome: 'novo-nome', tema: 'novo-tema' },
-  texto: { titulo: 'texto-titulo', texto: 'texto-texto', descricao: 'texto-descricao', orgaoResponsavel: 'texto-orgao' },
+  texto: { titulo: 'texto-titulo', texto: 'texto-texto' },
   link: { titulo: 'link-titulo', url: 'link-url', tipo: 'link-tipo', orgaoResponsavel: 'link-orgao', descricao: 'link-descricao', origemOficial: 'link-oficial' },
 };
-const MANEIRAS = { texto: 'maneira-texto', link: 'maneira-link', existente: 'maneira-existente' };
-const PAINEIS = { texto: 'painel-texto', link: 'painel-link', existente: 'painel-existente' };
+const MANEIRAS = { texto: 'maneira-texto', link: 'maneira-link' };
+const PAINEIS = { texto: 'painel-texto', link: 'painel-link' };
 const VISTAS = { lista: 'vista-lista', novo: 'vista-novo', servico: 'vista-servico' };
 
 let catalogo = null;
@@ -24,6 +25,7 @@ let servicoAtual = null; // { id, nome, temaNome }
 let ocupado = false; // uma ação de gravação por vez na tela
 let sequenciaBusca = 0;
 let sequenciaInformacoes = 0;
+let sequenciaRevisao = 0;
 let resultadoBusca = [];
 
 const status = $('status');
@@ -127,13 +129,17 @@ async function entrar() {
   $('entrada').hidden = true;
   $('gestao').hidden = false;
   $('barra-sessao').hidden = false;
-  $('aviso-demo').textContent = 'Servidor de demonstração: esta entrada não é autenticação real e não confirma quem você é.';
   mostrarVista('lista');
   renderizarLista();
-  mostrarStatus('Você entrou como servidor de demonstração.');
+  renderizarTemas();
+  mostrarStatus('Você acessou a administração.');
   const titulo = $('titulo-lista');
   titulo.setAttribute('tabindex', '-1');
   titulo.focus();
+  // Vindo de "Conteúdo para respostas": reabre o mesmo serviço (id validado na URL, nunca exibido).
+  const idDaUrl = servicoDaUrl(window.location.search);
+  const doCatalogo = idDaUrl === null ? undefined : servicosDaLista(catalogo, '').find((s) => s.id === idDaUrl);
+  if (doCatalogo !== undefined) await abrirServico(doCatalogo);
 }
 
 function sair() {
@@ -144,6 +150,7 @@ function sair() {
   resultadoBusca = [];
   sequenciaBusca += 1;
   sequenciaInformacoes += 1;
+  sequenciaRevisao += 1;
   limparFormulario('novo', $('form-novo'));
   limparFormulario('texto', $('form-texto'));
   limparFormulario('link', $('form-link'));
@@ -151,14 +158,16 @@ function sair() {
   $('existente-consulta').value = '';
   fecharPaineis();
   $('lista-servicos').replaceChildren();
+  $('lista-temas').replaceChildren();
+  edicao = null;
+  for (const dlg of [dlgImpacto, dlgEdicao]) if (dlg.open) dlg.close();
   $('informacoes-lista').replaceChildren();
   $('existente-lista').replaceChildren();
   $('gestao').hidden = true;
   $('barra-sessao').hidden = true;
   $('entrada').hidden = false;
   $('botao-entrar').disabled = false;
-  $('aviso-demo').textContent = 'Ambiente administrativo local — sem autenticação';
-  mostrarStatus('Você saiu da demonstração.');
+  mostrarStatus('Você saiu da administração.');
   $('botao-entrar').focus();
 }
 
@@ -191,6 +200,7 @@ async function atualizarCatalogo() {
   if (r.ok) {
     catalogo = r.catalogo;
     renderizarLista();
+    renderizarTemas();
   }
   return r.ok;
 }
@@ -258,16 +268,78 @@ async function abrirServico(servico, mensagemInicial = '') {
   $('existente-resumo').textContent = '';
   fecharPaineis();
   for (const id of Object.values(MANEIRAS)) $(id).disabled = false;
+  $('painel-revisar').href = `./conteudo/?servico=${encodeURIComponent(servico.id)}`;
+  $('painel-situacao-texto').textContent = 'Carregando a situação…';
+  $('painel-resumo').textContent = '';
+  $('painel-nova-versao').hidden = true;
+  $('painel-resolver').hidden = true;
+  $('botao-editar-servico').disabled = true; // só é liberado quando a situação confirmar que a versão está em elaboração
+  $('editar-servico-ajuda').hidden = true;
   mostrarVista('servico');
   mostrarStatus(mensagemInicial);
   $('titulo-servico').focus();
-  await carregarInformacoes();
+  await atualizarServico();
+}
+
+/** Recarrega a lista de informações e a situação da revisão do serviço aberto. */
+function atualizarServico() {
+  return Promise.all([carregarInformacoes(), carregarRevisao()]);
+}
+
+async function carregarRevisao() {
+  if (servicoAtual === null) return;
+  const minha = ++sequenciaRevisao;
+  const [r, pub] = await Promise.all([cliente.carregarRevisao(servicoAtual.id), cliente.carregarResumoPublicacao(servicoAtual.id)]);
+  if (minha !== sequenciaRevisao) return;
+  const situacao = $('painel-situacao-texto');
+  situacao.replaceChildren();
+  if (!r.ok) {
+    situacao.textContent = r.mensagem;
+    $('painel-resumo').textContent = '';
+    $('painel-nova-versao').hidden = true;
+    $('painel-resolver').hidden = true;
+    return;
+  }
+  $('botao-editar-servico').disabled = r.congelada;
+  $('editar-servico-ajuda').textContent = r.congelada ? AVISO_SERVICO_CONCLUIDO_PARA_EDITAR : '';
+  $('editar-servico-ajuda').hidden = !r.congelada;
+  situacao.append('Situação: ', criar('strong', '', r.rotulo));
+  if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
+  // Versão bloqueada: o painel mostra a etapa de publicação (a ação em si fica na página de revisão).
+  const etapa = r.congelada && pub.ok ? pub : null;
+  $('painel-resumo').textContent = etapa !== null ? frasePublicacao(etapa) : frasePendenciasParaConcluir(r.resumo);
+  $('painel-revisar').textContent = etapa === null ? 'Revisar informações' : { autorizar: 'Autorizar publicação', publicar: 'Publicar', publicado: 'Ver informações' }[etapa.etapa] ?? 'Revisar informações';
+  $('painel-nova-versao').hidden = !r.congelada;
+  $('painel-resolver').hidden = r.congelada || r.pendencias.length === 0;
+  if (servicoAtual !== null) $('painel-resolver').href = `./conteudo/?servico=${encodeURIComponent(servicoAtual.id)}&pendencias=1`;
+}
+
+async function criarNovaVersao() {
+  if (ocupado || servicoAtual === null) return;
+  ocupado = true;
+  const botao = $('painel-nova-versao');
+  botao.disabled = true;
+  mostrarStatus('Criando a nova versão…');
+  const r = await cliente.criarNovaVersao(servicoAtual.id);
+  ocupado = false;
+  botao.disabled = false;
+  if (r.ok) {
+    await atualizarCatalogo();
+    await atualizarServico();
+    mostrarStatus('Nova versão criada. Ela está em elaboração e nada foi publicado.', 'info', true);
+    return;
+  }
+  mostrarStatus(r.mensagem, 'erro');
+  if (r.recarregar) await atualizarServico();
+  status.focus();
 }
 
 function voltarParaLista() {
   if (ocupado) return;
   servicoAtual = null;
   sequenciaInformacoes += 1;
+  sequenciaRevisao += 1;
+  if (window.location.search !== '') window.history.replaceState(null, '', window.location.pathname);
   mostrarVista('lista');
   renderizarLista();
   mostrarStatus('');
@@ -314,6 +386,9 @@ async function carregarInformacoes() {
   }
   for (const i of r.itens) lista.append(itemDaInformacao(i));
   for (const id of Object.values(MANEIRAS)) $(id).disabled = !r.editavel;
+  $('titulo-adicionar').hidden = !r.editavel;
+  $('grupo-adicionar').hidden = !r.editavel;
+  if (!r.editavel) fecharPaineis();
   $('informacoes-resumo').textContent = !r.editavel
     ? 'Este serviço não está em elaboração e não aceita novas informações.'
     : r.itens.length === 0 ? 'Nenhuma informação ainda. Escolha uma das três maneiras acima para adicionar.'
@@ -328,9 +403,8 @@ function alternarPainel(nome) {
   $(PAINEIS[nome]).hidden = false;
   $(MANEIRAS[nome]).setAttribute('aria-expanded', 'true');
   if (nome === 'texto') $('texto-titulo').focus();
-  else if (nome === 'link') $('link-titulo').focus();
   else {
-    $('existente-consulta').focus();
+    $('link-titulo').focus();
     buscarLinks();
   }
 }
@@ -347,13 +421,13 @@ async function tratarFalha(grupo, r) {
   mostrarStatus(r.mensagem, 'erro');
   if (primeiro) primeiro.focus();
   else status.focus();
-  if (r.recarregar) await carregarInformacoes();
+  if (r.recarregar) await atualizarServico();
 }
 
 async function concluirAdicao(mensagem) {
   fecharPaineis();
   mostrarStatus(mensagem);
-  await carregarInformacoes();
+  await atualizarServico();
   const titulo = $('titulo-informacoes');
   titulo.scrollIntoView({ block: 'nearest' });
   titulo.focus();
@@ -363,7 +437,7 @@ async function enviarTexto(evento) {
   evento.preventDefault();
   if (ocupado || servicoAtual === null) return;
   const validacao = validarEntradaTexto({
-    titulo: $('texto-titulo').value, texto: $('texto-texto').value, descricao: $('texto-descricao').value, orgaoResponsavel: $('texto-orgao').value,
+    titulo: $('texto-titulo').value, texto: $('texto-texto').value,
   });
   if (!validacao.ok) {
     focar(mostrarErros('texto', validacao.erros));
@@ -371,10 +445,10 @@ async function enviarTexto(evento) {
     return;
   }
   mostrarErros('texto', {});
-  marcarOcupado($('texto-enviar'), $('form-texto'), true, 'Salvando…', 'Adicionar texto');
+  marcarOcupado($('texto-enviar'), $('form-texto'), true, 'Salvando…', 'Incluir texto');
   mostrarStatus('Salvando o texto…');
   const r = await cliente.adicionarTexto(servicoAtual.id, validacao.corpo);
-  marcarOcupado($('texto-enviar'), $('form-texto'), false, 'Salvando…', 'Adicionar texto');
+  marcarOcupado($('texto-enviar'), $('form-texto'), false, 'Salvando…', 'Incluir texto');
   if (!r.ok) {
     await tratarFalha('texto', r);
     return;
@@ -396,10 +470,10 @@ async function enviarLink(evento) {
     return;
   }
   mostrarErros('link', {});
-  marcarOcupado($('link-enviar'), $('form-link'), true, 'Salvando…', 'Adicionar link');
+  marcarOcupado($('link-enviar'), $('form-link'), true, 'Salvando…', 'Incluir link');
   mostrarStatus('Salvando o link…');
   const r = await cliente.adicionarLink(servicoAtual.id, validacao.corpo);
-  marcarOcupado($('link-enviar'), $('form-link'), false, 'Salvando…', 'Adicionar link');
+  marcarOcupado($('link-enviar'), $('form-link'), false, 'Salvando…', 'Incluir link');
   if (!r.ok) {
     await tratarFalha('link', r);
     return;
@@ -465,12 +539,280 @@ async function usarLink(item) {
   if (!r.ok) {
     mostrarStatus(r.mensagem, 'erro');
     await buscarLinks();
-    if (r.recarregar) await carregarInformacoes();
+    if (r.recarregar) await atualizarServico();
     status.focus();
     return;
   }
   await concluirAdicao('Link copiado para este serviço como rascunho. Ele precisa de uma nova revisão.');
 }
+
+// ---------- Editar tema e serviço ----------
+// O id do tema ou do serviço fica só na memória (variável `edicao`) e nunca aparece na tela. Nada é enviado ao abrir o diálogo:
+// a gravação só acontece depois de "Salvar" (e, quando há impacto, depois de "Confirmar alteração").
+
+const dlgEdicao = $('dialogo-edicao');
+const dlgImpacto = $('dialogo-impacto');
+const CAMPOS_EDICAO = { nome: 'ed-nome', tema: 'ed-tema' };
+let edicao = null; // { tipo, id, original, revisao, temas, servicos, informacoesAceitas, pendente, gatilho }
+
+function renderizarTemas() {
+  const lista = $('lista-temas');
+  lista.replaceChildren();
+  for (const t of todosOsTemas(catalogo)) {
+    const li = criar('li', 'servico');
+    li.__temaId = t.id;
+    li.append(criar('p', 'servico__nome', t.nome));
+    const botao = criar('button', 'botao botao--secundario', 'Editar');
+    botao.type = 'button';
+    botao.setAttribute('aria-label', `Editar o tema ${t.nome}`);
+    botao.addEventListener('click', () => abrirEdicaoTema(t, botao));
+    const acoes = criar('p', 'servico__acoes');
+    acoes.append(botao);
+    li.append(acoes);
+    lista.append(li);
+  }
+}
+
+const botaoDoTema = (id) => [...document.querySelectorAll('#lista-temas li')].find((li) => li.__temaId === id)?.querySelector('button') ?? null;
+
+function abrirDialogo(dlg) {
+  if (typeof dlg.showModal === 'function') dlg.showModal();
+  else dlg.setAttribute('open', '');
+}
+
+function devolverFoco(gatilho) {
+  if (gatilho && gatilho.isConnected && !gatilho.disabled) gatilho.focus();
+  else status.focus();
+}
+
+function limparErrosEdicao() {
+  for (const id of Object.values(CAMPOS_EDICAO)) limparErro(id);
+  $('ed-mensagem').hidden = true;
+  $('ed-mensagem').textContent = '';
+}
+
+function mostrarErrosEdicao(erros, mensagem) {
+  limparErrosEdicao();
+  let primeiro = null;
+  for (const [campo, id] of Object.entries(CAMPOS_EDICAO)) {
+    const texto = erros && erros[campo];
+    if (!texto) continue;
+    $(`${id}-erro`).textContent = texto;
+    $(`${id}-erro`).hidden = false;
+    $(id).setAttribute('aria-invalid', 'true');
+    if (primeiro === null) primeiro = $(id);
+  }
+  if (mensagem) {
+    $('ed-mensagem').textContent = mensagem;
+    $('ed-mensagem').hidden = false;
+  }
+  (primeiro ?? $('ed-mensagem')).focus();
+}
+
+function bloquearEdicao(sim) {
+  for (const id of ['ed-nome', 'ed-tema', 'ed-salvar']) $(id).disabled = sim;
+  $('form-edicao').setAttribute('aria-busy', sim ? 'true' : 'false');
+}
+
+function prepararDialogoEdicao(titulo, comTema) {
+  $('form-edicao').reset();
+  $('ed-tema').replaceChildren();
+  limparErrosEdicao();
+  $('ed-titulo').textContent = titulo;
+  $('ed-grupo-tema').hidden = !comTema;
+  $('ed-carregando').hidden = false;
+  bloquearEdicao(true);
+  abrirDialogo(dlgEdicao);
+  $('ed-cancelar').focus();
+}
+
+/** Depois da leitura: se falhou, mostra a mensagem no diálogo (e atualiza a tela quando o estado mudou); senão libera o formulário. */
+async function aoLerEdicao(r, id, preencher) {
+  if (edicao === null || edicao.id !== id || !dlgEdicao.open) return;
+  $('ed-carregando').hidden = true;
+  if (!r.ok) {
+    mostrarErrosEdicao({}, r.mensagem);
+    if (r.recarregar) await (edicao.tipo === 'tema' ? atualizarCatalogo() : atualizarServico());
+    return;
+  }
+  preencher(r);
+  edicao.revisao = r.revisao;
+  bloquearEdicao(false);
+  $('ed-nome').focus();
+}
+
+async function abrirEdicaoTema(tema, gatilho) {
+  if (ocupado || cliente.gravando()) return;
+  edicao = { tipo: 'tema', id: tema.id, original: null, revisao: '', temas: [], servicos: [], informacoesAceitas: [], pendente: null, gatilho };
+  prepararDialogoEdicao('Editar tema', false);
+  const r = await cliente.carregarEdicaoDoTema(tema.id);
+  await aoLerEdicao(r, tema.id, (lido) => {
+    $('ed-nome').value = lido.nome;
+    edicao.original = { id: tema.id, nome: lido.nome };
+    edicao.servicos = lido.servicos;
+  });
+}
+
+async function abrirEdicaoServico(gatilho) {
+  if (ocupado || cliente.gravando() || servicoAtual === null) return;
+  const { id } = servicoAtual;
+  edicao = { tipo: 'servico', id, original: null, revisao: '', temas: [], servicos: [], informacoesAceitas: [], pendente: null, gatilho };
+  prepararDialogoEdicao('Editar nome e tema', true);
+  const r = await cliente.carregarEdicaoDoServico(id);
+  await aoLerEdicao(r, id, (lido) => {
+    const temas = temasAtivos(catalogo);
+    if (!temas.some((t) => t.id === lido.temaId)) {
+      const atual = todosOsTemas(catalogo).find((t) => t.id === lido.temaId);
+      if (atual) temas.push(atual);
+    }
+    for (const t of temas) {
+      const opcao = document.createElement('option');
+      opcao.value = t.id;
+      opcao.textContent = t.nome;
+      $('ed-tema').append(opcao);
+    }
+    $('ed-tema').value = lido.temaId;
+    $('ed-nome').value = lido.nome;
+    edicao.original = { id, nome: lido.nome, temaId: lido.temaId };
+    edicao.temas = temas;
+    edicao.informacoesAceitas = lido.informacoesAceitas;
+  });
+}
+
+function abrirImpacto(frases, lista) {
+  const resumo = $('im-resumo');
+  resumo.replaceChildren();
+  for (const frase of frases) resumo.append(criar('p', '', frase));
+  const itens = $('im-lista');
+  itens.replaceChildren();
+  for (const texto of lista) itens.append(criar('li', '', texto));
+  itens.hidden = lista.length === 0;
+  $('im-mensagem').hidden = true;
+  $('im-mensagem').textContent = '';
+  $('im-voltar').disabled = false;
+  $('im-confirmar').disabled = false;
+  dlgImpacto.removeAttribute('aria-busy');
+  abrirDialogo(dlgImpacto);
+  $('im-voltar').focus();
+}
+
+async function salvarEdicao(evento) {
+  evento.preventDefault();
+  if (edicao === null || edicao.original === null || ocupado || cliente.gravando()) return;
+  if (edicao.tipo === 'tema') {
+    const v = validarEdicaoDeTema({ nome: $('ed-nome').value }, edicao.original, todosOsTemas(catalogo));
+    if (!v.ok) {
+      mostrarErrosEdicao(v.erros, 'Revise os campos indicados e tente novamente.');
+      return;
+    }
+    if (!v.mudou) {
+      mostrarErrosEdicao({}, 'Nenhuma alteração para salvar.');
+      return;
+    }
+    limparErrosEdicao();
+    edicao.pendente = { nome: v.nome };
+    const impacto = impactoDaEdicaoDoTema(edicao.original.nome, v.nome, edicao.servicos);
+    abrirImpacto(impacto.frases, impacto.lista);
+    return;
+  }
+  const temaEscolhido = $('ed-tema').value;
+  const v = validarEdicaoDeServico({ nome: $('ed-nome').value, temaId: temaEscolhido }, edicao.original, edicao.temas, servicosDaLista(catalogo, ''));
+  if (!v.ok) {
+    mostrarErrosEdicao(v.erros, 'Revise os campos indicados e tente novamente.');
+    return;
+  }
+  if (!v.mudou) {
+    mostrarErrosEdicao({}, 'Nenhuma alteração para salvar.');
+    return;
+  }
+  limparErrosEdicao();
+  const nomeDoTema = (id) => (edicao.temas.find((t) => t.id === id) ?? { nome: '' }).nome;
+  const impacto = impactoDaEdicaoDoServico({
+    nomeAtual: edicao.original.nome, nomeNovo: v.corpo.nome ?? edicao.original.nome,
+    temaAtualNome: nomeDoTema(edicao.original.temaId), temaNovoNome: nomeDoTema(temaEscolhido), informacoesAceitas: edicao.informacoesAceitas,
+  });
+  edicao.pendente = { corpo: v.corpo, confirmar: impacto.exigeConfirmacao };
+  if (impacto.exigeConfirmacao) {
+    abrirImpacto(impacto.frases, impacto.lista);
+    return;
+  }
+  await enviarEdicao();
+}
+
+function fecharDialogosDeEdicao() {
+  for (const dlg of [dlgImpacto, dlgEdicao]) if (dlg.open) dlg.close();
+}
+
+async function enviarEdicao() {
+  const e = edicao;
+  if (e === null || e.pendente === null || ocupado || cliente.gravando()) return;
+  ocupado = true;
+  bloquearEdicao(true);
+  $('ed-cancelar').disabled = true;
+  $('im-voltar').disabled = true;
+  $('im-confirmar').disabled = true;
+  dlgImpacto.setAttribute('aria-busy', 'true');
+  const promessa = e.tipo === 'tema'
+    ? cliente.editarTema(e.id, e.pendente.nome, e.revisao)
+    : cliente.editarServico(e.id, e.pendente.corpo, e.revisao, e.pendente.confirmar);
+  const r = await promessa;
+  dlgImpacto.removeAttribute('aria-busy');
+  if (r.ok || r.recarregar) {
+    edicao = null;
+    fecharDialogosDeEdicao();
+    $('ed-cancelar').disabled = false;
+    await atualizarCatalogo();
+    if (e.tipo === 'servico' && servicoAtual !== null && servicoAtual.id === e.id) {
+      const novo = servicosDaLista(catalogo, '').find((s) => s.id === e.id);
+      if (novo !== undefined) {
+        servicoAtual = novo;
+        $('titulo-servico').textContent = novo.nome;
+        $('servico-tema').textContent = novo.temaNome === '' ? '' : `Tema: ${novo.temaNome}`;
+      }
+      await atualizarServico();
+    }
+    ocupado = false;
+    if (r.ok) {
+      const reabertas = e.tipo === 'servico' ? fraseBlocosReabertos(r.blocosReabertos) : '';
+      mostrarStatus(e.tipo === 'tema'
+        ? 'Tema alterado. O novo nome já aparece nos serviços que o usam.'
+        : `Serviço alterado. Nada foi publicado.${reabertas === '' ? '' : ` ${reabertas}`}`);
+      devolverFoco(e.tipo === 'tema' ? botaoDoTema(e.id) : $('botao-editar-servico'));
+    } else {
+      mostrarStatus(r.mensagem, 'erro', true);
+    }
+    return;
+  }
+  ocupado = false;
+  $('ed-cancelar').disabled = false;
+  bloquearEdicao(false);
+  $('im-voltar').disabled = false;
+  $('im-confirmar').disabled = false;
+  if (r.erros || !dlgImpacto.open) {
+    if (dlgImpacto.open) dlgImpacto.close();
+    mostrarErrosEdicao(r.erros, r.mensagem);
+    return;
+  }
+  $('im-mensagem').textContent = r.mensagem;
+  $('im-mensagem').hidden = false;
+  $('im-mensagem').focus();
+}
+
+dlgEdicao.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgEdicao.addEventListener('close', () => {
+  if (edicao !== null) devolverFoco(edicao.gatilho);
+  edicao = null;
+});
+dlgImpacto.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgImpacto.addEventListener('close', () => {
+  if (edicao !== null && dlgEdicao.open) $('ed-salvar').focus();
+});
+for (const id of Object.values(CAMPOS_EDICAO)) $(id).addEventListener('input', () => limparErro(id));
+$('ed-cancelar').addEventListener('click', () => { if (!ocupado && !cliente.gravando() && dlgEdicao.open) dlgEdicao.close(); });
+$('im-voltar').addEventListener('click', () => { if (!ocupado && !cliente.gravando() && dlgImpacto.open) dlgImpacto.close(); });
+$('im-confirmar').addEventListener('click', enviarEdicao);
+$('form-edicao').addEventListener('submit', salvarEdicao);
+$('botao-editar-servico').addEventListener('click', (evento) => abrirEdicaoServico(evento.currentTarget));
 
 // ---------- Ligações ----------
 
@@ -481,10 +823,10 @@ $('botao-novo-servico').addEventListener('click', abrirNovoServico);
 $('novo-cancelar').addEventListener('click', cancelarNovoServico);
 $('form-novo').addEventListener('submit', enviarNovoServico);
 $('botao-voltar').addEventListener('click', voltarParaLista);
+$('painel-nova-versao').addEventListener('click', criarNovaVersao);
 for (const nome of Object.keys(MANEIRAS)) $(MANEIRAS[nome]).addEventListener('click', () => alternarPainel(nome));
 $('texto-cancelar').addEventListener('click', () => fecharPainel('texto'));
 $('link-cancelar').addEventListener('click', () => fecharPainel('link'));
-$('existente-cancelar').addEventListener('click', () => fecharPainel('existente'));
 $('form-texto').addEventListener('submit', enviarTexto);
 $('form-link').addEventListener('submit', enviarLink);
 $('form-busca').addEventListener('submit', buscarLinks);

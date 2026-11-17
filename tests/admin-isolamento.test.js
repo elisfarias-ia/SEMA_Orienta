@@ -32,8 +32,9 @@ test('I2. a interface pública não usa cookies, localStorage nem sessionStorage
 
 test('I3. todos os plugins do Vite valem só no servidor de desenvolvimento; não há gancho de preview nem de build', () => {
   const nomes = config.plugins.map((p) => p.name).sort();
-  assert.deepEqual(nomes, ['sema-orienta-admin-dev', 'sema-orienta-admin-redirecionamento', 'sema-orienta-assistente-dev']);
-  for (const p of config.plugins) {
+  assert.deepEqual(nomes, ['sema-orienta-admin-dev', 'sema-orienta-admin-redirecionamento', 'sema-orienta-assistente-dev', 'sema-orienta-conteudo-publico']);
+  // O plugin do conteúdo público é o único que age também no build (entrega só o conteúdo publicado e validado); os demais valem só no serve.
+  for (const p of config.plugins.filter((x) => x.name !== 'sema-orienta-conteudo-publico')) {
     assert.equal(p.apply, 'serve', p.name);
     for (const gancho of ['configurePreviewServer', 'transform', 'load', 'resolveId', 'generateBundle', 'renderChunk', 'transformIndexHtml', 'buildStart']) {
       assert.equal(gancho in p, false, `${p.name}: ${gancho}`);

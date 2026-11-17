@@ -57,7 +57,8 @@ export function validarVersao(v) {
   if (!ehObjeto(v)) return ['versão deve ser um objeto'];
   const erros = [];
   const esperados = ['arquivos', 'baseadaEm', 'criadoEm', 'enviadaEm', 'estado', 'hashConteudo', 'id', 'numero', 'servicoId'];
-  for (const k of Object.keys(v)) if (!esperados.includes(k)) erros.push(`campo não previsto: ${k}`);
+  // `publicadoEm` é opcional: só existe na versão publicada (data da publicação; fora do hash, que não cobre o manifesto).
+  for (const k of Object.keys(v)) if (!esperados.includes(k) && k !== 'publicadoEm') erros.push(`campo não previsto: ${k}`);
   for (const k of esperados) if (!(k in v)) erros.push(`campo obrigatório ausente: ${k}`);
   if (erros.length) return erros;
 
@@ -78,6 +79,11 @@ export function validarVersao(v) {
     if (typeof v.hashConteudo !== 'string' || !PADRAO_HASH.test(v.hashConteudo)) erros.push('hashConteudo (SHA-256) obrigatório fora de rascunho');
     if (!dataIsoValida(v.enviadaEm)) erros.push('enviadaEm deve ser uma data válida fora de rascunho');
     else if (dataIsoValida(v.criadoEm) && v.enviadaEm < v.criadoEm) erros.push('enviadaEm não pode ser anterior a criadoEm');
+  }
+  if ('publicadoEm' in v) {
+    if (v.estado !== 'publicado') erros.push('publicadoEm só é permitido em versão publicada');
+    else if (!dataIsoValida(v.publicadoEm)) erros.push('publicadoEm deve ser uma data válida AAAA-MM-DD');
+    else if (dataIsoValida(v.enviadaEm) && v.publicadoEm < v.enviadaEm) erros.push('publicadoEm não pode ser anterior a enviadaEm');
   }
   return erros;
 }

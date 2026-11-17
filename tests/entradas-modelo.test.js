@@ -309,12 +309,15 @@ test('E22. desempenho: entrada hostil não tem custo quadrático (20.000 "a", "a
   }
 });
 
-test('E23. fonte textual exige statusValidacao rascunho e vigencia nao_se_aplica', () => {
+test('E23. fonte textual: nasce em rascunho, pode ser revisada, nunca publicada; vigencia nao_se_aplica', () => {
   const { fonte } = preparar();
   const ok = (f) => validarFontes({ statusValidacao: 'em_validacao', fontes: [f] }, 'f');
   assert.deepEqual(ok(fonte), []);
-  assert.ok(ok({ ...fonte, statusValidacao: 'em_validacao' }).some((e) => /deve estar em rascunho/.test(e)));
-  assert.ok(ok({ ...fonte, statusValidacao: 'validado', dataConsulta: '2026-11-10' }).some((e) => /deve estar em rascunho/.test(e)));
+  // Revisão humana (Sprint 5): a fonte textual pode ficar em_validacao ou validada (com dataConsulta), mas validada sem data é recusada.
+  assert.deepEqual(ok({ ...fonte, statusValidacao: 'em_validacao' }), []);
+  assert.deepEqual(ok({ ...fonte, statusValidacao: 'validado', dataConsulta: '2026-11-10' }), []);
+  assert.ok(ok({ ...fonte, statusValidacao: 'validado' }).some((e) => /validada exige dataConsulta/.test(e)));
+  assert.ok(ok({ ...fonte, statusValidacao: 'validado', dataConsulta: '2026-11-10', publicado: true }).some((e) => /não pode estar publicada/.test(e)));
   assert.ok(ok({ ...fonte, vigencia: { situacao: 'a_confirmar', normasRelacionadas: [], observacao: null } }).some((e) => /vigencia nao_se_aplica/.test(e)));
   assert.ok(ok({ ...fonte, vigencia: undefined }).some((e) => /vigencia/.test(e)));
 });

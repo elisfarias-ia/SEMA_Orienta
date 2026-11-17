@@ -157,3 +157,50 @@ A experiência principal de `/admin/` (só no `npm run dev`) é orientada por se
 - **Trava:** todas as gravações novas usam a mesma trava das demais (uma por vez; a segunda recebe 409 `operacao_em_andamento`). A busca não grava e não usa a trava.
 - **Credenciais:** a recusa só vale para atribuições explícitas (`senha:`, `token=`, `api_key`, `client_secret`...), `Bearer` com sequência de token e `senha` seguida de valor com dígito, e é aplicada a título, descrição e texto. Frases como "A senha deve ser trocada" são aceitas. Limitação conhecida: "senha: ..." escrito como explicação em frase corrida também é recusado; a interface avisa o motivo.
 - **Fora do escopo:** edição, exclusão, revisão, publicação, links seguros e agente (Sprints 5 a 6).
+
+### Revisão da versão (Sprint 5, Passo 5B1; só rotas, sem interface ainda)
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `GET /__admin/servicos/<id>/revisao` | Situação da revisão da versão atual: estado, fontes e blocos de conhecimento revisáveis, pendências e a `revisao` (hash canônico) a devolver nas ações. |
+| `POST /__admin/servicos/<id>/revisao/fontes` | Marca uma fonte como revisada (corpo: `fonteId`, `revisao`). Não publica nem acessa o link. |
+| `POST /__admin/servicos/<id>/revisao/blocos/aceitar` | Aceita um bloco de conhecimento (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/blocos/rejeitar` | Remove um bloco de conhecimento em rascunho (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/blocos/reabrir` | Reabre para correção um bloco aceito, só antes de concluir a revisão (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/concluir` | Conclui a revisão: congela a versão, grava o hash e leva a "Pronto para publicar" (corpo: `revisao`). Não autoriza nem publica. |
+| `POST /__admin/servicos/<id>/nova-versao` | Cria a nova versão a partir da atual congelada (corpo `{}`). A versão publicada anterior fica intacta. |
+
+O ator registrado no histórico privado é sempre "Servidor de demonstração" (não comprova identidade nem validação jurídica). Todas as gravações passam pela trava comum.
+
+### Edição e exclusão de fontes (Sprint 5, Passo 5B3a)
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `GET /__admin/servicos/<id>/fontes/<fonteId>` | Campos editáveis da fonte (o texto original só sai aqui, para a edição). |
+| `PATCH /__admin/servicos/<id>/fontes/<fonteId>` | Edita link ou texto (corpo: `revisao` e só os campos do tipo). Reinicia a revisão da fonte e reabre as informações aceitas que a usam. |
+| `DELETE /__admin/servicos/<id>/fontes/<fonteId>` | Exclusão lógica (cabeçalho `X-Revisao`). Não é bloqueada por referências: retira da versão atual as referências à fonte. |
+
+Só na versão atual em elaboração; versão congelada exige nova versão. A fonte excluída continua no arquivo (histórico preservado), mas não aparece mais: não há "Itens excluídos", lixeira nem restauração. Antes de confirmar, o diálogo explica o impacto em linguagem comum; a exclusão retira as referências da versão atual (campos sem fonte voltam a `PENDENTE`; documentos e perguntas que a citavam saem; informações sem outra fonte válida saem do conteúdo ativo; informações aceitas e alteradas voltam a "Em elaboração"), tudo em transação única com rollback. A nova versão não copia a fonte excluída nem as referências. O histórico privado guarda só metadados. Aviso: "A exclusão será aplicada ao chatbot após a publicação desta versão." O painel e "Conteúdo para respostas" têm "Resolver pendências". O contato institucional de `services/admin/contatos-permitidos.js` é permitido.
+
+### Temas e serviços (Sprint 5, Passo 5B3b)
+
+`GET` e `PATCH` em `/__admin/temas/<id>/edicao` (nome do tema, com impacto e confirmação; id imutável; nome duplicado recusado; histórico em `data/admin-private/temas`, só metadados) e em `/__admin/servicos/<id>/edicao` (nome e tema do serviço na versão em elaboração; reabre informações aceitas; versão congelada exige "Criar nova versão para editar").
+
+### Importar conteúdo existente (Sprint 5, Passo 5B3c)
+
+`GET` e `POST` em `/__admin/servicos/<id>/importacao`: lista candidatos do conteúdo antigo e importa um item por vez como informação em elaboração com fonte ativa. Nunca aceita, revisa nem publica; o conteúdo antigo fica intacto e a LAC real não foi convertida.
+
+### Concluir, autorizar e publicar (Sprint 5, Passo 5C)
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `POST .../revisao/concluir` | Conclui a revisão e congela a versão. |
+| `POST /__admin/servicos/<id>/autorizacao` | Registra a autorização da publicação. |
+| `GET /__admin/servicos/<id>/publicacao/resumo` | Resumo do que será publicado. |
+| `POST /__admin/servicos/<id>/publicacao` | Publica em transação única com rollback. |
+
+As três ações são separadas. A publicação grava `services/<serviço>/publico/conteudo-<hash16>.json` (imutável), `publicadoEm` no manifesto e `versaoPublicadaId` no registro. O chatbot e o build usam só o conteúdo publicado; `check-dist` é estrito.
+
+**Atenção:** a "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e **não equivale à validação material pela área competente da SEMA**. Sem autenticação real. A LAC continua em validação e não publicada.
+
+Auditoria final da Sprint 5: aprovada, sem bloqueantes nem importantes.

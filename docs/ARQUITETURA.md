@@ -165,3 +165,78 @@ Ferramenta de apoio ao desenvolvimento, fora da aplicação: `.mcp.json` inicia 
 ## Gestão simples por serviço (Sprint 4, Passo 4B2)
 
 A administração local passou a ser orientada por serviço (`admin/`: `index.html`, `admin.js`, `admin-logic.js`, `styles.css`; `conteudo/` e `saude/` são páginas separadas). Rotas novas em `services/admin/admin-endpoint.js` (`servico-com-tema`, `informacoes`, `entradas-texto`, `links`, `links-existentes` e `/busca`), validações em `services/admin/gestao-simples.js`, texto em `entradas.js` e `entradas-gravacao.js` e reutilização em `reutilizacao.js`. Todas as gravações usam a mesma trava e a transação com ensaio e rollback; o cliente nunca envia ids a gravar nem o objeto de uma fonte. A entrada de demonstração não é autenticação. Nada é publicado e o chat não lê `entradas.json`. Detalhes em `docs/ADMINISTRACAO.md` e evidências em `docs/EVIDENCIAS_SPRINT_4.md`.
+
+## Domínio da versão: hash, congelamento e nova versão (Sprint 5, Passo 5A)
+
+Funções e módulos (sem rotas, interface, histórico, autorização, publicação nem mudança no chatbot):
+
+- **Hash canônico** (`services/admin/conteudo-versao.js`, `versao-arquivos.js`): chaves lógicas `service`, `roteiro`, `documentos`, `perguntasFrequentes`, `fontes`, `conteudoAssistente` e `entradas` (quando o manifesto a referencia). JSON com chaves ordenadas; roteiro com CRLF e CR normalizados para LF, sem aparar; ficam fora `versao.json`, `hashConteudo` e os metadados do manifesto; fica fora apenas o campo `publicado` (em qualquer nível dos arquivos JSON). Status de validação e de revisão entram no hash. A leitura é confinada à pasta da própria versão (caminhos do manifesto exatamente iguais aos esperados).
+- **Congelamento** (`congelamento.js`): "concluir a revisão" calcula o hash e leva a versão de `rascunho` a `em_validacao` (não editável). Grava só o `versao.json`, numa transação com conferência da base inteira.
+- **Nova versão** (`nova-versao.js`): pasta nova, arquivos copiados de forma independente com os caminhos da própria pasta (inclusive os internos do `service.json`), `entradas.json` copiado, manifesto em `rascunho` sem hash, `publicado` falso, revisão de atualidade pendente, o que estava `validado` volta a `em_validacao` e blocos de conhecimento voltam a `rascunho`. O registro é o último passo da transação e passa a apontar a nova versão como atual; sem versão publicada, o registro acompanha o `service.json` novo; com versão publicada, `versaoPublicadaId` e o status do registro continuam descrevendo a publicada. A versão anterior fica intacta.
+- **Validador** (`scripts/validate-services.js`): confere o hash gravado com o conteúdo (versão atual, publicada e anteriores); aceita `versaoPublicadaId` apontando para uma versão anterior (publicada, com hash coerente) enquanto a atual está em elaboração; versões anteriores à atual ficam preservadas, e pastas de número maior que o da atual continuam erro; a equivalência registro × `service.json` só vale quando a atual é a publicada (ou nada foi publicado).
+- **Tabela de ações** (`services/admin/fluxo.js`, `ACOES_DA_VERSAO`): concluir revisão, solicitar ajustes, validar materialmente, autorizar publicação, publicar e nova versão, cada uma nos estados em que é permitida. Revisão e autorização são ações separadas, e nenhuma ação de revisão leva direto a `publicado`.
+
+Observações e pendências registradas para a 5B e a 5C:
+
+- O status `rascunho` do serviço e dos arquivos é o esqueleto vazio (o validador exige conteúdo `PENDENTE`); por isso a nova versão não usa `rascunho` para conteúdo copiado.
+- As entradas de `entradas.json` não têm status nem `publicado`; a fonte textual correspondente é reiniciada junto com as demais fontes.
+- O campo `publicado` fica fora do hash, então a conferência do hash não protege essa flag depois do congelamento. **Pendência 5C:** o gerador público deve ignorar `publicado` dos arquivos e decidir pelo estado do manifesto da versão publicada.
+- **Roteiro copiado byte a byte:** a nova versão grava o `roteiro.md` com `gravarTextoExato` (passo `texto_exato` da transação), sem aparar espaços, sem acrescentar ou remover quebra de linha e sem converter CRLF/LF. A normalização de CRLF e CR para LF existe somente na representação canônica do hash. A transação ainda confere, byte a byte, que o roteiro novo é idêntico ao da origem; se divergir, tudo é desfeito.
+- **`em_validacao` em fonte e conteúdo copiados:** o que estava `validado` volta a `em_validacao` na versão nova. Isso significa que a fonte (ou o conteúdo) precisa passar de novo por validação; nenhuma validação material é herdada. A versão nova permanece em rascunho e a interface a mostrará como "Em elaboração".
+- Se `service.arquivos` tiver a chave `entradas`, a criação da nova versão recusa (`conteudo_invalido`); a LAC não a tem.
+- Cada operação grava uma coisa por vez; a trava comum entre rotas fica para a 5B, quando houver rotas.
+
+## Revisão humana da versão (Sprint 5, Passo 5B1)
+
+Domínio, rotas e histórico, **sem interface e sem publicação** (a interface é o 5B2, dentro de `/admin/`).
+
+- **Regras** (`services/admin/revisao.js`, puras): revisar fonte (marca como validada, com `dataConsulta`; não publica, não altera `origemOficial`, não acessa o link, sem agente nem IA; recusa fonte revogada, inexistente ou de outra versão); aceitar bloco de conhecimento (versão atual em rascunho, bloco em elaboração, pelo menos uma fonte, todas existentes, revisadas e não revogadas; passa a validado com revisão concluída e `publicado` falso; `entradas.json` intocado); rejeitar bloco (remove só bloco de conhecimento em rascunho; fonte e entrada ficam); pendências (`sem_bloco_aceito`, `bloco_pendente`, `fonte_pendente`, `fonte_revogada`, `fonte_inexistente`, `entrada_invalida`). Blocos `teste_local` e os demais tipos não participam. A fonte textual pode ser revisada (validada), mas continua sem publicação.
+- **Concluir revisão** (`revisao-servico.js`): só com pelo menos um bloco aceito, nenhum bloco de conhecimento pendente, fontes referenciadas revisadas e não revogadas, entradas íntegras (hash e 1:1) e base válida. Numa única transação: confere de novo, monta o conteúdo canônico, calcula o hash, registra a decisão material (`decisoes.js`), congela (grava `hashConteudo`), leva a versão a `validado_materialmente` ("Pronto para publicar") e valida a base. **Não autoriza nem publica.** Depois disso nada é editável: qualquer alteração exige nova versão.
+- **Revisão otimista:** toda ação recebe `revisao`, o hash canônico do conteúdo que a pessoa viu (devolvido pela consulta); conteúdo diferente é recusado (`revisao_divergente`).
+- **Histórico privado** (`historico-revisao.js`): `data/admin-private/revisao/<serviço>.jsonl` (ações) e `data/admin-private/decisoes/<serviço>.jsonl` (decisões de `decisoes.js`), só acréscimo. Cada ação guarda serviço, versão, hash, ação, data e hora, resultado e o ator fixo "Servidor de demonstração" (unidade "Ambiente local de demonstração"), nunca conteúdo, texto original, token, caminho, e-mail nem nome. Fora do Git, do MCP, do assistente, do build e do `dist/`. O registro é acrescentado dentro da conferência final da transação: se não puder ser gravado, a base volta ao que era. Uma decisão já gravada por tentativa desfeita (mesma versão e hash) é reaproveitada na nova tentativa.
+- **Rotas** (token, Host e Origin locais, limites de corpo, trava comum): `GET /__admin/servicos/<id>/revisao`; `POST .../revisao/fontes`, `.../revisao/blocos/aceitar`, `.../revisao/blocos/rejeitar`, `.../revisao/concluir` e `.../nova-versao`. Erros são códigos genéricos.
+- **Contrato alterado:** a fonte textual agora pode estar `em_validacao` ou `validado` (com `dataConsulta`) depois da revisão humana; `publicado` segue falso. Antes, o validador a exigia em rascunho.
+- **Decisão órfã (para o 5C):** uma decisão gravada por tentativa desfeita só é reaproveitada se for exatamente a esperada (tipo, versão, hash, decisão e ator iguais); senão a conclusão falha com `historico_invalido`. O histórico sozinho não prova que a versão foi validada: o 5C precisa checar também o estado e o hash do manifesto da versão.
+- **Pendência para o 5C:** hoje só as fontes usadas por blocos de conhecimento precisam estar revisadas; uma fonte em rascunho que nenhum bloco usa não impede a conclusão.
+- **Pendências:** a autorização e a publicação são do 5C; o histórico fora da transação do conteúdo (arquivo privado) não é atômico com ela, por isso a gravação do histórico acontece na etapa final da transação.
+
+### Interface da revisão (Sprint 5, Passo 5B2)
+
+A revisão não ganhou página nem seção de navegação: faz parte da mesma experiência "Gestão de conteúdo". Em `/admin/` o painel do serviço mostra a situação (rótulos em linguagem comum: "Em elaboração", "Revisão pendente", "Pronto para publicar"), a contagem de fontes e informações pendentes e a ação "Revisar informações"; em `/admin/conteudo/` ficam a revisão das fontes, a aceitação, a edição, o descarte e a reabertura das informações, a conclusão da revisão (com confirmação própria) e "Criar nova versão para editar". Não há botão de publicação.
+
+Extensão mínima do domínio e das rotas para este passo:
+- **Reabrir bloco aceito** (`reabrirBloco` em `revisao.js`; `POST .../revisao/blocos/reabrir`): só enquanto a versão está em rascunho; o bloco volta a rascunho, com revisão de atualidade pendente e `publicado` falso; a ação entra no histórico e a revisão otimista é atualizada. Depois de concluir a revisão não existe (`versao_congelada`).
+- **Situação da revisão** (`GET .../revisao`): devolve `rotulo` (nome do estado em linguagem comum), `revisaoPendente`, `resumo` (fontes pendentes, informações pendentes e aceitas) e `podeReabrir` por bloco.
+- **Edição de fonte:** não existe rota de edição de fonte; por isso não há "desfazer revisão". Uma fonte revisada só muda por nova versão, que reinicia a validação.
+
+### Contato institucional permitido (Sprint 5, ajuste do 5B2)
+
+O texto informado pode conter e-mail do domínio institucional configurado (`services/admin/contatos-permitidos.js`, configuração única `DOMINIOS_EMAIL_PERMITIDOS`, hoje `sema.mt.gov.br`). O domínio é comparado sem diferença entre maiúsculas e minúsculas e exatamente (um domínio parecido, como `sema.mt.gov.br.exemplo.com`, não vale). E-mails externos ou pessoais, telefones, senhas, tokens e credenciais continuam bloqueados; o endereço nunca é registrado nem repetido em mensagens. A mesma função é usada pelo servidor (entradas, blocos e validador da base) e pela interface local.
+
+### Aparência da administração
+
+A tela não menciona "demonstração" nem exibe faixa de ambiente: o acesso é o botão "Acessar administração" (sem autenticação real) e "Sair". Continuam apenas no código e na documentação: o ator registrado "Servidor de demonstração", a administração local e a ausência de autenticação institucional (a identificação não tem valor jurídico).
+
+## Edição e exclusão de fontes (Sprint 5, Passo 5B3a)
+
+Edição e exclusão **lógica** de textos, documentos e links da versão atual (`services/admin/edicao-fonte.js`, orquestrado por `revisao-servico.js`; rotas `GET`, `PATCH` e `DELETE` em `/__admin/servicos/<id>/fontes/<fonteId>`).
+
+- **Versionamento:** só a versão atual em elaboração é editada; versão revisada, congelada ou publicada nunca é alterada (409 `versao_congelada`) e a alteração exige "Criar nova versão para editar"; a anterior fica intacta.
+- **Editar link:** título, URL, órgão que publicou, descrição, data de publicação e localização relevante. **Editar texto:** título e texto original (o hash do texto em `entradas.json` é recalculado). O servidor relê a fonte do disco; o cliente só envia campos permitidos e a revisão otimista (hash canônico). URL repetida entre fontes ativas do serviço é recusada.
+- **Reinício:** toda edição devolve a fonte a "Ainda não revisada" (`validado` volta a `em_validacao`, sem `dataConsulta`, `publicado` falso) e **reabre** as informações aceitas que a usam (voltam a "Em elaboração"); o hash congelado deixa de valer porque a versão nunca fica congelada enquanto é editada. Link alterado perde a linhagem de reutilização se a URL mudar.
+- **Excluir (lógico):** grava `excluidaEm` (data) na fonte; ela continua no arquivo (histórico preservado) e sai da lista ativa, sem área de itens excluídos, lixeira nem restauração; nunca é usada em novas informações, na reutilização nem pelo assistente, e não conta como pendência. `excluidaEm` é o único campo novo: a revogação por vigência (`vigencia.situacao = revogada`) só vale para legislação e não serve para retirar um link ou texto. A fonte revogada (como o decreto 695/2020 da LAC) aparece como "Revogada" e não é editável nem excluível.
+- **Referências:** a exclusão é recusada (nada é removido sozinho) se informação em elaboração ou aceita usar a fonte (a resposta lista só os títulos) ou se conteúdo antigo a citar (`service.json`, documentos, perguntas e blocos de teste).
+- **Entre versões:** a exclusão lógica vale nas versões seguintes (a nova versão copia a fonte já excluída, que continua fora das listas ativas); a "lixeira" é preservada por auditoria e pode ser limpa em etapa futura.
+- **Segurança:** trava comum, transação com rollback, erros genéricos, histórico privado com as ações `editar_fonte` e `excluir_fonte` (só metadados, sem título, URL nem texto), `DELETE` sem corpo com a revisão no cabeçalho `X-Revisao`. Nada é publicado.
+
+### Temas e serviços (Sprint 5, Passo 5B3b)
+
+Editar o nome do tema (impacto e confirmação; o id é imutável; nome duplicado é recusado; histórico privado em `data/admin-private/temas`, só metadados) e o nome e o tema do serviço na versão em elaboração (reabre as informações aceitas; versão congelada exige "Criar nova versão para editar"). Rotas `GET` e `PATCH` em `/__admin/servicos/<id>/edicao` e `/__admin/temas/<id>/edicao`.
+
+### Importar conteúdo existente (Sprint 5, Passo 5B3c)
+
+Rotas `GET` e `POST` em `/__admin/servicos/<id>/importacao`. Os candidatos são lidos do conteúdo antigo, um item por vez, e cada um cria uma informação em elaboração com fonte ativa. Nunca aceita, revisa nem publica. O campo interno `origemImportacao` do bloco evita duplicação. O conteúdo antigo fica intacto e a LAC real não foi convertida.
+
+### Autorização e publicação (Sprint 5, Passo 5C)
+
+Concluir a revisão, autorizar a publicação e publicar são ações separadas. Rotas: `POST .../autorizacao`, `GET .../publicacao/resumo` e `POST .../publicacao`. A publicação é uma transação única com rollback: o manifesto ganha `publicadoEm` e o registro, `versaoPublicadaId`. O conteúdo público é gravado em `services/<serviço>/publico/conteudo-<hash16>.json`, imutável e de esquema fechado (`services/publicacao-publica.js`; `lerConteudoPublicado` falha de forma segura). O chatbot (`src/assistant.js`, `src/main.js`) e o build (`services/conteudo-publico-build.js`, plugin Vite, saída em `dist/conteudo-publico/`) usam somente o publicado. O `scripts/check-dist.js` é estrito (151 termos). Sem publicação, o chat mantém o comportamento de teste local (conteúdo de teste só no dev, com faixa). Texto cadastrado não mostra fonte; link mostra só a URL. Nenhuma publicação real foi criada.

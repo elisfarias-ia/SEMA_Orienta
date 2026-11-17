@@ -1,6 +1,6 @@
 import './styles.css';
 import { criarConversa } from './chat.js';
-import { responderPergunta, respostaIndisponivel, validarPayload } from './assistant.js';
+import { responderPergunta, respostaIndisponivel, validarPayload, validarConteudoPublicado, responderComConteudoPublicado } from './assistant.js';
 
 const conversa = criarConversa();
 
@@ -32,8 +32,29 @@ async function carregarConteudoDeTeste() {
   }
 }
 
+// Conteúdo público publicado: o site indica o arquivo (meta "conteudo-publico"). Quando existe e é válido, é a ÚNICA fonte das respostas.
+let publicado = null;
+
+async function carregarConteudoPublicado() {
+  const caminho = document.querySelector('meta[name="conteudo-publico"]')?.getAttribute('content') ?? '';
+  if (!/^\/conteudo-publico\/conteudo-[0-9a-f]{16}\.json$/.test(caminho)) return;
+  try {
+    const resposta = await fetch(caminho, { method: 'GET', cache: 'no-store' });
+    if (!resposta.ok) return;
+    publicado = validarConteudoPublicado(await resposta.json());
+  } catch {
+    // Sem o arquivo ou sem rede: o assistente usa somente a mensagem segura de indisponibilidade.
+  }
+}
+
+async function iniciarConteudo() {
+  await carregarConteudoPublicado();
+  if (publicado === null) await carregarConteudoDeTeste();
+}
+
 function responder(texto) {
   try {
+    if (publicado !== null) return responderComConteudoPublicado(texto, publicado);
     return responderPergunta(texto, conteudo);
   } catch {
     return respostaIndisponivel();
@@ -127,4 +148,4 @@ botaoReiniciar.addEventListener('click', () => {
 });
 
 desenharTudo();
-carregarConteudoDeTeste();
+iniciarConteudo();

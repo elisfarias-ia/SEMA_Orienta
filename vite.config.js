@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { criarPluginAssistenteDev } from './services/assistant-endpoint.js';
 import { criarPluginAdminDev } from './services/admin/admin-endpoint.js';
+import { criarPluginConteudoPublico } from './services/conteudo-publico-build.js';
 
 const raiz = fileURLToPath(new URL('.', import.meta.url));
 
@@ -28,6 +29,7 @@ const redirecionarAdmin = {
 
 // Os endpoints do assistente (conteúdo de teste local) e do módulo administrativo (leitura e cadastro local) existem
 // somente no servidor de desenvolvimento (`npm run dev`). O build de produção e o preview não os incluem.
+// O único plugin que também age no build é o do conteúdo público: entrega apenas o conteúdo PUBLICADO e validado (hoje não há nenhum).
 export default defineConfig({
-  plugins: [criarPluginAssistenteDev({ raiz }), criarPluginAdminDev({ raiz }), redirecionarAdmin],
+  plugins: [criarPluginAssistenteDev({ raiz }), criarPluginAdminDev({ raiz }), redirecionarAdmin, criarPluginConteudoPublico({ raiz })],
 });

@@ -3,7 +3,7 @@
 // ampliado (150%), que foi o que fez a página ficar mais larga do que a tela (grade com coluna "auto").
 import { test, expect } from '@playwright/test';
 
-const ENTRAR = 'Entrar como servidor de demonstração';
+const ENTRAR = 'Acessar administração';
 const LONGO = 'ParagrafoSemEspacosMuitoLongoParaTestarQuebraDeLinhaEmTelasPequenasXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 const TELAS = [
   { nome: 'desktop 1280', largura: 1280, altura: 800, escala: '100%' },
@@ -99,7 +99,7 @@ for (const tela of TELAS) {
       await page.getByRole('button', { name: /Licen/ }).first().click();
       await expect(page.getByRole('button', { name: 'Texto', exact: true })).toBeVisible();
       await conferirSemCortes(page, 'serviço aberto');
-      for (const maneira of ['Texto', 'Link novo', 'Usar link já cadastrado']) {
+      for (const maneira of ['Texto', 'Link']) {
         await page.getByRole('button', { name: maneira, exact: true }).click();
         await preencherVisiveis(page);
         await conferirSemCortes(page, maneira);
@@ -114,6 +114,7 @@ for (const tela of TELAS) {
       await conferirSemCortes(page, 'conteúdo inicial');
       await page.selectOption('#assunto', { index: 1 });
       await page.selectOption('#servico', { index: 1 });
+      await page.getByRole('button', { name: 'Incluir informação', exact: true }).click();
       await expect(page.locator('#bloco-titulo')).toBeVisible();
       await expect(page.locator('.fonte-opcao').first()).toBeVisible();
       await conferirSemCortes(page, 'conteúdo com serviço');

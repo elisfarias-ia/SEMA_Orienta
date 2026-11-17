@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 
 const TERMO_UNICO = 'zumbalafrutaunica';
-const ENTRAR = 'Entrar como servidor de demonstração';
+const ENTRAR = 'Acessar administração';
 const URL_A = 'https://exemplo.test/pagina-alfa';
 
 test.describe.configure({ mode: 'serial' });
@@ -32,7 +32,7 @@ async function abrirServicoPelaLista(page, nome) {
   await expect(page.getByRole('heading', { level: 2, name: nome })).toBeVisible();
 }
 async function preencherLink(page, { titulo, url, descricao = 'Página com as orientações.' }) {
-  await botao(page, 'Link novo').click();
+  await botao(page, 'Link').click();
   await page.locator('#link-titulo').fill(titulo);
   await page.locator('#link-url').fill(url);
   await page.locator('#link-orgao').fill('Órgão de Teste');
@@ -43,12 +43,12 @@ test('1. entrar e sair da demonstração: abrir não envia nada além de leitura
   const metodos = [];
   page.on('request', (r) => { if (r.url().includes('/__admin/')) metodos.push(`${r.method()} ${new URL(r.url()).pathname}`); });
   await page.goto('/admin/');
-  await expect(page.getByRole('heading', { level: 2, name: 'Área administrativa — ambiente local de demonstração' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Área administrativa' })).toBeVisible();
   expect(metodos, 'nada é pedido ao abrir').toEqual([]);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
-  await expect(page.getByText('Servidor de demonstração', { exact: true })).toBeVisible();
-  await expect(page.getByRole('note').first()).toContainText('não é autenticação real');
+  await expect(page.getByText('Administração', { exact: true })).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toMatch(/demonstra|sem autenticação/i);
   await expect(page.getByRole('link', { name: 'Saúde do sistema' })).toHaveAttribute('href', './saude/');
   expect(metodos).toEqual(['GET /__admin/sessao', 'GET /__admin/catalogo']);
   await botao(page, 'Sair').click();
@@ -68,7 +68,7 @@ test('2. serviço novo com tema novo e um texto', async ({ page }) => {
   await expect(page.getByRole('note').filter({ hasText: 'Não escreva dados pessoais' })).toBeVisible();
   await page.locator('#texto-titulo').fill('Prazos de análise');
   await page.locator('#texto-texto').fill(`Informação de teste com o termo ${TERMO_UNICO} para conferência.`);
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(status(page)).toContainText('Texto adicionado');
   await expect(page.locator('#informacoes-lista')).toContainText('Prazos de análise');
   await expect(page.locator('#informacoes-lista')).toContainText(TERMO_UNICO);
@@ -90,7 +90,7 @@ test('3. serviço novo reaproveitando o tema existente (sem diferença de maiús
   await expect(page.locator('#servico-tema')).toHaveText('Tema: Tema Inédito');
   await preencherLink(page, { titulo: 'Portal Beta', url: 'https://exemplo.test/pagina-beta' });
   await page.locator('#link-oficial').check();
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(status(page)).toContainText('Link adicionado');
   await expect(page.locator('#informacoes-lista')).toContainText('Portal Beta');
   await expect(page.locator('#informacoes-lista a')).toHaveAttribute('href', 'https://exemplo.test/pagina-beta');
@@ -103,7 +103,7 @@ test('4. serviço existente (achado pela pesquisa) com um link novo', async ({ p
   await abrirServicoPelaLista(page, 'Serviço de Teste Alfa');
   await expect(page.locator('#informacoes-lista')).toContainText('Prazos de análise');
   await preencherLink(page, { titulo: 'Portal Alfa', url: URL_A });
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(status(page)).toContainText('Link adicionado');
   await expect(page.locator('#informacoes-lista li')).toHaveCount(2);
   // pesquisa sem resultado
@@ -115,7 +115,7 @@ test('4. serviço existente (achado pela pesquisa) com um link novo', async ({ p
 test('5. serviço existente usando um link já cadastrado em outro serviço', async ({ page }) => {
   await entrar(page);
   await abrirServicoPelaLista(page, 'Serviço de Teste Beta');
-  await botao(page, 'Usar link já cadastrado').click();
+  await botao(page, 'Link').click();
   await expect(page.locator('#existente-lista li').first()).toBeVisible();
   await page.locator('#existente-consulta').fill('manual');
   await botao(page, 'Pesquisar').click();
@@ -129,7 +129,7 @@ test('5. serviço existente usando um link já cadastrado em outro serviço', as
   await expect(page.locator('#informacoes-lista')).toContainText(nome);
   await expect(page.locator('#informacoes-lista')).toContainText('Link copiado de outro serviço');
   // Repetir: o mesmo link já aparece como "já neste serviço" e desabilitado.
-  await botao(page, 'Usar link já cadastrado').click();
+  await botao(page, 'Link').click();
   await page.locator('#existente-consulta').fill(nome);
   await botao(page, 'Pesquisar').click();
   await expect(page.locator('#existente-lista li').first()).toContainText(nome);
@@ -145,7 +145,7 @@ test('6. validação junto ao campo e erro devolvido pelo servidor', async ({ pa
   await abrirServicoPelaLista(page, 'Serviço de Teste Beta');
   // Campos vazios: erros ao lado dos campos e nenhum envio.
   await botao(page, 'Texto').click();
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(page.locator('#texto-titulo-erro')).toBeVisible();
   await expect(page.locator('#texto-texto-erro')).toContainText('Escreva o texto');
   await expect(page.locator('#texto-titulo')).toHaveAttribute('aria-invalid', 'true');
@@ -153,7 +153,7 @@ test('6. validação junto ao campo e erro devolvido pelo servidor', async ({ pa
   // Texto com senha: recusado antes do envio, junto do campo.
   await page.locator('#texto-titulo').fill('Acesso');
   await page.locator('#texto-texto').fill('Use a senha: 12345 para entrar.');
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(page.locator('#texto-texto-erro')).toContainText('senha');
   await expect(page.locator('#texto-texto')).toBeFocused();
   expect(posts.filter((p) => p.includes('entradas-texto'))).toEqual([]);
@@ -165,13 +165,13 @@ test('6. validação junto ao campo e erro devolvido pelo servidor', async ({ pa
   await botao(page, 'Voltar para os serviços').click();
   await abrirServicoPelaLista(page, 'Serviço de Teste Alfa');
   await preencherLink(page, { titulo: 'Portal Alfa de novo', url: URL_A });
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(page.locator('#link-url-erro')).toContainText('já está cadastrado');
   await expect(page.locator('#link-url')).toBeFocused();
   await expect(status(page)).toContainText(/Já existe|já está|Revise/);
   expect(posts.filter((p) => p.endsWith('/links')).length).toBe(1);
   await page.locator('#link-url').fill('http://inseguro.test');
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(page.locator('#link-url-erro')).toContainText('https://');
   expect(posts.filter((p) => p.endsWith('/links')).length).toBe(1);
   // Nome de serviço repetido.
@@ -192,7 +192,7 @@ test('7. clique duplo grava uma única vez', async ({ page }) => {
   await botao(page, 'Texto').click();
   await page.locator('#texto-titulo').fill('Orientação com clique duplo');
   await page.locator('#texto-texto').fill('Texto de uma única gravação.');
-  await botao(page, 'Adicionar texto').dblclick();
+  await botao(page, 'Incluir texto').dblclick();
   await expect(status(page)).toContainText('Texto adicionado');
   await expect(page.locator('#informacoes-lista li').filter({ hasText: 'Orientação com clique duplo' })).toHaveCount(1);
   expect(posts).toHaveLength(1);
@@ -272,7 +272,7 @@ test('9. 390 px: sem rolagem horizontal e alvos de toque de pelo menos 44 px', a
   expect(await alvosPequenos()).toEqual([]);
   await botao(page, 'Cancelar').click();
   await abrirServicoPelaLista(page, 'Serviço de Teste Beta');
-  for (const maneira of ['Texto', 'Link novo', 'Usar link já cadastrado']) {
+  for (const maneira of ['Texto', 'Link']) {
     await botao(page, maneira).click();
     await expect(page.locator('.painel:not([hidden])')).toHaveCount(1);
     expect(await semRolagem(page), maneira).toBe(true);
