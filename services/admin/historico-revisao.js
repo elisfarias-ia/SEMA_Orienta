@@ -13,12 +13,12 @@ import { criarArmazenamento } from './armazenamento.js';
 import { validarHistorico, validarRegistro } from './decisoes.js';
 
 export const ATOR_DEMONSTRACAO = Object.freeze({ responsavel: 'Servidor de demonstração', unidade: 'Ambiente local de demonstração' });
-export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'concluir_revisao', 'nova_versao']);
+export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'concluir_revisao', 'nova_versao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
 
 const CAMPOS_ACAO = ['id', 'tipo', 'servicoId', 'versaoId', 'hashConteudo', 'acao', 'dataHora', 'resultado', 'ator', 'itemId', 'itemTipo'];
-const TIPOS_DE_ITEM = ['fonte', 'link', 'texto'];
+const TIPOS_DE_ITEM = ['fonte', 'link', 'texto', 'servico', 'tema'];
 const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 const PADRAO_HASH = /^[0-9a-f]{64}$/;
 const PADRAO_DATA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
@@ -43,6 +43,28 @@ export function validarAcaoRevisao(r) {
   // Só metadados mínimos do item (identificador interno e tipo); nunca título, URL, texto ou descrição.
   if (r.itemId !== null && (typeof r.itemId !== 'string' || !PADRAO_ID.test(r.itemId))) erros.push('itemId inválido');
   if (r.itemTipo !== null && !TIPOS_DE_ITEM.includes(r.itemTipo)) erros.push('itemTipo inválido');
+  return erros;
+}
+
+// Ação sobre um tema (catálogo comum, sem serviço nem versão): só id interno do tema, tipo do item, ação, data e hora e ator. Nunca o nome.
+export const TIPO_ACAO_TEMA = 'acao_tema';
+const CAMPOS_ACAO_TEMA = ['id', 'tipo', 'acao', 'dataHora', 'resultado', 'ator', 'itemId', 'itemTipo'];
+
+/** Confere um registro de ação sobre tema (lista de erros; vazia = válido). Não repete valores nas mensagens. */
+export function validarAcaoTema(r) {
+  if (!ehObjeto(r)) return ['registro deve ser um objeto'];
+  const erros = [];
+  for (const k of Object.keys(r)) if (!CAMPOS_ACAO_TEMA.includes(k)) erros.push(`campo não previsto: ${k}`);
+  for (const k of CAMPOS_ACAO_TEMA) if (!(k in r)) erros.push(`campo obrigatório ausente: ${k}`);
+  if (erros.length) return erros;
+  if (typeof r.id !== 'string' || !PADRAO_ID.test(r.id)) erros.push('id inválido');
+  if (r.tipo !== TIPO_ACAO_TEMA) erros.push('tipo inválido');
+  if (r.acao !== 'editar_tema') erros.push('acao inválida');
+  if (typeof r.dataHora !== 'string' || !PADRAO_DATA_HORA.test(r.dataHora) || Number.isNaN(Date.parse(r.dataHora))) erros.push('dataHora inválida');
+  if (r.resultado !== 'ok') erros.push('resultado inválido');
+  if (r.ator !== ATOR_DEMONSTRACAO.responsavel) erros.push('ator inválido');
+  if (typeof r.itemId !== 'string' || !PADRAO_ID.test(r.itemId)) erros.push('itemId inválido');
+  if (r.itemTipo !== 'tema') erros.push('itemTipo inválido');
   return erros;
 }
 
@@ -97,5 +119,25 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
     return r.ok ? { ok: true } : falha('historico_indisponivel');
   }
 
-  return { listarAcoes, registrarAcao, listarDecisoes, registrarDecisao, caminhoAcoes, caminhoDecisoes };
+  const caminhoTemas = `${PASTA_PRIVADA}/temas/historico.jsonl`;
+  /** Acrescenta a edição de um tema (só o id interno e o tipo; nunca o nome). */
+  function registrarAcaoDeTema(temaId) {
+    if (arm.ok === false || !idValido(temaId)) return falha('historico_indisponivel');
+    const existentes = arm.listarJsonl(caminhoTemas);
+    if (!existentes.ok) return falha('historico_indisponivel');
+    const registro = {
+      id: `acao-${String(existentes.registros.length + 1).padStart(6, '0')}`,
+      tipo: TIPO_ACAO_TEMA,
+      acao: 'editar_tema',
+      dataHora: agora().toISOString(),
+      resultado: 'ok',
+      ator: ATOR_DEMONSTRACAO.responsavel,
+      itemId: temaId,
+      itemTipo: 'tema',
+    };
+    const r = arm.acrescentarJsonl(caminhoTemas, registro, (x) => validarAcaoTema(x));
+    return r.ok ? { ok: true, registro } : falha('historico_indisponivel');
+  }
+
+  return { listarAcoes, registrarAcao, registrarAcaoDeTema, caminhoTemas, listarDecisoes, registrarDecisao, caminhoAcoes, caminhoDecisoes };
 }

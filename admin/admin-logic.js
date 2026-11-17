@@ -1111,6 +1111,57 @@ export function criarClienteGestao({ fetchImpl }) {
     usarLinkExistente: (servicoId, item) => (idOk(servicoId) && ehObjeto(item) && ehObjeto(item.identidade)
       ? gravar(rotaDoServico(servicoId, 'links-existentes'), corpoDoLinkExistente(item), (c) => (ehObjeto(c.fonte) ? {} : null), 'link-existente')
       : recusa()),
+
+    /** Nome e serviços afetados de um tema (somente leitura), com a revisão a devolver ao salvar. */
+    async carregarEdicaoDoTema(temaId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(temaId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const r = await chamar('GET', `/__admin/temas/${encodeURIComponent(temaId)}/edicao`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirEdicaoDoTema(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o tema. Tente de novo.' } : mensagemDaEdicao(r.status, r.corpo, 'tema')) };
+      return { ok: true, ...resumo };
+    },
+    /** Nome, tema e informações aceitas do serviço aberto (somente leitura), com a revisão a devolver ao salvar. */
+    async carregarEdicaoDoServico(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      const r = await chamar('GET', rotaDoServico(servicoId, 'edicao'));
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+      const resumo = r.ok ? resumirEdicaoDoServico(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o serviço. Tente de novo.' } : mensagemDaEdicao(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+    /** Altera o nome do tema (PATCH). A confirmação já foi dada pela pessoa no diálogo de impacto. Uma gravação por vez. */
+    async editarTema(temaId, nome, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(temaId) || !ehTexto(nome) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', `/__admin/temas/${encodeURIComponent(temaId)}/edicao`, { revisao: revisaoAtual, nome, confirmado: true });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+        if (r.status === 200) return { ok: true };
+        return { ok: false, ...mensagemDaEdicao(r.status, r.corpo, 'tema') };
+      } finally {
+        gravando = false;
+      }
+    },
+    /** Altera nome e/ou tema do serviço (PATCH): `corpo` só com o que mudou; `confirmado` só depois do diálogo de impacto. */
+    async editarServico(servicoId, corpo, revisaoAtual, confirmado) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };
+      if (!idOk(servicoId) || !ehObjeto(corpo) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS_GESTAO.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS_GESTAO.ocupado };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', rotaDoServico(servicoId, 'edicao'), { ...corpo, revisao: revisaoAtual, ...(confirmado === true ? { confirmado: true } : {}) });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
+        if (r.status === 200) return { ok: true, blocosReabertos: ehObjeto(r.corpo) && Number.isInteger(r.corpo.blocosReabertos) ? r.corpo.blocosReabertos : 0 };
+        return { ok: false, ...mensagemDaEdicao(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
   };
 }
 
@@ -1421,6 +1472,138 @@ export function mensagemDaFonte(status, corpo) {
     const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos.filter((c) => ehTexto(c) && ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao', 'texto'].includes(c)) : [];
     if (campos.length) return { mensagem: 'Revise os campos indicados e tente de novo.', erros: Object.fromEntries(campos.map((c) => [c, 'Revise este campo.'])) };
     return { mensagem: 'Revise os dados e tente de novo.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+// ---------- Editar tema e serviço (Passo 5B3b) ----------
+// Lógica pura: validação do formulário, texto do impacto em linguagem comum (sem ids, hashes nem nomes técnicos) e mensagens por
+// código. O id do tema e do serviço fica só na memória da tela; nunca é mostrado nem editável.
+
+export const MENSAGEM_NOME_TEMA_REPETIDO = 'Já existe um tema com este nome.';
+export const MENSAGEM_NOME_SERVICO_REPETIDO = 'Já existe um serviço com este nome.';
+export const MENSAGEM_VERSAO_CONCLUIDA_PARA_EDITAR = 'Esta versão já foi concluída e não pode mais ser editada. Use "Criar nova versão para editar".';
+export const AVISO_SERVICO_CONCLUIDO_PARA_EDITAR = 'Para editar o nome ou o tema deste serviço, use "Criar nova versão para editar".';
+
+/** Todos os temas do catálogo (ativos ou não), para conferir nomes repetidos: só id e nome. */
+export function todosOsTemas(catalogo) {
+  const lista = ehObjeto(catalogo) && Array.isArray(catalogo.assuntos) ? catalogo.assuntos : [];
+  return lista
+    .filter((a) => ehObjeto(a) && ehTexto(a.id) && PADRAO_ID.test(a.id) && ehTexto(a.nome) && a.nome !== '')
+    .map((a) => ({ id: a.id, nome: a.nome }))
+    .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+}
+
+function validarNomeEditado(valor, rotulo, erros, campo) {
+  const nome = textoAparado(valor);
+  if (nome === '') erros[campo] = `Escreva o nome do ${rotulo}.`;
+  else if (nome.length > LIMITES_GESTAO.nome) erros[campo] = `Use até ${LIMITES_GESTAO.nome} caracteres no nome.`;
+  else if (!/[\p{L}\p{N}]/u.test(nome)) erros[campo] = 'O nome precisa ter letras ou números.';
+  else if (pareceDadoPessoal(nome)) erros[campo] = 'O nome não pode ter dados pessoais nem senhas.';
+  return nome;
+}
+
+/**
+ * Formulário de edição de TEMA. `original`: { id, nome }; `temas`: todos os temas { id, nome }.
+ * Retorna { ok: true, mudou, nome } ou { ok: false, erros: { nome } }. O nome repetido (sem acento nem maiúscula) é recusado.
+ */
+export function validarEdicaoDeTema(valores, original, temas) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const nome = validarNomeEditado(v.nome, 'tema', erros, 'nome');
+  if (erros.nome === undefined && (Array.isArray(temas) ? temas : []).some((t) => ehObjeto(t) && t.id !== o.id && normalizar(t.nome) === normalizar(nome))) erros.nome = MENSAGEM_NOME_TEMA_REPETIDO;
+  if (Object.keys(erros).length) return { ok: false, erros };
+  return { ok: true, erros: {}, mudou: nome !== textoAparado(o.nome), nome };
+}
+
+/**
+ * Formulário de edição de SERVIÇO. `original`: { id, nome, temaId }; `temas`: temas ativos; `servicos`: serviços do catálogo { id, nome }.
+ * Retorna { ok: true, mudou, temaMudou, corpo } (corpo só com o que mudou: nome e/ou temaId) ou { ok: false, erros }.
+ */
+export function validarEdicaoDeServico(valores, original, temas, servicos) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const nome = validarNomeEditado(v.nome, 'serviço', erros, 'nome');
+  if (erros.nome === undefined && (Array.isArray(servicos) ? servicos : []).some((s) => ehObjeto(s) && s.id !== o.id && normalizar(s.nome) === normalizar(nome))) erros.nome = MENSAGEM_NOME_SERVICO_REPETIDO;
+  const temaId = ehTexto(v.temaId) ? v.temaId : '';
+  if (!(Array.isArray(temas) ? temas : []).some((t) => ehObjeto(t) && t.id === temaId)) erros.tema = 'Escolha um tema da lista.';
+  if (Object.keys(erros).length) return { ok: false, erros };
+  const corpo = {};
+  if (nome !== textoAparado(o.nome)) corpo.nome = nome;
+  const temaMudou = temaId !== o.temaId;
+  if (temaMudou) corpo.temaId = temaId;
+  return { ok: true, erros: {}, mudou: Object.keys(corpo).length > 0, temaMudou, corpo };
+}
+
+/** GET .../temas/<id>/edicao: nome atual, nomes dos serviços que usam o tema e a revisão. Retorna null se o formato não for o esperado. */
+export function resumirEdicaoDoTema(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.nome) || !Array.isArray(corpo.servicos) || !ehTexto(corpo.revisao)) return null;
+  return { nome: corpo.nome, servicos: corpo.servicos.filter(ehTexto).map((t) => textoCurto(t)).filter((t) => t !== '').slice(0, 200), revisao: corpo.revisao };
+}
+
+/** GET .../servicos/<id>/edicao: nome, tema atual (id, só na memória), títulos das informações aceitas e a revisão. */
+export function resumirEdicaoDoServico(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.nome) || !ehTexto(corpo.temaId) || !Array.isArray(corpo.informacoesAceitas) || !ehTexto(corpo.revisao)) return null;
+  return {
+    nome: corpo.nome, temaId: corpo.temaId, revisao: corpo.revisao,
+    informacoesAceitas: corpo.informacoesAceitas.filter(ehTexto).map((t) => textoCurto(t)).filter((t) => t !== '').slice(0, 200),
+  };
+}
+
+/** Texto do impacto da edição de um tema, em linguagem comum. Retorna { frases, lista }. */
+export function impactoDaEdicaoDoTema(nomeAtual, nomeNovo, servicos) {
+  const nomes = Array.isArray(servicos) ? servicos : [];
+  const quem = nomes.length === 0 ? 'Nenhum serviço usa este tema agora.'
+    : nomes.length === 1 ? 'Este serviço usa o tema e passará a mostrar o novo nome:' : 'Estes serviços usam o tema e passarão a mostrar o novo nome:';
+  return { frases: [`O tema "${nomeAtual}" passará a se chamar "${nomeNovo}".`, quem], lista: nomes };
+}
+
+/**
+ * Texto do impacto da edição de um serviço, em linguagem comum. `d`: { nomeAtual, nomeNovo, temaAtualNome, temaNovoNome, informacoesAceitas }.
+ * `exigeConfirmacao` segue a regra do servidor: mudança de tema ou informações aceitas que voltam para elaboração.
+ */
+export function impactoDaEdicaoDoServico(d) {
+  const frases = [];
+  if (d.nomeNovo !== d.nomeAtual) frases.push(`O serviço "${d.nomeAtual}" passará a se chamar "${d.nomeNovo}".`);
+  const temaMudou = d.temaNovoNome !== d.temaAtualNome;
+  if (temaMudou) frases.push(`O serviço sairá do tema "${d.temaAtualNome}" e passará para o tema "${d.temaNovoNome}".`);
+  const aceitas = Array.isArray(d.informacoesAceitas) ? d.informacoesAceitas : [];
+  if (aceitas.length > 0) frases.push(aceitas.length === 1 ? 'Esta informação aceita voltará para "Em elaboração" e precisará ser revisada e aceita de novo:' : 'Estas informações aceitas voltarão para "Em elaboração" e precisarão ser revisadas e aceitas de novo:');
+  return { frases, lista: aceitas, exigeConfirmacao: temaMudou || aceitas.length > 0 };
+}
+
+const MENSAGEM_DO_CAMPO_EDICAO = Object.freeze({
+  nome: 'Revise o nome.',
+  tema: 'Escolha um tema da lista.',
+});
+
+/** Mensagem curta por código (editar tema e serviço). Nunca usa texto da resposta. `recarregar`: a tela deve buscar os dados de novo. */
+export function mensagemDaEdicao(status, corpo, contexto = 'servico') {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
+  if (status === 401 || status === 403) return mensagemDaRevisao(status, corpo);
+  if (status === 404) return { mensagem: 'Não encontramos este item. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'versao_congelada') return { mensagem: MENSAGEM_VERSAO_CONCLUIDA_PARA_EDITAR, recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    if (erro === 'ja_existe' && campo === 'nome') {
+      const m = contexto === 'tema' ? MENSAGEM_NOME_TEMA_REPETIDO : MENSAGEM_NOME_SERVICO_REPETIDO;
+      return { mensagem: m, erros: { nome: m } };
+    }
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos : [];
+    if (campos.includes('nada_a_alterar')) return { mensagem: 'Nenhuma alteração para salvar.' };
+    if (campos.includes('confirmacao')) return { mensagem: 'Confirme a alteração para continuar.' };
+    const erros = {};
+    for (const c of campos) if (ehTexto(c) && Object.hasOwn(MENSAGEM_DO_CAMPO_EDICAO, c)) erros[c] = MENSAGEM_DO_CAMPO_EDICAO[c];
+    return Object.keys(erros).length ? { mensagem: 'Revise os campos indicados e tente de novo.', erros } : { mensagem: 'Revise os dados e tente de novo.' };
   }
   if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
   if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };

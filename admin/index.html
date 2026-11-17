@@ -52,6 +52,10 @@
           </div>
           <p id="lista-resumo" class="ajuda" aria-live="polite"></p>
           <ul id="lista-servicos" class="servicos servicos--escolha" aria-busy="false"></ul>
+
+          <h3 class="subtitulo" id="titulo-temas" tabindex="-1">Temas</h3>
+          <p class="ajuda">Você pode mudar o nome de um tema. Os serviços que o usam passam a mostrar o novo nome.</p>
+          <ul id="lista-temas" class="servicos" aria-labelledby="titulo-temas"></ul>
         </section>
 
         <section id="vista-novo" class="cartao" aria-labelledby="titulo-novo" hidden>
@@ -80,6 +84,10 @@
           <p class="voltar"><button type="button" class="botao botao--secundario" id="botao-voltar">Voltar para os serviços</button></p>
           <h2 id="titulo-servico" tabindex="-1"></h2>
           <p id="servico-tema" class="ajuda"></p>
+          <div class="acoes-form">
+            <button type="button" class="botao botao--secundario" id="botao-editar-servico">Editar nome e tema</button>
+          </div>
+          <p id="editar-servico-ajuda" class="ajuda" hidden></p>
 
           <div id="painel-situacao" class="painel-estado" role="group" aria-labelledby="titulo-estado-servico">
             <h3 class="subtitulo" id="titulo-estado-servico">Situação do serviço</h3>
@@ -186,6 +194,39 @@
         </section>
       </div>
     </main>
+
+    <dialog id="dialogo-edicao" class="dialogo" aria-labelledby="ed-titulo">
+      <h2 id="ed-titulo" tabindex="-1">Editar</h2>
+      <p id="ed-carregando" class="ajuda" role="status" hidden>Carregando os dados…</p>
+      <p id="ed-mensagem" class="erro" role="alert" tabindex="-1" hidden></p>
+      <form id="form-edicao" novalidate>
+        <div class="campo">
+          <label for="ed-nome">Nome</label>
+          <input id="ed-nome" type="text" maxlength="120" autocomplete="off" aria-describedby="ed-nome-erro" />
+          <p id="ed-nome-erro" class="erro" hidden></p>
+        </div>
+        <div class="campo" id="ed-grupo-tema">
+          <label for="ed-tema">Tema</label>
+          <select id="ed-tema" aria-describedby="ed-tema-erro"></select>
+          <p id="ed-tema-erro" class="erro" hidden></p>
+        </div>
+        <div class="dialogo__acoes">
+          <button type="button" class="botao botao--secundario" id="ed-cancelar">Cancelar</button>
+          <button type="submit" class="botao" id="ed-salvar">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dialogo-impacto" class="dialogo" aria-labelledby="im-titulo" aria-describedby="im-resumo">
+      <h2 id="im-titulo" tabindex="-1">Confirmar alteração</h2>
+      <div id="im-resumo"></div>
+      <ul id="im-lista" class="pendencias"></ul>
+      <p id="im-mensagem" class="erro" role="alert" tabindex="-1" hidden></p>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="im-voltar">Voltar</button>
+        <button type="button" class="botao" id="im-confirmar">Confirmar alteração</button>
+      </div>
+    </dialog>
 
     <script type="module" src="./admin.js"></script>
   </body>

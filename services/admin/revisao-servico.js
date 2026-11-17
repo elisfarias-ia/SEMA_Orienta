@@ -14,6 +14,7 @@ import { registrarDecisaoMaterial } from './decisoes.js';
 import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
 import { dadosParaEdicao, editarFonte, excluirFonte, impactoDaExclusao } from './edicao-fonte.js';
+import { edicaoDoServicoExigeConfirmacao, editarServicoPuro, informacoesAceitas, nomeDoServicoNoDisco } from './edicao-tema-servico.js';
 import { aceitarBloco, avaliarPendencias, reabrirBloco, rejeitarBloco, revisarFonte, situacaoDaRevisao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
 import { validarVersao } from './versao.js';
@@ -195,6 +196,46 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
+  /** Nome, tema e informações aceitas do serviço (somente leitura), para a edição. Só a versão atual em elaboração. */
+  function lerServicoParaEdicao(servicoId) {
+    try {
+      const c = carregar(servicoId);
+      if (!c.ok) return c;
+      if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
+      const s = c.atual.arquivos.service;
+      return { ok: true, edicao: { nome: s.nome, temaId: c.entrada.assuntoId, informacoesAceitas: informacoesAceitas(c.atual.arquivos.conteudoAssistente) }, revisao: c.hash };
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  /**
+   * Altera o nome e/ou o tema do serviço (versão atual em elaboração): service.json, registro (se o tema mudar) e, de forma conservadora,
+   * as informações aceitas voltam a "Em elaboração". Exige `confirmado` quando o tema muda ou há informações aceitas.
+   */
+  function editarServicoDoServico(servicoId, { revisao, nome, temaId, confirmado = false }) {
+    return gravar({
+      servicoId, revisao, acao: 'editar_servico',
+      preparar: (atual, data) => {
+        const assuntos = arm.lerJson('services/assuntos.json');
+        const registro = arm.lerJson('services/registry.json');
+        if (!assuntos.ok || !registro.ok) return falha('registro_indisponivel');
+        const entradaRegistro = registro.dados.servicos.find((x) => ehObjeto(x) && x.id === servicoId);
+        const nomesOutros = registro.dados.servicos.filter((x) => ehObjeto(x) && x.id !== servicoId).map((x) => nomeDoServicoNoDisco(arm, raiz, x.id)).filter((n) => typeof n === 'string');
+        const r = editarServicoPuro({ service: atual.arquivos.service, conteudoAssistente: atual.arquivos.conteudoAssistente, entradaRegistro, assuntos: assuntos.dados, nomesOutros }, { nome, temaId }, data);
+        if (!r.ok) return r;
+        if (!confirmado && edicaoDoServicoExigeConfirmacao(r.temaMudou, r.blocosReabertos.length)) return falha('confirmacao_necessaria');
+        const passos = [{ caminho: caminho(atual, 'service'), tipo: 'json', conteudo: r.service, novo: false, validar: livre }];
+        if (r.blocosReabertos.length > 0) passos.push({ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre });
+        // O registro vai por último: o validador exige o mesmo assuntoId nele e no service.json.
+        if (r.entradaRegistro) {
+          passos.push({ caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro.dados, servicos: registro.dados.servicos.map((x) => (ehObjeto(x) && x.id === servicoId ? r.entradaRegistro : x)) }, novo: false, validar: livre });
+        }
+        return { ok: true, passos, extra: { blocosReabertos: r.blocosReabertos.length }, item: { itemId: servicoId, itemTipo: 'servico' } };
+      },
+    });
+  }
+
   function reabrirBlocoDoServico(servicoId, { blocoId, revisao }) {
     return gravar({
       servicoId, revisao, acao: 'reabrir_bloco',
@@ -320,6 +361,8 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     impactoDaFonte,
     editarFonte: editarFonteDoServico,
     excluirFonte: excluirFonteDoServico,
+    lerServicoParaEdicao,
+    editarServico: editarServicoDoServico,
     concluirRevisao,
     criarNovaVersao,
   };

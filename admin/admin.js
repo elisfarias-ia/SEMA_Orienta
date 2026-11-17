@@ -4,7 +4,8 @@
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
 
 import {
-  AVISO_DADOS_PESSOAIS, criarClienteGestao, frasePendenciasParaConcluir, servicoDaUrl, servicosDaLista, temasAtivos, validarEntradaTexto, validarLinkNovo, validarNovoServico,
+  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, criarClienteGestao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
+  servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from './admin-logic.js';
 
 const cliente = criarClienteGestao({ fetchImpl: (...argumentos) => fetch(...argumentos) });
@@ -130,6 +131,7 @@ async function entrar() {
   $('barra-sessao').hidden = false;
   mostrarVista('lista');
   renderizarLista();
+  renderizarTemas();
   mostrarStatus('Você acessou a administração.');
   const titulo = $('titulo-lista');
   titulo.setAttribute('tabindex', '-1');
@@ -156,6 +158,9 @@ function sair() {
   $('existente-consulta').value = '';
   fecharPaineis();
   $('lista-servicos').replaceChildren();
+  $('lista-temas').replaceChildren();
+  edicao = null;
+  for (const dlg of [dlgImpacto, dlgEdicao]) if (dlg.open) dlg.close();
   $('informacoes-lista').replaceChildren();
   $('existente-lista').replaceChildren();
   $('gestao').hidden = true;
@@ -195,6 +200,7 @@ async function atualizarCatalogo() {
   if (r.ok) {
     catalogo = r.catalogo;
     renderizarLista();
+    renderizarTemas();
   }
   return r.ok;
 }
@@ -267,6 +273,8 @@ async function abrirServico(servico, mensagemInicial = '') {
   $('painel-resumo').textContent = '';
   $('painel-nova-versao').hidden = true;
   $('painel-resolver').hidden = true;
+  $('botao-editar-servico').disabled = true; // só é liberado quando a situação confirmar que a versão está em elaboração
+  $('editar-servico-ajuda').hidden = true;
   mostrarVista('servico');
   mostrarStatus(mensagemInicial);
   $('titulo-servico').focus();
@@ -292,6 +300,9 @@ async function carregarRevisao() {
     $('painel-resolver').hidden = true;
     return;
   }
+  $('botao-editar-servico').disabled = r.congelada;
+  $('editar-servico-ajuda').textContent = r.congelada ? AVISO_SERVICO_CONCLUIDO_PARA_EDITAR : '';
+  $('editar-servico-ajuda').hidden = !r.congelada;
   situacao.append('Situação: ', criar('strong', '', r.rotulo));
   if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
   $('painel-resumo').textContent = frasePendenciasParaConcluir(r.resumo);
@@ -531,6 +542,274 @@ async function usarLink(item) {
   }
   await concluirAdicao('Link copiado para este serviço como rascunho. Ele precisa de uma nova revisão.');
 }
+
+// ---------- Editar tema e serviço ----------
+// O id do tema ou do serviço fica só na memória (variável `edicao`) e nunca aparece na tela. Nada é enviado ao abrir o diálogo:
+// a gravação só acontece depois de "Salvar" (e, quando há impacto, depois de "Confirmar alteração").
+
+const dlgEdicao = $('dialogo-edicao');
+const dlgImpacto = $('dialogo-impacto');
+const CAMPOS_EDICAO = { nome: 'ed-nome', tema: 'ed-tema' };
+let edicao = null; // { tipo, id, original, revisao, temas, servicos, informacoesAceitas, pendente, gatilho }
+
+function renderizarTemas() {
+  const lista = $('lista-temas');
+  lista.replaceChildren();
+  for (const t of todosOsTemas(catalogo)) {
+    const li = criar('li', 'servico');
+    li.__temaId = t.id;
+    li.append(criar('p', 'servico__nome', t.nome));
+    const botao = criar('button', 'botao botao--secundario', 'Editar');
+    botao.type = 'button';
+    botao.setAttribute('aria-label', `Editar o tema ${t.nome}`);
+    botao.addEventListener('click', () => abrirEdicaoTema(t, botao));
+    const acoes = criar('p', 'servico__acoes');
+    acoes.append(botao);
+    li.append(acoes);
+    lista.append(li);
+  }
+}
+
+const botaoDoTema = (id) => [...document.querySelectorAll('#lista-temas li')].find((li) => li.__temaId === id)?.querySelector('button') ?? null;
+
+function abrirDialogo(dlg) {
+  if (typeof dlg.showModal === 'function') dlg.showModal();
+  else dlg.setAttribute('open', '');
+}
+
+function devolverFoco(gatilho) {
+  if (gatilho && gatilho.isConnected && !gatilho.disabled) gatilho.focus();
+  else status.focus();
+}
+
+function limparErrosEdicao() {
+  for (const id of Object.values(CAMPOS_EDICAO)) limparErro(id);
+  $('ed-mensagem').hidden = true;
+  $('ed-mensagem').textContent = '';
+}
+
+function mostrarErrosEdicao(erros, mensagem) {
+  limparErrosEdicao();
+  let primeiro = null;
+  for (const [campo, id] of Object.entries(CAMPOS_EDICAO)) {
+    const texto = erros && erros[campo];
+    if (!texto) continue;
+    $(`${id}-erro`).textContent = texto;
+    $(`${id}-erro`).hidden = false;
+    $(id).setAttribute('aria-invalid', 'true');
+    if (primeiro === null) primeiro = $(id);
+  }
+  if (mensagem) {
+    $('ed-mensagem').textContent = mensagem;
+    $('ed-mensagem').hidden = false;
+  }
+  (primeiro ?? $('ed-mensagem')).focus();
+}
+
+function bloquearEdicao(sim) {
+  for (const id of ['ed-nome', 'ed-tema', 'ed-salvar']) $(id).disabled = sim;
+  $('form-edicao').setAttribute('aria-busy', sim ? 'true' : 'false');
+}
+
+function prepararDialogoEdicao(titulo, comTema) {
+  $('form-edicao').reset();
+  $('ed-tema').replaceChildren();
+  limparErrosEdicao();
+  $('ed-titulo').textContent = titulo;
+  $('ed-grupo-tema').hidden = !comTema;
+  $('ed-carregando').hidden = false;
+  bloquearEdicao(true);
+  abrirDialogo(dlgEdicao);
+  $('ed-cancelar').focus();
+}
+
+/** Depois da leitura: se falhou, mostra a mensagem no diálogo (e atualiza a tela quando o estado mudou); senão libera o formulário. */
+async function aoLerEdicao(r, id, preencher) {
+  if (edicao === null || edicao.id !== id || !dlgEdicao.open) return;
+  $('ed-carregando').hidden = true;
+  if (!r.ok) {
+    mostrarErrosEdicao({}, r.mensagem);
+    if (r.recarregar) await (edicao.tipo === 'tema' ? atualizarCatalogo() : atualizarServico());
+    return;
+  }
+  preencher(r);
+  edicao.revisao = r.revisao;
+  bloquearEdicao(false);
+  $('ed-nome').focus();
+}
+
+async function abrirEdicaoTema(tema, gatilho) {
+  if (ocupado || cliente.gravando()) return;
+  edicao = { tipo: 'tema', id: tema.id, original: null, revisao: '', temas: [], servicos: [], informacoesAceitas: [], pendente: null, gatilho };
+  prepararDialogoEdicao('Editar tema', false);
+  const r = await cliente.carregarEdicaoDoTema(tema.id);
+  await aoLerEdicao(r, tema.id, (lido) => {
+    $('ed-nome').value = lido.nome;
+    edicao.original = { id: tema.id, nome: lido.nome };
+    edicao.servicos = lido.servicos;
+  });
+}
+
+async function abrirEdicaoServico(gatilho) {
+  if (ocupado || cliente.gravando() || servicoAtual === null) return;
+  const { id } = servicoAtual;
+  edicao = { tipo: 'servico', id, original: null, revisao: '', temas: [], servicos: [], informacoesAceitas: [], pendente: null, gatilho };
+  prepararDialogoEdicao('Editar nome e tema', true);
+  const r = await cliente.carregarEdicaoDoServico(id);
+  await aoLerEdicao(r, id, (lido) => {
+    const temas = temasAtivos(catalogo);
+    if (!temas.some((t) => t.id === lido.temaId)) {
+      const atual = todosOsTemas(catalogo).find((t) => t.id === lido.temaId);
+      if (atual) temas.push(atual);
+    }
+    for (const t of temas) {
+      const opcao = document.createElement('option');
+      opcao.value = t.id;
+      opcao.textContent = t.nome;
+      $('ed-tema').append(opcao);
+    }
+    $('ed-tema').value = lido.temaId;
+    $('ed-nome').value = lido.nome;
+    edicao.original = { id, nome: lido.nome, temaId: lido.temaId };
+    edicao.temas = temas;
+    edicao.informacoesAceitas = lido.informacoesAceitas;
+  });
+}
+
+function abrirImpacto(frases, lista) {
+  const resumo = $('im-resumo');
+  resumo.replaceChildren();
+  for (const frase of frases) resumo.append(criar('p', '', frase));
+  const itens = $('im-lista');
+  itens.replaceChildren();
+  for (const texto of lista) itens.append(criar('li', '', texto));
+  itens.hidden = lista.length === 0;
+  $('im-mensagem').hidden = true;
+  $('im-mensagem').textContent = '';
+  $('im-voltar').disabled = false;
+  $('im-confirmar').disabled = false;
+  dlgImpacto.removeAttribute('aria-busy');
+  abrirDialogo(dlgImpacto);
+  $('im-voltar').focus();
+}
+
+async function salvarEdicao(evento) {
+  evento.preventDefault();
+  if (edicao === null || edicao.original === null || ocupado || cliente.gravando()) return;
+  if (edicao.tipo === 'tema') {
+    const v = validarEdicaoDeTema({ nome: $('ed-nome').value }, edicao.original, todosOsTemas(catalogo));
+    if (!v.ok) {
+      mostrarErrosEdicao(v.erros, 'Revise os campos indicados e tente novamente.');
+      return;
+    }
+    if (!v.mudou) {
+      mostrarErrosEdicao({}, 'Nenhuma alteração para salvar.');
+      return;
+    }
+    limparErrosEdicao();
+    edicao.pendente = { nome: v.nome };
+    const impacto = impactoDaEdicaoDoTema(edicao.original.nome, v.nome, edicao.servicos);
+    abrirImpacto(impacto.frases, impacto.lista);
+    return;
+  }
+  const temaEscolhido = $('ed-tema').value;
+  const v = validarEdicaoDeServico({ nome: $('ed-nome').value, temaId: temaEscolhido }, edicao.original, edicao.temas, servicosDaLista(catalogo, ''));
+  if (!v.ok) {
+    mostrarErrosEdicao(v.erros, 'Revise os campos indicados e tente novamente.');
+    return;
+  }
+  if (!v.mudou) {
+    mostrarErrosEdicao({}, 'Nenhuma alteração para salvar.');
+    return;
+  }
+  limparErrosEdicao();
+  const nomeDoTema = (id) => (edicao.temas.find((t) => t.id === id) ?? { nome: '' }).nome;
+  const impacto = impactoDaEdicaoDoServico({
+    nomeAtual: edicao.original.nome, nomeNovo: v.corpo.nome ?? edicao.original.nome,
+    temaAtualNome: nomeDoTema(edicao.original.temaId), temaNovoNome: nomeDoTema(temaEscolhido), informacoesAceitas: edicao.informacoesAceitas,
+  });
+  edicao.pendente = { corpo: v.corpo, confirmar: impacto.exigeConfirmacao };
+  if (impacto.exigeConfirmacao) {
+    abrirImpacto(impacto.frases, impacto.lista);
+    return;
+  }
+  await enviarEdicao();
+}
+
+function fecharDialogosDeEdicao() {
+  for (const dlg of [dlgImpacto, dlgEdicao]) if (dlg.open) dlg.close();
+}
+
+async function enviarEdicao() {
+  const e = edicao;
+  if (e === null || e.pendente === null || ocupado || cliente.gravando()) return;
+  ocupado = true;
+  bloquearEdicao(true);
+  $('ed-cancelar').disabled = true;
+  $('im-voltar').disabled = true;
+  $('im-confirmar').disabled = true;
+  dlgImpacto.setAttribute('aria-busy', 'true');
+  const promessa = e.tipo === 'tema'
+    ? cliente.editarTema(e.id, e.pendente.nome, e.revisao)
+    : cliente.editarServico(e.id, e.pendente.corpo, e.revisao, e.pendente.confirmar);
+  const r = await promessa;
+  dlgImpacto.removeAttribute('aria-busy');
+  if (r.ok || r.recarregar) {
+    edicao = null;
+    fecharDialogosDeEdicao();
+    $('ed-cancelar').disabled = false;
+    await atualizarCatalogo();
+    if (e.tipo === 'servico' && servicoAtual !== null && servicoAtual.id === e.id) {
+      const novo = servicosDaLista(catalogo, '').find((s) => s.id === e.id);
+      if (novo !== undefined) {
+        servicoAtual = novo;
+        $('titulo-servico').textContent = novo.nome;
+        $('servico-tema').textContent = novo.temaNome === '' ? '' : `Tema: ${novo.temaNome}`;
+      }
+      await atualizarServico();
+    }
+    ocupado = false;
+    if (r.ok) {
+      const reabertas = e.tipo === 'servico' ? fraseBlocosReabertos(r.blocosReabertos) : '';
+      mostrarStatus(e.tipo === 'tema'
+        ? 'Tema alterado. O novo nome já aparece nos serviços que o usam.'
+        : `Serviço alterado. Nada foi publicado.${reabertas === '' ? '' : ` ${reabertas}`}`);
+      devolverFoco(e.tipo === 'tema' ? botaoDoTema(e.id) : $('botao-editar-servico'));
+    } else {
+      mostrarStatus(r.mensagem, 'erro', true);
+    }
+    return;
+  }
+  ocupado = false;
+  $('ed-cancelar').disabled = false;
+  bloquearEdicao(false);
+  $('im-voltar').disabled = false;
+  $('im-confirmar').disabled = false;
+  if (r.erros || !dlgImpacto.open) {
+    if (dlgImpacto.open) dlgImpacto.close();
+    mostrarErrosEdicao(r.erros, r.mensagem);
+    return;
+  }
+  $('im-mensagem').textContent = r.mensagem;
+  $('im-mensagem').hidden = false;
+  $('im-mensagem').focus();
+}
+
+dlgEdicao.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgEdicao.addEventListener('close', () => {
+  if (edicao !== null) devolverFoco(edicao.gatilho);
+  edicao = null;
+});
+dlgImpacto.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgImpacto.addEventListener('close', () => {
+  if (edicao !== null && dlgEdicao.open) $('ed-salvar').focus();
+});
+for (const id of Object.values(CAMPOS_EDICAO)) $(id).addEventListener('input', () => limparErro(id));
+$('ed-cancelar').addEventListener('click', () => { if (!ocupado && !cliente.gravando() && dlgEdicao.open) dlgEdicao.close(); });
+$('im-voltar').addEventListener('click', () => { if (!ocupado && !cliente.gravando() && dlgImpacto.open) dlgImpacto.close(); });
+$('im-confirmar').addEventListener('click', enviarEdicao);
+$('form-edicao').addEventListener('submit', salvarEdicao);
+$('botao-editar-servico').addEventListener('click', (evento) => abrirEdicaoServico(evento.currentTarget));
 
 // ---------- Ligações ----------
 
