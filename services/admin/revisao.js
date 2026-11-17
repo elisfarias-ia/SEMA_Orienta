@@ -15,6 +15,7 @@ import { conteudoEditavel } from './fluxo.js';
 import { removerBlocoConhecimento, TIPO_CONHECIMENTO } from './conhecimento.js';
 import { entradasVazias, validarArquivoEntradas } from './entradas.js';
 import { dataIsoValida, falha } from './versao.js';
+import { fonteExcluida, fonteIndisponivel, fonteRevogadaPorVigencia } from './edicao-fonte.js';
 import { validarConteudoAssistente } from '../../scripts/validate-services.js';
 
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -32,7 +33,8 @@ export function rotuloDaSituacao(estado) {
   return 'Em análise';
 }
 const ehConhecimento = (b) => ehObjeto(b) && b.tipo === TIPO_CONHECIMENTO;
-const fonteRevogada = (f) => ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada';
+// "Revogada" aqui inclui a fonte excluída logicamente: nenhuma das duas pode ser usada nem revisada.
+const fonteRevogada = (f) => fonteIndisponivel(f);
 const idValido = (v) => typeof v === 'string' && v.length <= LIMITE_ID && PADRAO_ID.test(v);
 const listaDe = (doc, chave) => (ehObjeto(doc) && Array.isArray(doc[chave]) ? doc[chave].filter(ehObjeto) : []);
 const mapaDeFontes = (arquivos) => new Map(listaDe(arquivos.fontes, 'fontes').map((f) => [f.id, f]));
@@ -126,14 +128,18 @@ export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao }) {
     })(),
     editavel,
     revisao,
-    fontes: [...fontes.values()].map((f) => ({
+    // Fonte excluída é invisível na gestão: não entra na lista nem nas contagens.
+    fontes: [...fontes.values()].filter((f) => !fonteExcluida(f)).map((f) => ({
       id: f.id,
       titulo: f.titulo,
       forma: f.formaEntrada === 'texto' ? 'texto' : 'link',
       revisada: f.statusValidacao === 'validado',
-      revogada: fonteRevogada(f),
+      revogada: fonteRevogadaPorVigencia(f),
+      excluida: fonteExcluida(f),
       usadaPorBloco: usadas.has(f.id),
       podeRevisar: editavel && f.statusValidacao !== 'validado' && !fonteRevogada(f),
+      podeEditar: editavel && !fonteRevogada(f),
+      podeExcluir: editavel,
     })),
     blocos: blocos.map((b) => {
       const fontesPendentes = (Array.isArray(b.fonteIds) ? b.fonteIds : []).filter((id) => {
@@ -163,6 +169,7 @@ export function revisarFonte(arquivos, fonteId, data, servicoId) {
   const lista = listaDe(doc, 'fontes');
   const alvo = lista.find((f) => f.id === fonteId);
   if (!alvo) return falha('fonte_nao_encontrada');
+  if (fonteExcluida(alvo)) return falha('fonte_nao_encontrada'); // excluída = invisível
   if (fonteRevogada(alvo)) return falha('fonte_revogada');
   if (alvo.statusValidacao === 'validado') return falha('fonte_ja_revisada');
   // Fonte textual: a entrada original precisa estar íntegra (hash confere e 1:1) antes de ser revisada.

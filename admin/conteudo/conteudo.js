@@ -5,7 +5,7 @@
 // A publicação não existe nesta tela.
 
 import {
-  corpoDoConhecimento, criarClienteAdmin, explicarFontesPendentes, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
+  corpoDoConhecimento, criarClienteAdmin, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
 } from '../admin-logic.js';
 
@@ -127,6 +127,7 @@ function renderizarSituacao() {
   const pendenteSelo = $('situacao-selo');
   pendenteSelo.hidden = !(revisao !== null && revisao.revisaoPendente);
   pendenteSelo.textContent = 'Revisão pendente';
+  $('botao-resolver').hidden = !(revisao !== null && !revisao.congelada && revisao.pendencias.length > 0);
   $('situacao-resumo').textContent = revisao === null
     ? 'A situação da revisão não está disponível agora.'
     : frasePendenciasParaConcluir(revisao.resumo);
@@ -183,12 +184,13 @@ function renderizarFontesRevisao() {
     raiz.append(criar('p', 'vazio', 'A revisão dos documentos e links não está disponível agora.'));
     return;
   }
-  if (revisao.fontes.length === 0) {
-    raiz.append(criar('p', 'vazio', 'Este serviço ainda não tem documentos ou links. Adicione um texto ou link na página do serviço.'));
+  const ativas = revisao.fontes; // fontes excluídas nunca chegam aqui; a revogada aparece com o rótulo próprio
+  if (ativas.length === 0) {
+    raiz.append(criar('p', 'vazio', 'Este serviço ainda não tem documentos ou links ativos. Adicione um texto ou link na página do serviço.'));
     return;
   }
   const lista = criar('ul', 'blocos');
-  for (const f of revisao.fontes) {
+  ativas.forEach((f, indice) => {
     const item = criar('li', 'bloco');
     item.tabIndex = -1;
     item.__fonteId = f.id;
@@ -204,10 +206,17 @@ function renderizarFontesRevisao() {
       acoes.append(criarBotao('Marcar como revisado', `Marcar como revisado: ${f.titulo}`, 'revisar-fonte', () => executarRevisao('fonte', { fonteId: f.id }, 'Documento ou link marcado como revisado.', undefined, { fonte: f.id })));
       item.append(acoes);
     }
+    if (!revisao.congelada) {
+      const acoesFonte = criar('div', 'bloco__acoes');
+      if (f.podeEditar) acoesFonte.append(criarBotao('Editar', `Editar fonte: ${f.titulo}`, 'editar-fonte', (gatilho) => abrirEdicaoFonte(f, gatilho)));
+      if (f.podeExcluir) acoesFonte.append(criarBotao('Excluir', `Excluir fonte: ${f.titulo}`, 'excluir-fonte', (gatilho) => abrirExclusaoFonte(f, gatilho, indice)));
+      if (acoesFonte.childElementCount > 0) item.append(acoesFonte);
+    }
     lista.append(item);
-  }
+  });
   raiz.append(lista);
 }
+
 
 function descreverFonte(r) {
   return `${r.fonteTitulo} — ${r.localizacao}`;
@@ -297,9 +306,53 @@ function renderizarConclusao() {
     $('pendencias-resumo').textContent = 'Nenhuma pendência. Você já pode concluir a revisão.';
   } else {
     $('pendencias-resumo').textContent = revisao.pendencias.length === 1 ? 'Falta resolver 1 pendência para concluir a revisão:' : `Faltam resolver ${revisao.pendencias.length} pendências para concluir a revisão:`;
-    for (const frase of revisao.pendencias) lista.append(criar('li', '', frase));
+    for (const p of revisao.pendenciasDetalhe) {
+      const li = criar('li', 'pendencia', p.frase);
+      li.tabIndex = -1;
+      const acao = acaoDaPendencia(p);
+      if (acao !== null) li.append(' ', criarBotao(acao.texto, acao.rotulo, 'ir-pendencia', () => irParaPendencia(p)));
+      lista.append(li);
+    }
   }
+  const passos = $('passos-pendencias');
+  passos.replaceChildren();
+  passos.hidden = revisao.pendencias.length === 0;
+  for (const passo of PASSOS_PARA_RESOLVER) passos.append(criar('li', '', passo));
 }
+
+/** Ação direta de cada pendência (linguagem comum). Pendência sem ação própria fica só com o texto. */
+function acaoDaPendencia(p) {
+  if (p.codigo === 'sem_bloco_aceito') return { texto: 'Incluir informação', rotulo: 'Incluir informação (resolver pendência)' };
+  if (p.codigo === 'bloco_pendente' || p.codigo === 'fonte_inexistente' || p.codigo === 'fonte_revogada') return { texto: 'Ir para a informação', rotulo: `Ir para a informação: ${p.titulo}` };
+  if (p.codigo === 'fonte_pendente') return { texto: 'Ir para o documento ou link', rotulo: `Ir para o documento ou link: ${p.titulo}` };
+  return null;
+}
+
+function irParaPendencia(p) {
+  if (contexto === null || revisao === null) return;
+  if (p.codigo === 'sem_bloco_aceito') {
+    abrirFormulario();
+    return;
+  }
+  if (p.codigo === 'fonte_pendente') {
+    focarItem(itemDaFonte(p.id));
+    return;
+  }
+  if (p.codigo === 'fonte_revogada') {
+    const usa = contexto.blocos.find((b) => b.referencias.some((r) => r.fonteId === p.id));
+    focarItem(usa !== undefined ? itemDoBloco(usa.id) : itemDaFonte(p.id));
+    return;
+  }
+  focarItem(itemDoBloco(p.id));
+}
+
+/** "Resolver pendências": mostra o que falta e leva o foco à primeira pendência. */
+function resolverPendencias() {
+  if (revisao === null || revisao.pendencias.length === 0) return;
+  const primeira = document.querySelector('#pendencias li');
+  focarItem(primeira);
+}
+$('botao-resolver').addEventListener('click', resolverPendencias);
 
 function renderizarFontes(selecionadas = []) {
   const raiz = $('bloco-fontes');
@@ -658,6 +711,212 @@ $('botao-concluir').addEventListener('click', (evento) => {
 });
 $('botao-nova-versao').addEventListener('click', () => executarRevisao('nova-versao', {}, 'Nova versão criada. Ela está em elaboração e nada foi publicado.'));
 
+// ---------- Editar e excluir fontes ----------
+
+const dlgEditar = $('dialogo-editar-fonte');
+const dlgExcluir = $('dialogo-excluir-fonte');
+const CAMPOS_EDICAO = { titulo: 'ef-titulo', url: 'ef-url', orgaoResponsavel: 'ef-orgao', descricao: 'ef-descricao', dataPublicacao: 'ef-data', localizacao: 'ef-localizacao', texto: 'ef-texto' };
+let edicaoFonte = null; // { fonteId, forma, original, gatilho } (só em memória, nunca exibido)
+let exclusaoFonte = null; // { fonte, gatilho, indice }
+
+function devolverFoco(gatilho) {
+  if (gatilho && gatilho.isConnected && !gatilho.disabled) gatilho.focus();
+  else status.focus();
+}
+
+function limparErrosEdicao() {
+  for (const id of Object.values(CAMPOS_EDICAO)) {
+    $(id).removeAttribute('aria-invalid');
+    $(`${id}-erro`).hidden = true;
+    $(`${id}-erro`).textContent = '';
+  }
+  $('ef-mensagem').hidden = true;
+  $('ef-mensagem').textContent = '';
+}
+
+function mostrarErrosEdicao(erros, mensagem) {
+  limparErrosEdicao();
+  let primeiro = null;
+  for (const [campo, texto] of Object.entries(erros ?? {})) {
+    const id = CAMPOS_EDICAO[campo];
+    if (id === undefined) continue;
+    $(id).setAttribute('aria-invalid', 'true');
+    $(`${id}-erro`).textContent = texto;
+    $(`${id}-erro`).hidden = false;
+    if (primeiro === null) primeiro = $(id);
+  }
+  if (mensagem) {
+    $('ef-mensagem').textContent = mensagem;
+    $('ef-mensagem').hidden = false;
+  }
+  (primeiro ?? $('ef-mensagem')).focus();
+}
+
+function bloquearEdicao(sim) {
+  for (const id of [...Object.values(CAMPOS_EDICAO), 'ef-salvar']) $(id).disabled = sim;
+  $('ef-voltar').disabled = false;
+  $('form-editar-fonte').setAttribute('aria-busy', sim ? 'true' : 'false');
+}
+
+async function abrirEdicaoFonte(fonte, gatilho) {
+  if (ocupado || cliente.gravando() || contexto === null || revisao === null) return;
+  edicaoFonte = { fonteId: fonte.id, forma: fonte.forma, original: null, gatilho };
+  $('form-editar-fonte').reset();
+  limparErrosEdicao();
+  $('ef-titulo-dialogo').textContent = fonte.forma === 'link' ? 'Editar link' : 'Editar texto';
+  $('ef-grupo-link').hidden = fonte.forma !== 'link';
+  $('ef-grupo-texto').hidden = fonte.forma !== 'texto';
+  $('ef-aviso').hidden = !(fonte.revisada || fonte.usadaPorBloco);
+  $('ef-salvar').textContent = fonte.forma === 'link' ? 'Salvar link' : 'Salvar texto';
+  $('ef-carregando').hidden = false;
+  bloquearEdicao(true);
+  if (typeof dlgEditar.showModal === 'function') dlgEditar.showModal();
+  else dlgEditar.setAttribute('open', '');
+  $('ef-voltar').focus();
+  const r = await cliente.carregarFonteParaEdicao(contexto.servicoId, fonte.id);
+  if (edicaoFonte === null || edicaoFonte.fonteId !== fonte.id || !dlgEditar.open) return;
+  $('ef-carregando').hidden = true;
+  if (!r.ok) {
+    mostrarErrosEdicao({}, r.mensagem);
+    return;
+  }
+  for (const [campo, valor] of Object.entries(r.campos)) $(CAMPOS_EDICAO[campo]).value = valor;
+  edicaoFonte.original = r.campos;
+  bloquearEdicao(false);
+  $('ef-titulo').focus();
+}
+
+function lerEdicao() {
+  const valores = {};
+  for (const [campo, id] of Object.entries(CAMPOS_EDICAO)) valores[campo] = $(id).value;
+  return valores;
+}
+
+function fecharEdicao() {
+  if (dlgEditar.open) dlgEditar.close();
+}
+
+async function salvarEdicaoFonte(evento) {
+  evento.preventDefault();
+  if (edicaoFonte === null || edicaoFonte.original === null || ocupado || cliente.gravando() || contexto === null || revisao === null) return;
+  const v = validarEdicaoDeFonte(edicaoFonte.forma, lerEdicao(), edicaoFonte.original);
+  if (!v.ok) {
+    mostrarErrosEdicao(v.erros, 'Revise os campos indicados e tente novamente.');
+    return;
+  }
+  if (Object.keys(v.corpo).length === 0) {
+    mostrarErrosEdicao({}, 'Nenhuma alteração para salvar.');
+    return;
+  }
+  limparErrosEdicao();
+  const { fonteId } = edicaoFonte;
+  const servicoId = contexto.servicoId;
+  ocupado = true;
+  bloquearEdicao(true);
+  $('ef-voltar').disabled = true;
+  const promessa = cliente.editarFonte(servicoId, fonteId, v.corpo, revisao.revisao);
+  atualizarPermissoes();
+  const r = await promessa;
+  if (r.ok || r.recarregar) {
+    edicaoFonte = null;
+    fecharEdicao();
+    const atualizado = await carregarServico(servicoId);
+    ocupado = false;
+    atualizarPermissoes();
+    if (r.ok) {
+      const focou = focarItem(atualizado.ok ? itemDaFonte(fonteId) : null);
+      const reabertas = fraseBlocosReabertos(r.blocosReabertos);
+      mostrarStatus(`Fonte alterada. Ela precisa ser revisada de novo.${reabertas === '' ? '' : ` ${reabertas}`}`, 'info', !focou);
+    } else mostrarStatus(r.mensagem, 'erro', true);
+    return;
+  }
+  ocupado = false;
+  bloquearEdicao(false);
+  atualizarPermissoes();
+  mostrarErrosEdicao(r.erros, r.mensagem);
+}
+
+dlgEditar.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgEditar.addEventListener('close', () => {
+  if (edicaoFonte !== null) devolverFoco(edicaoFonte.gatilho);
+  edicaoFonte = null;
+  atualizarPermissoes();
+});
+$('ef-voltar').addEventListener('click', () => { if (!ocupado && !cliente.gravando()) fecharEdicao(); });
+$('form-editar-fonte').addEventListener('submit', salvarEdicaoFonte);
+
+async function abrirExclusaoFonte(fonte, gatilho, indice) {
+  if (ocupado || cliente.gravando() || contexto === null || revisao === null) return;
+  mostrarStatus('Verificando o que a exclusão afeta…');
+  const r = await cliente.carregarImpactoDaFonte(contexto.servicoId, fonte.id);
+  if (!r.ok) {
+    if (r.recarregar) await carregarServico(contexto.servicoId);
+    mostrarStatus(r.mensagem, 'erro', true);
+    return;
+  }
+  mostrarStatus('');
+  exclusaoFonte = { fonte, gatilho, indice };
+  $('ex-nome').textContent = `Item que será retirado: "${fonte.titulo}"`;
+  const lista = $('ex-informacoes-lista');
+  lista.replaceChildren();
+  for (const i of r.informacoes) lista.append(criar('li', '', `A informação "${i.titulo}" ${i.frase}.`));
+  $('ex-informacoes').hidden = r.informacoes.length === 0;
+  const antigo = $('ex-antigo-lista');
+  antigo.replaceChildren();
+  for (const frase of frasesConteudoAntigo(r.conteudoAntigo)) antigo.append(criar('li', '', frase));
+  $('ex-antigo').hidden = antigo.childElementCount === 0;
+  $('ex-mensagem').hidden = true;
+  $('ex-confirmar').hidden = false;
+  $('ex-confirmar').disabled = false;
+  $('ex-voltar').disabled = false;
+  if (typeof dlgExcluir.showModal === 'function') dlgExcluir.showModal();
+  else dlgExcluir.setAttribute('open', '');
+  $('ex-voltar').focus();
+}
+
+async function confirmarExclusaoFonte() {
+  if (exclusaoFonte === null || ocupado || cliente.gravando() || contexto === null || revisao === null) return;
+  const { fonte, indice } = exclusaoFonte;
+  const servicoId = contexto.servicoId;
+  ocupado = true;
+  $('ex-confirmar').disabled = true;
+  $('ex-voltar').disabled = true;
+  dlgExcluir.setAttribute('aria-busy', 'true');
+  const promessa = cliente.excluirFonte(servicoId, fonte.id, revisao.revisao);
+  atualizarPermissoes();
+  const r = await promessa;
+  dlgExcluir.removeAttribute('aria-busy');
+  if (r.ok || r.recarregar) {
+    exclusaoFonte = null;
+    dlgExcluir.close();
+    const atualizado = await carregarServico(servicoId);
+    ocupado = false;
+    atualizarPermissoes();
+    if (r.ok) {
+      const itens = [...document.querySelectorAll('#fontes-revisao li.bloco')];
+      const focou = focarItem(atualizado.ok ? (itens[Math.min(indice, itens.length - 1)] ?? null) : null);
+      mostrarStatus('Item excluído. A exclusão será aplicada ao chatbot após a publicação desta versão.', 'info', !focou);
+    } else mostrarStatus(r.mensagem, 'erro', true);
+    return;
+  }
+  ocupado = false;
+  atualizarPermissoes();
+  $('ex-voltar').disabled = false;
+  $('ex-confirmar').disabled = false;
+  $('ex-mensagem').textContent = r.mensagem;
+  $('ex-mensagem').hidden = false;
+  $('ex-mensagem').focus();
+}
+
+dlgExcluir.addEventListener('cancel', (evento) => { if (ocupado || cliente.gravando()) evento.preventDefault(); });
+dlgExcluir.addEventListener('close', () => {
+  if (exclusaoFonte !== null) devolverFoco(exclusaoFonte.gatilho);
+  exclusaoFonte = null;
+  atualizarPermissoes();
+});
+$('ex-voltar').addEventListener('click', () => { if (!ocupado && !cliente.gravando()) dlgExcluir.close(); });
+$('ex-confirmar').addEventListener('click', confirmarExclusaoFonte);
+
 // ---------- Carregamento ----------
 
 /** Lê a versão atual e a revisão do serviço e redesenha tudo. Resultados atrasados (outra escolha feita) são ignorados. */
@@ -758,6 +1017,7 @@ async function iniciar() {
     return;
   }
   if (await selecionarServicoDaUrl()) {
+    if (pendenciasDaUrl(window.location.search)) resolverPendencias();
     if (status.dataset.tipo !== 'erro') mostrarStatus('Serviço aberto para revisão.');
   } else {
     mostrarStatus('Sessão iniciada. Escolha o assunto e o serviço.');

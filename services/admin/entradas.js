@@ -25,7 +25,7 @@ export const CAMPOS_ENTRADA = Object.freeze(['id', 'fonteId', 'texto', 'hash', '
 export const CAMPOS_CORPO_ENTRADA = Object.freeze(['titulo', 'texto', 'orgaoResponsavel', 'descricao']);
 export const CAMPOS_FONTE_TEXTO = Object.freeze([
   'id', 'titulo', 'tipo', 'formaEntrada', 'entradaId', 'orgaoResponsavel', 'url', 'descricao', 'origemOficial', 'statusValidacao', 'publicado',
-  'dataPublicacao', 'dataConsulta', 'dispositivoRelevante', 'vigencia',
+  'dataPublicacao', 'dataConsulta', 'dispositivoRelevante', 'vigencia', 'excluidaEm',
 ]);
 
 const LIMITE_TITULO = 200;

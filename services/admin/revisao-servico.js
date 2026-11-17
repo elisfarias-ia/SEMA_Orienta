@@ -13,6 +13,7 @@ import { congelarVersao } from './congelamento.js';
 import { registrarDecisaoMaterial } from './decisoes.js';
 import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
+import { dadosParaEdicao, editarFonte, excluirFonte, impactoDaExclusao } from './edicao-fonte.js';
 import { aceitarBloco, avaliarPendencias, reabrirBloco, rejeitarBloco, revisarFonte, situacaoDaRevisao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
 import { validarVersao } from './versao.js';
@@ -69,6 +70,7 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
 
   /** Gravação comum das ações de revisão (fonte, aceitar e rejeitar bloco): só a versão atual em rascunho, com revisão otimista. */
   function gravar({ servicoId, revisao, acao, preparar }) {
+    // preparar pode devolver `item: { itemId, itemTipo }` para o histórico (só metadados mínimos).
     try {
       const c = carregar(servicoId);
       if (!c.ok) return c;
@@ -88,14 +90,14 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
           if (erros.length > 0) return erros;
           hashDepois = hashEmDisco(servicoId, versaoId);
           if (hashDepois === null) return ['leitura'];
-          if (!historico.registrarAcao(servicoId, { versaoId, hashConteudo: hashDepois, acao }).ok) {
+          if (!historico.registrarAcao(servicoId, { versaoId, hashConteudo: hashDepois, acao, ...(p.item ?? {}) }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }
           return [];
         },
       });
-      return r.ok ? { ok: true, revisao: hashDepois } : mapearFalha(r, motivo);
+      return r.ok ? { ok: true, revisao: hashDepois, ...(p.extra ?? {}) } : mapearFalha(r, motivo);
     } catch {
       return falha('indisponivel');
     }
@@ -119,6 +121,76 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
       preparar: (atual, data) => {
         const r = aceitarBloco(atual.arquivos, blocoId, data);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
+      },
+    });
+  }
+
+  const caminhoEntradas = (atual) => `${atual.pasta}/entradas.json`;
+
+  /** Campos editáveis atuais de uma fonte (somente leitura; o texto original só sai aqui, sob demanda, para a edição). */
+  function lerFonteParaEdicao(servicoId, fonteId) {
+    try {
+      const c = carregar(servicoId);
+      if (!c.ok) return c;
+      if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
+      const d = dadosParaEdicao(c.atual.arquivos, fonteId);
+      return d.ok ? { ok: true, edicao: d.edicao, revisao: c.hash } : d;
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  /** Edita uma fonte (link ou texto): reinicia a revisão da fonte e reabre as informações aceitas que a usam. */
+  function editarFonteDoServico(servicoId, { fonteId, revisao, campos }) {
+    return gravar({
+      servicoId, revisao, acao: 'editar_fonte',
+      preparar: (atual, data) => {
+        const r = editarFonte(atual.arquivos, fonteId, campos, data, servicoId);
+        if (!r.ok) return r;
+        const passos = [{ caminho: caminho(atual, 'fontes'), tipo: 'json', conteudo: r.fontes, novo: false, validar: livre }];
+        if (r.blocosReabertos.length > 0) passos.push({ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre });
+        if (r.entradas) passos.push({ caminho: caminhoEntradas(atual), tipo: 'json', conteudo: r.entradas, novo: false, validar: livre });
+        return { ok: true, passos, extra: { blocosReabertos: r.blocosReabertos.length }, item: itemDaFonte(atual, fonteId) };
+      },
+    });
+  }
+
+  /** Tipo do item para o histórico: link, texto ou fonte genérica. Só metadados (nunca título, URL nem texto). */
+  const itemDaFonte = (atual, fonteId) => {
+    const f = (Array.isArray(atual.arquivos.fontes?.fontes) ? atual.arquivos.fontes.fontes : []).find((x) => x && x.id === fonteId);
+    return { itemId: fonteId, itemTipo: f && f.formaEntrada === 'texto' ? 'texto' : f ? 'link' : 'fonte' };
+  };
+
+  /** O que a exclusão vai afetar, em linguagem para a tela (somente leitura): informações e conteúdo antigo. */
+  function impactoDaFonte(servicoId, fonteId) {
+    try {
+      const c = carregar(servicoId);
+      if (!c.ok) return c;
+      if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
+      const r = impactoDaExclusao(c.atual.arquivos, fonteId);
+      return r.ok ? { ok: true, impacto: r.impacto, revisao: c.hash } : r;
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  /**
+   * Exclusão lógica em cascata, numa única transação: marca a fonte, retira as referências ativas da versão atual (informações,
+   * campos do serviço, documentos e perguntas antigos) e reabre as informações aceitas que mudarem. Não é recusada por referências.
+   */
+  function excluirFonteDoServico(servicoId, { fonteId, revisao }) {
+    return gravar({
+      servicoId, revisao, acao: 'excluir_fonte',
+      preparar: (atual, data) => {
+        const r = excluirFonte(atual.arquivos, fonteId, data);
+        if (!r.ok) return r;
+        const passos = [{ caminho: caminho(atual, 'fontes'), tipo: 'json', conteudo: r.fontes, novo: false, validar: livre }];
+        passos.push({ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre });
+        if (r.service) passos.push({ caminho: caminho(atual, 'service'), tipo: 'json', conteudo: r.service, novo: false, validar: livre });
+        if (r.documentos) passos.push({ caminho: caminho(atual, 'documentos'), tipo: 'json', conteudo: r.documentos, novo: false, validar: livre });
+        if (typeof r.roteiro === 'string') passos.push({ caminho: caminho(atual, 'roteiro'), tipo: 'texto_exato', conteudo: r.roteiro, novo: false, validar: livre });
+        if (r.perguntasFrequentes) passos.push({ caminho: caminho(atual, 'perguntasFrequentes'), tipo: 'json', conteudo: r.perguntasFrequentes, novo: false, validar: livre });
+        return { ok: true, passos, extra: { blocosReabertos: r.blocosReabertos }, item: itemDaFonte(atual, fonteId) };
       },
     });
   }
@@ -244,6 +316,10 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     aceitarBloco: aceitarBlocoDoServico,
     rejeitarBloco: rejeitarBlocoDoServico,
     reabrirBloco: reabrirBlocoDoServico,
+    lerFonteParaEdicao,
+    impactoDaFonte,
+    editarFonte: editarFonteDoServico,
+    excluirFonte: excluirFonteDoServico,
     concluirRevisao,
     criarNovaVersao,
   };

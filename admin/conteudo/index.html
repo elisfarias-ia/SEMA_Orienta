@@ -75,6 +75,7 @@
           <p class="situacao__linha"><span class="situacao__rotulo">Versão atual:</span> <span id="situacao-versao"></span></p>
           <p class="situacao__linha"><span class="situacao__rotulo">Situação:</span> <span id="situacao-estado"></span><span id="situacao-selo" class="selo selo--pendente" hidden></span></p>
           <p id="situacao-resumo" class="situacao__linha"></p>
+          <p class="situacao__acoes"><button type="button" class="botao" id="botao-resolver" hidden>Resolver pendências</button></p>
           <p class="situacao__linha"><span class="situacao__rotulo">Publicação:</span> <span id="situacao-publicacao"></span></p>
           <p id="situacao-edicao" class="situacao__aviso"></p>
         </div>
@@ -145,6 +146,7 @@
         </div>
         <div id="conclusao-pendencias-bloco">
           <p id="pendencias-resumo" class="ajuda"></p>
+          <ol id="passos-pendencias" class="passos" hidden></ol>
           <ul id="pendencias" class="pendencias"></ul>
         </div>
         <p id="conclusao-explicacao" class="ajuda">Ao concluir, o conteúdo desta versão fica bloqueado para edição. A conclusão não publica nada no chatbot.</p>
@@ -164,6 +166,80 @@
       <div class="dialogo__acoes">
         <button type="button" class="botao botao--secundario" id="confirmacao-voltar">Voltar e corrigir</button>
         <button type="button" class="botao" id="confirmacao-confirmar">Confirmar e salvar</button>
+      </div>
+    </dialog>
+
+    <dialog id="dialogo-editar-fonte" class="dialogo" aria-labelledby="ef-titulo-dialogo">
+      <h2 id="ef-titulo-dialogo">Editar documento ou link</h2>
+      <p id="ef-carregando" class="ajuda" hidden>Carregando os dados…</p>
+      <p id="ef-aviso" class="aviso-dados" role="note" hidden>Ao salvar, esta fonte volta para revisão e as informações aceitas que a usam voltam para Em elaboração.</p>
+      <p id="ef-mensagem" class="erro" role="alert" tabindex="-1" hidden></p>
+      <form id="form-editar-fonte" novalidate>
+        <div class="campo">
+          <label for="ef-titulo">Título</label>
+          <input id="ef-titulo" type="text" maxlength="200" autocomplete="off" aria-describedby="ef-titulo-erro" />
+          <p id="ef-titulo-erro" class="erro" hidden></p>
+        </div>
+        <div id="ef-grupo-link" hidden>
+          <div class="campo">
+            <label for="ef-url">Endereço do link</label>
+            <input id="ef-url" type="url" inputmode="url" maxlength="500" autocomplete="off" spellcheck="false" aria-describedby="ef-url-ajuda ef-url-erro" />
+            <p id="ef-url-ajuda" class="ajuda">Precisa começar com https://</p>
+            <p id="ef-url-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="ef-orgao">Órgão que publicou o conteúdo</label>
+            <input id="ef-orgao" type="text" maxlength="120" autocomplete="off" aria-describedby="ef-orgao-erro" />
+            <p id="ef-orgao-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="ef-descricao">Descrição <span class="opcional">(opcional)</span></label>
+            <input id="ef-descricao" type="text" maxlength="1000" autocomplete="off" aria-describedby="ef-descricao-erro" />
+            <p id="ef-descricao-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="ef-data">Data de publicação <span class="opcional">(opcional)</span></label>
+            <input id="ef-data" type="date" aria-describedby="ef-data-erro" />
+            <p id="ef-data-erro" class="erro" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="ef-localizacao">Referência ou localização <span class="opcional">(opcional)</span></label>
+            <input id="ef-localizacao" type="text" maxlength="200" autocomplete="off" aria-describedby="ef-localizacao-erro" />
+            <p id="ef-localizacao-erro" class="erro" hidden></p>
+          </div>
+        </div>
+        <div id="ef-grupo-texto" hidden>
+          <div class="campo">
+            <label for="ef-texto">Texto</label>
+            <textarea id="ef-texto" rows="8" aria-describedby="ef-texto-ajuda ef-texto-erro"></textarea>
+            <p id="ef-texto-ajuda" class="ajuda">Não escreva dados pessoais (CPF, telefone, e-mail, endereço) nem conteúdo restrito ou sigiloso.</p>
+            <p id="ef-texto-erro" class="erro" hidden></p>
+          </div>
+        </div>
+        <div class="dialogo__acoes">
+          <button type="button" class="botao botao--secundario" id="ef-voltar">Voltar</button>
+          <button type="submit" class="botao" id="ef-salvar">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dialogo-excluir-fonte" class="dialogo" aria-labelledby="ex-titulo-dialogo" aria-describedby="ex-descricao">
+      <h2 id="ex-titulo-dialogo">Excluir esta fonte?</h2>
+      <p id="ex-nome" class="bloco__titulo"></p>
+      <div id="ex-informacoes" hidden>
+        <h3 class="subtitulo" id="ex-informacoes-titulo">Informações afetadas</h3>
+        <ul id="ex-informacoes-lista" class="pendencias"></ul>
+      </div>
+      <div id="ex-antigo" hidden>
+        <h3 class="subtitulo" id="ex-antigo-titulo">Conteúdo antigo afetado</h3>
+        <ul id="ex-antigo-lista" class="pendencias"></ul>
+      </div>
+      <p id="ex-descricao" class="ajuda">Este item não aparecerá mais na gestão. O histórico será preservado.</p>
+      <p id="ex-publicacao" class="ajuda">A exclusão será aplicada ao chatbot após a publicação desta versão.</p>
+      <p id="ex-mensagem" class="erro" role="alert" tabindex="-1" hidden></p>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="ex-voltar">Voltar</button>
+        <button type="button" class="botao" id="ex-confirmar">Excluir</button>
       </div>
     </dialog>
 

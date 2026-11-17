@@ -171,3 +171,13 @@ A experiência principal de `/admin/` (só no `npm run dev`) é orientada por se
 | `POST /__admin/servicos/<id>/nova-versao` | Cria a nova versão a partir da atual congelada (corpo `{}`). A versão publicada anterior fica intacta. |
 
 O ator registrado no histórico privado é sempre "Servidor de demonstração" (não comprova identidade nem validação jurídica). Todas as gravações passam pela trava comum.
+
+### Edição e exclusão de fontes (Sprint 5, Passo 5B3a)
+
+| Rota (exigem token) | O que faz |
+|---|---|
+| `GET /__admin/servicos/<id>/fontes/<fonteId>` | Campos editáveis da fonte (o texto original só sai aqui, para a edição). |
+| `PATCH /__admin/servicos/<id>/fontes/<fonteId>` | Edita link ou texto (corpo: `revisao` e só os campos do tipo). Reinicia a revisão da fonte e reabre as informações aceitas que a usam. |
+| `DELETE /__admin/servicos/<id>/fontes/<fonteId>` | Exclusão lógica (cabeçalho `X-Revisao`). Recusada se informação ou conteúdo antigo usar a fonte. |
+
+Só na versão atual em elaboração; versão congelada exige nova versão. A fonte excluída continua no arquivo (histórico preservado) e aparece em "Itens excluídos".

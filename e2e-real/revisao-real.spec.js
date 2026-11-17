@@ -33,12 +33,12 @@ async function criarServicoComFontes(page, nome) {
   await page.locator('#link-url').fill(`https://exemplo.test/${slug}`);
   await page.locator('#link-orgao').fill('Órgão de Teste');
   await page.locator('#link-descricao').fill('Página com as orientações.');
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(status(page)).toContainText('Link adicionado');
   await botao(page, 'Texto').click();
   await page.locator('#texto-titulo').fill(dados.texto);
   await page.locator('#texto-texto').fill(`Informação de teste do serviço ${nome}, escrita para conferência.`);
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(status(page)).toContainText('Texto adicionado');
   await expect(page.locator('#painel-situacao-texto')).toContainText('Situação: Em elaboração');
   return dados;
@@ -134,7 +134,7 @@ test('1. serviço com fontes e informação pendentes: painel, situação, pend�
   await expect(page.locator('#situacao-resumo')).toHaveText('3 pendências para concluir. Informações aceitas: 0. 1 documento ou link ainda não é usado por nenhuma informação; isso não impede a conclusão.');
   await expect(page.getByRole('button', { name: 'Aceitar informação: Como solicitar', exact: true })).toBeDisabled();
   await expect(bloco).toContainText(`Para aceitar esta informação, marque antes como revisado: "${d.link}".`);
-  await expect(page.locator('#pendencias')).toContainText('Aceite pelo menos uma informação do chatbot.');
+  await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
   await expect(page.locator('#pendencias')).toContainText('A informação "Como solicitar" ainda não foi aceita nem excluída.');
   await expect(page.locator('#pendencias')).toContainText(`O documento ou link "${d.link}" ainda não foi revisado.`);
   await expect(botao(page, 'Concluir revisão')).toBeHidden();
@@ -158,8 +158,8 @@ test('2. revisar fonte, editar antes de aceitar, aceitar, reabrir para correçã
   await expect(status(page)).toContainText('Informação alterada.');
   await expect(blocoDa(page, 'Prazos revisados')).toBeVisible();
   await aceitar(page, 'Prazos revisados');
-  await expect(page.getByRole('button', { name: /^Editar/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Excluir/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Editar a informação/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Excluir informação/ })).toHaveCount(0);
   await expect(page.locator('#painel-situacao, #servico-situacao').first()).toBeVisible();
   // reabrir para correção
   await page.getByRole('button', { name: 'Reabrir para correção: Prazos revisados', exact: true }).click();
@@ -318,7 +318,7 @@ test('8. teclado: ações por Enter, foco na mensagem, diálogo com Esc e foco d
   const marcar = page.getByRole('button', { name: `Marcar como revisado: ${d.link}`, exact: true });
   await marcar.focus();
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: `Marcar como revisado: ${d.texto}`, exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: `Editar fonte: ${d.link}`, exact: true })).toBeFocused();
   expect(await page.evaluate(() => { const c = getComputedStyle(document.activeElement); return c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) > 0; })).toBe(true);
   await marcar.focus();
   await page.keyboard.press('Enter');
@@ -391,7 +391,7 @@ test('11. cadastro de texto sem descrição nem órgão: a requisição real lev
   await expect(painel.locator('input, textarea')).toHaveCount(2);
   await painel.locator('#texto-titulo').fill('Somente título e texto');
   await painel.locator('#texto-texto').fill('Orientação de teste escrita só com título e texto.');
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(status(page)).toContainText('Texto adicionado');
   const envio = posts(enviados, '/entradas-texto');
   expect(envio).toHaveLength(1);
@@ -434,7 +434,7 @@ test('12. adicionar informação tem só Texto e Link; dentro de Link: endereço
   await page.locator('#link-url').fill('https://exemplo.test/servico-rev-ro-novo');
   await page.locator('#link-orgao').fill('Órgão de Teste');
   await page.locator('#link-descricao').fill('Página nova.');
-  await botao(page, 'Adicionar link').click();
+  await botao(page, 'Incluir link').click();
   await expect(status(page)).toContainText('Link adicionado');
   await expect(page.locator('#informacoes-lista')).toContainText('Endereço novo de Rô');
   await expect(page.locator('#informacoes-lista li')).toHaveCount(2);
@@ -509,7 +509,7 @@ test('15. texto com contato institucional é aceito e salvo; e-mail externo é r
   // e-mail externo: recusado antes do envio, mensagem curta, sem o endereço
   await page.locator('#texto-titulo').fill('Contato externo');
   await page.locator('#texto-texto').fill(`Para dúvidas escreva para ${externo}.`);
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   const erro = page.locator('#texto-texto-erro');
   await expect(erro).toBeVisible();
   await expect(erro).toContainText('e-mail');
@@ -520,7 +520,7 @@ test('15. texto com contato institucional é aceito e salvo; e-mail externo é r
   // contato institucional: aceito e salvo
   await page.locator('#texto-titulo').fill('Contato institucional');
   await page.locator('#texto-texto').fill(`Para dúvidas escreva para ${institucional}.`);
-  await botao(page, 'Adicionar texto').click();
+  await botao(page, 'Incluir texto').click();
   await expect(status(page)).toContainText('Texto adicionado');
   expect(posts(enviados, '/entradas-texto')).toHaveLength(1);
   await expect(page.locator('#informacoes-lista')).toContainText('Contato institucional');

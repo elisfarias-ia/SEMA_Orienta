@@ -37,7 +37,8 @@ function texto(valor, limite) {
 }
 
 const fontesPorId = (fontes) => new Map((Array.isArray(fontes) ? fontes : []).filter(ehObjeto).map((f) => [f.id, f]));
-const fonteRevogada = (f) => ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada';
+// Fonte revogada (vigência) ou excluída logicamente: não pode fundamentar informação.
+const fonteRevogada = (f) => (ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada') || f.excluidaEm != null;
 
 /**
  * Confere a entrada da pessoa. Retorna { ok: true, dados } (texto aparado) ou { ok: false, campos } com os NOMES dos campos

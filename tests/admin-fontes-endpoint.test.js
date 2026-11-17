@@ -340,7 +340,7 @@ test('FE14. serviço inexistente ou id inválido: 404; token, origem, método, t
     const antes = retrato(raiz);
     const naoExiste = await enviar(m, { url: '/__admin/servicos/nao-existe/fontes', corpo: { ...FONTE, revisao: rev }, token });
     assert.deepEqual([naoExiste.status, naoExiste.corpo], [404, { erro: 'nao_encontrado' }], 'serviço não cadastrado');
-    for (const url of ['/__admin/servicos/LAC/fontes', '/__admin/servicos/lac%2f..%2fx/fontes', '/__admin/servicos/../fontes', '/__admin/servicos/lac/fontes/', '/__admin/servicos/lac/fontes/x', '/__admin/servicos//fontes']) {
+    for (const url of ['/__admin/servicos/LAC/fontes', '/__admin/servicos/lac%2f..%2fx/fontes', '/__admin/servicos/../fontes', '/__admin/servicos/lac/fontes/', '/__admin/servicos//fontes']) {
       const lido = await get(m, url, token);
       assert.deepEqual([lido.status, lido.corpo], [404, { erro: 'nao_encontrado' }], `GET ${url}`);
       const gravado = await enviar(m, { url, corpo: { ...FONTE, revisao: rev }, token });

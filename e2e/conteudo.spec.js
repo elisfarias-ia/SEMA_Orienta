@@ -26,7 +26,7 @@ function revisaoSimulada(estado) {
     const revogada = f.vigencia.situacao === 'revogada';
     const revisada = estado.revisadas.includes(f.id);
     const usadaPorBloco = estado.blocos.some((b) => b.fonteIds.includes(f.id));
-    return { id: f.id, titulo: f.titulo, forma: f.id === 'f-dois' ? 'texto' : 'link', revisada, revogada, usadaPorBloco, podeRevisar: editavel && !revisada && !revogada, texto: 'TEXTO-ORIGINAL-SECRETO' };
+    return { id: f.id, titulo: f.titulo, forma: f.id === 'f-dois' ? 'texto' : 'link', revisada, revogada, usadaPorBloco, podeRevisar: editavel && !revisada && !revogada, podeEditar: editavel && !revogada, podeExcluir: editavel, texto: 'TEXTO-ORIGINAL-SECRETO' };
   });
   const blocos = estado.blocos.map((b) => {
     const aceito = estado.aceitos.includes(b.id);
@@ -325,7 +325,12 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.locator('#cartao-fontes')).not.toContainText('demonstração');
     await expect(fontes.locator('li').filter({ hasText: 'Fonte Um' })).toContainText('Tipo: Link');
     await expect(fontes.locator('li').filter({ hasText: 'Fonte Dois' })).toContainText('Tipo: Texto informado');
-    await expect(fontes.locator('li').filter({ hasText: 'Norma Antiga' })).toContainText('Situação: Revogada');
+    await expect(page.locator('#fontes-excluidas')).toHaveCount(0);
+    const velha = fontes.locator('li').filter({ hasText: 'Norma Antiga' });
+    await expect(velha).toContainText('Situação: Revogada');
+    await expect(velha.getByRole('button', { name: /^Marcar como revisado/ })).toHaveCount(0);
+    await expect(velha.getByRole('button', { name: 'Excluir fonte: Norma Antiga' })).toBeVisible();
+    await expect(velha.getByRole('button', { name: /^Editar fonte/ })).toHaveCount(0);
     await expect(fontes.getByRole('button', { name: 'Marcar como revisado: Norma Antiga' })).toHaveCount(0);
     expect(await page.locator('body').innerText()).not.toContain('TEXTO-ORIGINAL-SECRETO');
     await fontes.getByRole('button', { name: 'Marcar como revisado: Fonte Um' }).click();
@@ -347,7 +352,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await aceitar.click();
     await expect(page.locator('#status')).toContainText('Informação aceita.');
     await expect(page.locator('#blocos')).toContainText('Situação: Aceita');
-    await expect(page.getByRole('button', { name: /^Editar/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Editar a informação/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Reabrir para correção: Bloco existente' }).click();
     await expect(page.locator('#status')).toContainText('Informação reaberta para correção');
     await expect(page.locator('#blocos')).toContainText('Situação: Em elaboração');
@@ -359,7 +364,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
 
   test('concluir: pendências em frases comuns, botão só com tudo pronto, confirmação própria, congelamento e nova versão com {}', async ({ page, servidor }) => {
     await abrir(page, servidor, { blocos: [BLOCO] });
-    await expect(page.locator('#pendencias')).toContainText('Aceite pelo menos uma informação do chatbot.');
+    await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
     await expect(page.locator('#pendencias')).toContainText('A informação "Bloco existente" ainda não foi aceita nem excluída.');
     expect(await page.locator('#cartao-conclusao').innerText()).not.toMatch(/sem_bloco_aceito|bloco_pendente/);
     await expect(page.getByRole('button', { name: 'Concluir revisão', exact: true })).toBeHidden();

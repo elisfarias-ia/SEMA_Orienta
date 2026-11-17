@@ -87,11 +87,12 @@
             <p id="painel-resumo"></p>
             <div class="acoes-form">
               <a class="botao botao--secundario" id="painel-revisar" href="./conteudo/">Revisar informações</a>
+              <a class="botao" id="painel-resolver" href="./conteudo/" hidden>Resolver pendências</a>
               <button type="button" class="botao" id="painel-nova-versao" hidden>Criar nova versão para editar</button>
             </div>
           </div>
 
-          <h3 class="subtitulo" id="titulo-adicionar">Adicionar informação</h3>
+          <h3 class="subtitulo" id="titulo-adicionar">Incluir informação</h3>
           <div class="maneiras" id="grupo-adicionar" role="group" aria-labelledby="titulo-adicionar">
             <button type="button" class="botao botao--secundario" id="maneira-texto" aria-expanded="false" aria-controls="painel-texto">Texto</button>
             <button type="button" class="botao botao--secundario" id="maneira-link" aria-expanded="false" aria-controls="painel-link">Link</button>
@@ -112,7 +113,7 @@
                 <p id="texto-texto-erro" class="erro" hidden></p>
               </div>
               <div class="acoes-form">
-                <button type="submit" class="botao" id="texto-enviar">Adicionar texto</button>
+                <button type="submit" class="botao" id="texto-enviar">Incluir texto</button>
                 <button type="button" class="botao botao--secundario" id="texto-cancelar">Cancelar</button>
               </div>
             </form>
@@ -159,7 +160,7 @@
                 <label for="link-oficial">É um site ou documento oficial</label>
               </div>
               <div class="acoes-form">
-                <button type="submit" class="botao" id="link-enviar">Adicionar link</button>
+                <button type="submit" class="botao" id="link-enviar">Incluir link</button>
                 <button type="button" class="botao botao--secundario" id="link-cancelar">Cancelar</button>
               </div>
             </form>

@@ -13,11 +13,12 @@ import { criarArmazenamento } from './armazenamento.js';
 import { validarHistorico, validarRegistro } from './decisoes.js';
 
 export const ATOR_DEMONSTRACAO = Object.freeze({ responsavel: 'Servidor de demonstração', unidade: 'Ambiente local de demonstração' });
-export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'concluir_revisao', 'nova_versao']);
+export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'concluir_revisao', 'nova_versao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
 
-const CAMPOS_ACAO = ['id', 'tipo', 'servicoId', 'versaoId', 'hashConteudo', 'acao', 'dataHora', 'resultado', 'ator'];
+const CAMPOS_ACAO = ['id', 'tipo', 'servicoId', 'versaoId', 'hashConteudo', 'acao', 'dataHora', 'resultado', 'ator', 'itemId', 'itemTipo'];
+const TIPOS_DE_ITEM = ['fonte', 'link', 'texto'];
 const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 const PADRAO_HASH = /^[0-9a-f]{64}$/;
 const PADRAO_DATA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
@@ -39,6 +40,9 @@ export function validarAcaoRevisao(r) {
   if (typeof r.dataHora !== 'string' || !PADRAO_DATA_HORA.test(r.dataHora) || Number.isNaN(Date.parse(r.dataHora))) erros.push('dataHora inválida');
   if (r.resultado !== 'ok') erros.push('resultado inválido');
   if (r.ator !== ATOR_DEMONSTRACAO.responsavel) erros.push('ator inválido');
+  // Só metadados mínimos do item (identificador interno e tipo); nunca título, URL, texto ou descrição.
+  if (r.itemId !== null && (typeof r.itemId !== 'string' || !PADRAO_ID.test(r.itemId))) erros.push('itemId inválido');
+  if (r.itemTipo !== null && !TIPOS_DE_ITEM.includes(r.itemTipo)) erros.push('itemTipo inválido');
   return erros;
 }
 
@@ -58,7 +62,7 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
   }
 
   /** Acrescenta uma ação concluída com sucesso. `entrada`: { versaoId, hashConteudo|null, acao }. */
-  function registrarAcao(servicoId, { versaoId, hashConteudo = null, acao }) {
+  function registrarAcao(servicoId, { versaoId, hashConteudo = null, acao, itemId = null, itemTipo = null }) {
     const existentes = listarAcoes(servicoId);
     if (!existentes.ok) return existentes;
     const registro = {
@@ -71,6 +75,8 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
       dataHora: agora().toISOString(),
       resultado: 'ok',
       ator: ATOR_DEMONSTRACAO.responsavel,
+      itemId,
+      itemTipo,
     };
     const r = arm.acrescentarJsonl(caminhoAcoes(servicoId), registro, (x) => validarAcaoRevisao(x));
     return r.ok ? { ok: true, registro } : falha('historico_indisponivel');

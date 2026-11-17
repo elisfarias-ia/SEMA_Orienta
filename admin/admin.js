@@ -266,6 +266,7 @@ async function abrirServico(servico, mensagemInicial = '') {
   $('painel-situacao-texto').textContent = 'Carregando a situação…';
   $('painel-resumo').textContent = '';
   $('painel-nova-versao').hidden = true;
+  $('painel-resolver').hidden = true;
   mostrarVista('servico');
   mostrarStatus(mensagemInicial);
   $('titulo-servico').focus();
@@ -288,12 +289,15 @@ async function carregarRevisao() {
     situacao.textContent = r.mensagem;
     $('painel-resumo').textContent = '';
     $('painel-nova-versao').hidden = true;
+    $('painel-resolver').hidden = true;
     return;
   }
   situacao.append('Situação: ', criar('strong', '', r.rotulo));
   if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
   $('painel-resumo').textContent = frasePendenciasParaConcluir(r.resumo);
   $('painel-nova-versao').hidden = !r.congelada;
+  $('painel-resolver').hidden = r.congelada || r.pendencias.length === 0;
+  if (servicoAtual !== null) $('painel-resolver').href = `./conteudo/?servico=${encodeURIComponent(servicoAtual.id)}&pendencias=1`;
 }
 
 async function criarNovaVersao() {
@@ -427,10 +431,10 @@ async function enviarTexto(evento) {
     return;
   }
   mostrarErros('texto', {});
-  marcarOcupado($('texto-enviar'), $('form-texto'), true, 'Salvando…', 'Adicionar texto');
+  marcarOcupado($('texto-enviar'), $('form-texto'), true, 'Salvando…', 'Incluir texto');
   mostrarStatus('Salvando o texto…');
   const r = await cliente.adicionarTexto(servicoAtual.id, validacao.corpo);
-  marcarOcupado($('texto-enviar'), $('form-texto'), false, 'Salvando…', 'Adicionar texto');
+  marcarOcupado($('texto-enviar'), $('form-texto'), false, 'Salvando…', 'Incluir texto');
   if (!r.ok) {
     await tratarFalha('texto', r);
     return;
@@ -452,10 +456,10 @@ async function enviarLink(evento) {
     return;
   }
   mostrarErros('link', {});
-  marcarOcupado($('link-enviar'), $('form-link'), true, 'Salvando…', 'Adicionar link');
+  marcarOcupado($('link-enviar'), $('form-link'), true, 'Salvando…', 'Incluir link');
   mostrarStatus('Salvando o link…');
   const r = await cliente.adicionarLink(servicoAtual.id, validacao.corpo);
-  marcarOcupado($('link-enviar'), $('form-link'), false, 'Salvando…', 'Adicionar link');
+  marcarOcupado($('link-enviar'), $('form-link'), false, 'Salvando…', 'Incluir link');
   if (!r.ok) {
     await tratarFalha('link', r);
     return;

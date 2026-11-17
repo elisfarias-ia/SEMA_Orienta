@@ -8,6 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CABECALHO_TOKEN, MENSAGEM_REVISAO_DIVERGENTE, TEXTO_CONFIRMAR_CONCLUSAO, criarClienteAdmin, criarClienteGestao,
+  AVISO_EDITAR_FONTE, PASSOS_PARA_RESOLVER, TEXTO_CONFIRMAR_EXCLUSAO_FONTE, TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO, fraseBlocosReabertos, frasesConteudoAntigo, mensagemDaFonte,
+  pendenciasDaUrl, resumirImpacto, validarEdicaoDeFonte,
   explicarFontesPendentes, frasePendenciasParaConcluir, mensagemDaRevisao, resumirRevisao, servicoDaUrl, traduzirPendencia,
 } from '../admin/admin-logic.js';
 
@@ -88,7 +90,7 @@ test('RV2. traduzirPendencia: cada código vira frase comum, sem o código técn
   assert.equal(new Set(frases).size, codigos.length, 'frases distintas');
   for (const f of frases) assert.doesNotMatch(f, TECNICO);
   assert.match(frases[1], /"Item X"/);
-  assert.equal(traduzirPendencia({ codigo: 'sem_bloco_aceito' }), 'Aceite pelo menos uma informação do chatbot.');
+  assert.equal(traduzirPendencia({ codigo: 'sem_bloco_aceito' }), 'Inclua e aceite pelo menos uma informação para concluir a revisão.');
   assert.match(traduzirPendencia(null), /pendência/);
 });
 
@@ -235,7 +237,9 @@ test('RV11. /admin/conteudo/: seções, diálogos próprios, texto de confirmaç
   assert.ok(botoes.length > 10);
   for (const b of botoes) assert.doesNotMatch(b, /publicar/i, `botão "${b}"`);
   assert.doesNotMatch(JS_CONTEUDO + JS_ADMIN, /(criar|criarBotao)\([^)]*'Publicar/i);
-  assert.doesNotMatch(HTML_CONTEUDO + HTML_ADMIN, /type="radio"|wizard|checkpoint|avançad|<details/i);
+  assert.doesNotMatch(HTML_CONTEUDO + HTML_ADMIN, /type="radio"|wizard|checkpoint|avançad/i);
+  assert.doesNotMatch(HTML_ADMIN, /<details/i);
+  assert.equal((HTML_CONTEUDO.match(/<details/g) ?? []).length, 0, 'sem seção recolhida de itens excluídos');
   assert.doesNotMatch(HTML_CONTEUDO, /\bbc-[0-9a-f]{12}\b|[0-9a-f]{64}|hashConteudo|statusValidacao/);
   assert.match(HTML_CONTEUDO, /href="\.\.\/">Gestão de conteúdo<\/a>/);
   assert.doesNotMatch(HTML_CONTEUDO + HTML_ADMIN + lerTexto('admin', 'saude', 'index.html'), /Cadastro da base/);
@@ -284,4 +288,142 @@ test('RV14. CSS: estado pendente com forma além da cor, quebra de texto e sem o
 test('RV15. o código de lógica nunca chama publicação nem a rota de rejeição fora da lista fixa', () => {
   assert.doesNotMatch(LOGICA, /\/publicar|publicacao\/|'publicar'/);
   assert.match(LOGICA, /'revisao\/blocos\/rejeitar'/);
+});
+
+// ---------- Editar e excluir fontes (Passo 5B3a) ----------
+
+const FONTE_LINK = { id: 'f-um', titulo: 'Portal Um', forma: 'link', revisada: true, revogada: false, excluida: false, usadaPorBloco: true, podeRevisar: false, podeEditar: true, podeExcluir: true };
+
+test('EF1. resumirRevisao: fonte revogada na lista normal (só Excluir), pendências com ação e sem seção de excluídos', () => {
+  const r = resumirRevisao(REVISAO_API({
+    fontes: [FONTE_LINK, { ...FONTE_LINK, id: 'f-y', titulo: 'Decreto', revogada: true, revisada: false, podeEditar: false, podeRevisar: false }],
+    pendencias: [{ codigo: 'sem_bloco_aceito' }, { codigo: 'bloco_pendente', id: 'bc-aaaaaaaaaaaa', titulo: 'Prazos' }, { codigo: 'fonte_pendente', id: 'f-um', titulo: 'Portal Um' }, { codigo: 'fonte_revogada', id: 'f-y', titulo: 'Decreto' }],
+  }));
+  assert.deepEqual(r.fontes.map((f) => [f.situacao, f.podeEditar, f.podeExcluir]), [['Revisado', true, true], ['Revogada', false, true]]);
+  assert.deepEqual(r.pendenciasDetalhe.map((p) => [p.codigo, p.id, p.titulo]), [['sem_bloco_aceito', null, ''], ['bloco_pendente', 'bc-aaaaaaaaaaaa', 'Prazos'], ['fonte_pendente', 'f-um', 'Portal Um'], ['fonte_revogada', 'f-y', 'Decreto']]);
+  assert.equal(r.pendencias[0], 'Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  assert.equal(r.resumo.pendenciasParaConcluir, 4);
+  assert.equal(fraseBlocosReabertos(0), '');
+  assert.equal(fraseBlocosReabertos(1), '1 informação voltou para Em elaboração.');
+  assert.equal(fraseBlocosReabertos(3), '3 informações voltaram para Em elaboração.');
+  assert.equal(PASSOS_PARA_RESOLVER.length, 5);
+  assert.equal(pendenciasDaUrl('?servico=x&pendencias=1'), true);
+  assert.equal(pendenciasDaUrl('?pendencias=2'), false);
+  assert.equal(pendenciasDaUrl(null), false);
+});
+
+test('EF2. validarEdicaoDeFonte: envia só o que mudou, valida junto ao campo e aceita contato institucional', () => {
+  const original = { titulo: 'Portal', url: 'https://exemplo.test/a', orgaoResponsavel: 'Órgão', descricao: 'Desc', dataPublicacao: '', localizacao: '' };
+  const igual = validarEdicaoDeFonte('link', original, original);
+  assert.deepEqual([igual.ok, igual.corpo], [true, {}], 'nada mudou');
+  assert.deepEqual(validarEdicaoDeFonte('link', { ...original, url: 'https://exemplo.test/b', dataPublicacao: '2026-01-31' }, original).corpo, { url: 'https://exemplo.test/b', dataPublicacao: '2026-01-31' });
+  const ruim = validarEdicaoDeFonte('link', { ...original, titulo: '', url: 'http://x.test', orgaoResponsavel: '', dataPublicacao: '2026-02-31', localizacao: 'a'.repeat(201) }, original);
+  assert.deepEqual(Object.keys(ruim.erros).sort(), ['dataPublicacao', 'localizacao', 'orgaoResponsavel', 'titulo', 'url']);
+  assert.equal(validarEdicaoDeFonte('link', { ...original, descricao: '' }, original).ok, true, 'descrição é opcional na edição');
+  const texto = { titulo: 'T', texto: 'Texto original.' };
+  assert.deepEqual(validarEdicaoDeFonte('texto', { titulo: 'T', texto: '  Novo texto.  ' }, texto).corpo, { texto: 'Novo texto.' });
+  assert.equal(validarEdicaoDeFonte('texto', { titulo: 'T', texto: ' ' }, texto).erros.texto, 'Escreva o texto.');
+  const externo = ['pessoa', 'exemplo.test'].join('@');
+  const institucional = ['setor', 'sema.mt.gov.br'].join('@');
+  assert.match(validarEdicaoDeFonte('texto', { titulo: 'T', texto: `Escreva para ${externo}` }, texto).erros.texto, /e-mail/);
+  assert.equal(validarEdicaoDeFonte('texto', { titulo: 'T', texto: `Escreva para ${institucional}` }, texto).ok, true);
+  assert.equal(Object.hasOwn(validarEdicaoDeFonte('texto', { titulo: 'T2', texto: 'Texto original.', url: 'https://x.test' }, texto).corpo, 'url'), false, 'campo de link nunca vai em texto');
+});
+
+test('EF3. mensagemDaFonte: textos curtos por código, sem recusa por referências e nada do corpo bruto', () => {
+  assert.equal(mensagemDaFonte(409, { erro: 'url_duplicada' }).erros.url, 'Já existe outro link com este endereço neste serviço.');
+  assert.deepEqual([mensagemDaFonte(409, { erro: 'revisao_divergente' }).mensagem, mensagemDaFonte(409, { erro: 'revisao_divergente' }).recarregar], [MENSAGEM_REVISAO_DIVERGENTE, true]);
+  assert.equal(mensagemDaFonte(404, {}).recarregar, true, 'fonte já excluída: recarrega');
+  assert.doesNotMatch(LOGICA, /fonte_em_uso|fonte_em_conteudo_antigo|emUso/, 'a exclusão nunca é recusada por referências');
+  assert.deepEqual(Object.keys(mensagemDaFonte(422, { erro: 'dados_invalidos', campos: ['url', 'inexistente'] }).erros), ['url']);
+  for (const [status, erro] of [[404, 'x'], [409, 'versao_congelada'], [409, 'fonte_excluida'], [409, 'operacao_em_andamento'], [422, 'dados_invalidos'], [500, 'indisponivel']]) {
+    const m = mensagemDaFonte(status, { erro, detalhe: 'SEGREDO-BRUTO' }).mensagem;
+    assert.ok(m.length > 10 && m.length < 160);
+    assert.doesNotMatch(m, /SEGREDO|fonte_|versao_|[0-9a-f]{64}/);
+  }
+});
+
+test('EF4. impacto da exclusão: desfechos e conteúdo antigo em frases comuns, sem ids', () => {
+  const r = resumirImpacto({
+    informacoes: [{ titulo: 'Prazos', desfecho: 'continua' }, { titulo: 'Etapas', desfecho: 'volta_para_elaboracao' }, { titulo: 'Sozinha', desfecho: 'sai_do_conteudo_ativo' }, { titulo: 'X', desfecho: 'inesperado', id: 'bc-aaaaaaaaaaaa' }],
+    conteudoAntigo: { blocosDeTeste: 1, documentos: 2, perguntas: 1, camposDoServico: ['Documentos exigidos', 'Prazo'] },
+    revisao: 'r',
+  });
+  assert.deepEqual(r.informacoes.map((i) => i.frase), ['continuará com outras fontes', 'voltará para Em elaboração', 'sairá do conteúdo ativo', 'voltará para Em elaboração']);
+  assert.doesNotMatch(JSON.stringify(r), /bc-aaaa|desfecho":"inesperado/);
+  const frases = frasesConteudoAntigo(r.conteudoAntigo);
+  assert.equal(frases.length, 4);
+  assert.match(frases.join(' '), /2 documentos .* sairão do conteúdo ativo/);
+  assert.match(frases.join(' '), /1 pergunta frequente .* sairá do conteúdo ativo/);
+  assert.match(frases.join(' '), /campos do serviço que dependem só desta fonte será apagado e eles ficarão pendentes: Documentos exigidos, Prazo\./);
+  assert.deepEqual(frasesConteudoAntigo({ blocosDeTeste: 0, documentos: 0, perguntas: 0, camposDoServico: [] }), [], 'sem conteúdo antigo afetado, nada é mostrado');
+  assert.equal(resumirImpacto({}), null);
+  assert.equal(resumirImpacto(null), null);
+});
+
+test('EF5. cliente: GET do impacto, PATCH com a revisão atual, DELETE sem corpo com X-Revisao e uma gravação por vez', async () => {
+  const chamadas = [];
+  const base = '/__admin/servicos/servico-ficticio/fontes/f-um';
+  let liberar;
+  const portao = new Promise((fim) => { liberar = fim; });
+  const r = (status, corpo) => ({ status, json: async () => corpo });
+  const fetchImpl = async (url, opcoes = {}) => {
+    chamadas.push({ url, metodo: opcoes.method, cabecalhos: opcoes.headers, corpoTexto: opcoes.body });
+    if (url === '/__admin/sessao') return r(200, { token: TOKEN });
+    if (url === base && opcoes.method === 'GET') return r(200, { forma: 'link', titulo: 'P', url: 'https://e.test/a', orgaoResponsavel: 'O', descricao: '', dataPublicacao: '', localizacao: '', revisao: 'r1', extra: 'ignorado' });
+    if (url === `${base}/impacto`) return r(200, { informacoes: [{ titulo: 'Prazos', desfecho: 'continua' }], conteudoAntigo: { blocosDeTeste: 0, documentos: 1, perguntas: 0, camposDoServico: [] }, revisao: 'r1' });
+    if (url === base && opcoes.method === 'PATCH') { await portao; return r(200, { revisao: 'r2', blocosReabertos: 2 }); }
+    if (url === base && opcoes.method === 'DELETE') return r(200, { revisao: 'r3', blocosReabertos: 1 });
+    return r(404, {});
+  };
+  const c = criarClienteAdmin({ fetchImpl });
+  assert.equal((await c.carregarFonteParaEdicao('servico-ficticio', 'f-um')).ok, false, 'sem sessão não chama a rede');
+  assert.equal((await c.carregarImpactoDaFonte('servico-ficticio', 'f-um')).ok, false);
+  await c.iniciarSessao();
+  const lida = await c.carregarFonteParaEdicao('servico-ficticio', 'f-um');
+  assert.deepEqual([lida.ok, lida.forma, Object.keys(lida.campos).sort()], [true, 'link', ['dataPublicacao', 'descricao', 'localizacao', 'orgaoResponsavel', 'titulo', 'url']]);
+  const impacto = await c.carregarImpactoDaFonte('servico-ficticio', 'f-um');
+  assert.deepEqual([impacto.ok, impacto.informacoes[0].frase, impacto.conteudoAntigo.documentos], [true, 'continuará com outras fontes', 1]);
+  const leitura = chamadas.find((x) => x.url === `${base}/impacto`);
+  assert.equal(leitura.metodo, 'GET');
+  assert.equal(leitura.corpoTexto, undefined);
+  const primeira = c.editarFonte('servico-ficticio', 'f-um', { titulo: 'Novo' }, 'rev-atual');
+  assert.equal((await c.editarFonte('servico-ficticio', 'f-um', { titulo: 'Outro' }, 'rev-atual')).emAndamento, true);
+  assert.equal((await c.excluirFonte('servico-ficticio', 'f-um', 'rev-atual')).emAndamento, true);
+  liberar();
+  const feita = await primeira;
+  assert.deepEqual([feita.ok, feita.blocosReabertos], [true, 2]);
+  const patch = chamadas.find((x) => x.metodo === 'PATCH');
+  assert.deepEqual(JSON.parse(patch.corpoTexto), { titulo: 'Novo', revisao: 'rev-atual' });
+  assert.equal(patch.cabecalhos['Content-Type'], 'application/json');
+  assert.equal((await c.excluirFonte('servico-ficticio', 'f-um', 'rev-atual')).ok, true);
+  const del = chamadas.find((x) => x.metodo === 'DELETE');
+  assert.equal(del.corpoTexto, undefined, 'DELETE sem corpo');
+  assert.equal(del.cabecalhos['X-Revisao'], 'rev-atual');
+  assert.equal(del.cabecalhos[CABECALHO_TOKEN], TOKEN);
+  assert.equal(del.cabecalhos['Content-Type'], undefined);
+  assert.equal((await c.excluirFonte('../x', 'f-um', 'r')).ok, false);
+});
+
+test('EF6. página: Editar e Excluir por fonte, diálogos próprios, impacto antes de excluir, sem "Itens excluídos" e Resolver pendências', () => {
+  assert.ok(HTML_CONTEUDO.includes(TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO));
+  assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_EXCLUSAO_FONTE));
+  assert.ok(HTML_CONTEUDO.includes(AVISO_EDITAR_FONTE));
+  assert.match(HTML_CONTEUDO, /<dialog id="dialogo-editar-fonte" class="dialogo" aria-labelledby="ef-titulo-dialogo">/);
+  assert.match(HTML_CONTEUDO, /<dialog id="dialogo-excluir-fonte" class="dialogo" aria-labelledby="ex-titulo-dialogo" aria-describedby="ex-descricao">/);
+  assert.match(HTML_CONTEUDO, /id="ex-confirmar">Excluir<\/button>/);
+  assert.match(HTML_CONTEUDO, /<label for="ef-orgao">Órgão que publicou o conteúdo<\/label>/);
+  assert.match(HTML_CONTEUDO, /id="botao-resolver" hidden>Resolver pendências<\/button>/);
+  assert.match(HTML_ADMIN, /id="painel-resolver" href="\.\/conteudo\/" hidden>Resolver pendências<\/a>/);
+  assert.doesNotMatch(HTML_CONTEUDO + JS_CONTEUDO + CSS, /Itens excluídos|fontes-excluidas|lixeira|restaurar|usada por conteúdo antigo|Usada por informação/i);
+  assert.doesNotMatch(HTML_CONTEUDO, /<details/);
+  assert.match(JS_CONTEUDO, /cliente\.carregarImpactoDaFonte\(contexto\.servicoId, fonte\.id\)/);
+  assert.match(JS_CONTEUDO, /cliente\.editarFonte\(servicoId, fonteId, v\.corpo, revisao\.revisao\)/);
+  assert.match(JS_CONTEUDO, /cliente\.excluirFonte\(servicoId, fonte\.id, revisao\.revisao\)/);
+  assert.match(JS_CONTEUDO, /Math\.min\(indice, itens\.length - 1\)/);
+  assert.match(JS_CONTEUDO, /focarItem\(primeira\)/, 'o foco vai para a primeira pendência');
+  assert.match(JS_ADMIN, /\?servico=\$\{encodeURIComponent\(servicoAtual\.id\)\}&pendencias=1/);
+  assert.doesNotMatch(JS_CONTEUDO, /innerHTML|localStorage|sessionStorage|document\.cookie|console\./);
+  const botoes = [...(HTML_CONTEUDO + HTML_ADMIN).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+  assert.equal(botoes.filter((b) => /^Adicionar/.test(b)).length, 0, 'rótulos padronizados: Incluir, Editar, Excluir, Salvar');
 });

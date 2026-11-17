@@ -212,8 +212,9 @@ export function validarFontes(doc, rotulo = 'fontes') {
       }
       const url = analisarUrl(fonte.url);
       if (!url.ok) erros.push(`${ref}: ${url.erro}`);
-      else if (urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
-      else urls.add(url.normalizada);
+      // URL repetida só conta entre fontes ATIVAS (uma fonte excluída logicamente libera a URL).
+      else if (fonte.excluidaEm == null && urls.has(url.normalizada)) erros.push(`${ref}: URL duplicada "${fonte.url}"`);
+      else if (fonte.excluidaEm == null) urls.add(url.normalizada);
     }
 
     for (const campo of ['dataConsulta', 'dataPublicacao']) {
@@ -225,6 +226,11 @@ export function validarFontes(doc, rotulo = 'fontes') {
       erros.push(`${ref}: dispositivoRelevante deve ser texto ou null`);
     }
 
+    // Exclusão lógica (Sprint 5, 5B3a): excluidaEm é uma data; fonte excluída nunca é publicada.
+    if ('excluidaEm' in fonte) {
+      if (!dataNulaOuValida(fonte.excluidaEm) || fonte.excluidaEm === null) erros.push(`${ref}: excluidaEm deve ser uma data válida AAAA-MM-DD`);
+      if (fonte.publicado === true) erros.push(`${ref}: fonte excluída não pode estar publicada`);
+    }
     // Origem oficial, validação e publicação são conceitos independentes.
     if ('oficial' in fonte) erros.push(`${ref}: campo "oficial" foi substituído por "origemOficial"`);
     if (typeof fonte.origemOficial !== 'boolean') erros.push(`${ref}: origemOficial deve ser booleano`);
@@ -243,12 +249,15 @@ export function validarFontes(doc, rotulo = 'fontes') {
   });
 
   // Referências entre normas: somente ids existentes no mesmo arquivo.
+  const fontesPorIdLocal = new Map(doc.fontes.filter(ehObjeto).map((f) => [f.id, f]));
   doc.fontes.forEach((fonte, i) => {
     const relacionadas = ehObjeto(fonte) && ehObjeto(fonte.vigencia) ? fonte.vigencia.normasRelacionadas : null;
     if (!Array.isArray(relacionadas)) return;
     for (const idRelacionado of relacionadas) {
       if (!ids.has(idRelacionado)) {
         erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte inexistente "${idRelacionado}"`);
+      } else if (fontesPorIdLocal.get(idRelacionado)?.excluidaEm != null && fonte.excluidaEm == null) {
+        erros.push(`${rotulo}[${i}]: normasRelacionadas cita fonte excluída "${idRelacionado}"`);
       } else if (idRelacionado === fonte.id) {
         erros.push(`${rotulo}[${i}]: normasRelacionadas não pode citar a própria fonte`);
       } else if (fonte.tipo !== 'legislacao' && tiposPorId.get(idRelacionado) !== 'legislacao') {
@@ -352,6 +361,8 @@ export function validarDocumentos(doc, { rotulo = 'documentos', idServico, fonte
       fonte = fontesPorId.get(item.fonteId);
       if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${ref}: documento usa fonte revogada "${item.fonteId}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${ref}: documento usa fonte excluída "${item.fonteId}" como fundamento`);
       }
     }
     if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
@@ -449,6 +460,8 @@ export function validarPerguntas(doc, { rotulo = 'perguntas', idServico, fontesP
       fonte = fontesPorId.get(item.fonteId);
       if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${ref}: pergunta usa fonte revogada "${item.fonteId}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${ref}: pergunta usa fonte excluída "${item.fonteId}" como fundamento`);
       }
     }
     if (!textoPreenchido(item.localizacaoFonte)) erros.push(`${ref}: localizacaoFonte obrigatória`);
@@ -656,6 +669,8 @@ export function validarConteudoAssistente(doc, { rotulo = 'conteudoAssistente', 
         if (!fonte) erros.push(`${ref}: fonteId "${id}" não existe em fontes.json`);
         else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
           erros.push(`${ref}: bloco usa fonte revogada "${id}" como fundamento`);
+        } else if (fonte.excluidaEm != null) {
+          erros.push(`${ref}: bloco usa fonte excluída "${id}" como fundamento`);
         }
       }
     } else if (b.origem === 'regra_institucional') {
@@ -794,6 +809,8 @@ function validarReferencias(servico, rotulo, fontesPorId) {
       if (!fonte) erros.push(`${rotulo}: referencias.${campo} cita fonte inexistente "${id}"`);
       else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${rotulo}: referencias.${campo} cita fonte revogada "${id}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${rotulo}: referencias.${campo} cita fonte excluída "${id}"`);
       }
     }
   }
@@ -845,6 +862,8 @@ function validarRoteiro(texto, servico, rotulo, fontesPorId = new Map()) {
       if (!fonte) erros.push(`${rotulo}: ${contexto} cita fonte inexistente "${m[1]}"`);
       else if (ehObjeto(fonte.vigencia) && fonte.vigencia.situacao === 'revogada') {
         erros.push(`${rotulo}: ${contexto} cita fonte revogada "${m[1]}" como fundamento`);
+      } else if (fonte.excluidaEm != null) {
+        erros.push(`${rotulo}: ${contexto} cita fonte excluída "${m[1]}"`);
       }
     }
   };
@@ -1259,6 +1278,7 @@ export function validarServicos(raiz) {
             erros.push(`${rotulo}: ${campo} cita fonte inexistente "${refFonte}"`);
             continue;
           }
+          if (fonteCitada.excluidaEm != null) erros.push(`${rotulo}: ${campo} cita fonte excluída "${refFonte}"`);
           if (campo === 'legislacao' && fonteCitada.tipo !== 'legislacao') {
             erros.push(`${rotulo}: legislacao cita fonte "${refFonte}" que não é do tipo legislacao`);
           }

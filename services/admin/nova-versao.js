@@ -16,6 +16,7 @@ import { criarArmazenamento } from './armazenamento.js';
 import { prepararBlocosParaNovaVersao } from './conhecimento.js';
 import { copiarEntradasParaNovaVersao } from './entradas.js';
 import { executarTransacao } from './transacao.js';
+import { limparNormasRelacionadas } from './edicao-fonte.js';
 import { criarNovaVersao, dataIsoValida, validarVersao } from './versao.js';
 import { lerArquivosDaVersao } from './versao-arquivos.js';
 import { caminhosDaVersao, NOME_DO_MANIFESTO, pastaDaVersao } from '../versao-atual.js';
@@ -73,18 +74,35 @@ export function prepararConteudoDaNovaVersao(arquivos, { servicoId, pastaNova, d
   const conteudoAssistente = blocos.conteudo;
   conteudoAssistente.statusValidacao = reiniciarStatus(conteudoAssistente.statusValidacao);
 
+  // Fontes excluídas (e a entrada textual delas) ficam só nas versões em que existiam: não vão para a nova versão.
+  const fontesAtivas = structuredClone(arquivos.fontes);
+  const excluidas = new Set();
+  if (Array.isArray(fontesAtivas.fontes)) {
+    fontesAtivas.fontes = fontesAtivas.fontes.filter((f) => {
+      if (f && f.excluidaEm != null) { excluidas.add(f.id); return false; }
+      return true;
+    });
+  }
+  if (excluidas.size > 0 && Array.isArray(fontesAtivas.fontes)) fontesAtivas.fontes = limparNormasRelacionadas(fontesAtivas.fontes, [...excluidas]).fontes;
+  const semExcluidas = (ids) => (Array.isArray(ids) ? ids.filter((id) => !excluidas.has(id)) : ids);
+  if (excluidas.size > 0) {
+    for (const chave of ['links', 'legislacao']) if (Array.isArray(service[chave])) service[chave] = semExcluidas(service[chave]);
+    if (ehObjeto(service.referencias)) for (const campo of Object.keys(service.referencias)) service.referencias[campo] = semExcluidas(service.referencias[campo]);
+  }
   const novo = {
     service,
     roteiro: arquivos.roteiro,
     documentos: reiniciarLista(arquivos.documentos, 'documentos'),
     perguntasFrequentes: reiniciarLista(arquivos.perguntasFrequentes, 'perguntas'),
-    fontes: reiniciarLista(arquivos.fontes, 'fontes'),
+    fontes: reiniciarLista(fontesAtivas, 'fontes'),
     conteudoAssistente,
   };
   if ('entradas' in arquivos) {
     const e = copiarEntradasParaNovaVersao(arquivos.entradas, servicoId);
     if (!e.ok) return falha(e.erro);
     novo.entradas = e.documento;
+    // A entrada textual de uma fonte excluída também não é copiada (1:1 com as fontes da nova versão).
+    novo.entradas.entradas = novo.entradas.entradas.filter((x) => !excluidas.has(x.fonteId));
   }
   return { ok: true, arquivos: novo };
 }

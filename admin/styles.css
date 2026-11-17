@@ -862,6 +862,27 @@ a.botao {
 }
 
 /* Revisão do conteúdo (Passo 5B2): estados sempre com texto; a forma (borda tracejada) reforça "pendente" além da cor. */
+.aviso-dados[hidden],
+.detalhes[hidden] {
+  display: none;
+}
+.detalhes {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  border: 2px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+}
+.detalhes summary {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detalhes ul {
+  margin-top: 0.5rem;
+}
 .selo[hidden] {
   display: none;
 }
@@ -915,5 +936,14 @@ a.botao {
   display: none;
 }
 .maneiras[hidden] {
+  display: none;
+}
+a.botao[hidden] {
+  display: none;
+}
+.pendencia .botao {
+  margin-top: 0.4rem;
+}
+.passos[hidden] {
   display: none;
 }

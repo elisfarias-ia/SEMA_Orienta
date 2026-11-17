@@ -291,7 +291,7 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(CSS, /@media \(max-width: 30rem\)[\s\S]*\.acoes-form \.botao/);
   // O formulário não está na página administrativa principal nem na de saúde.
   for (const outra of [lerTexto('admin', 'index.html'), lerTexto('admin', 'saude', 'index.html')]) {
-    assert.doesNotMatch(outra, /form-bloco|bloco-titulo|Nova informação|Incluir informação|conteudo\.js/);
+    assert.doesNotMatch(outra, /form-bloco|bloco-titulo|Nova informação|conteudo\.js/);
     assert.match(outra, /href="(\.\/|\.\.\/)conteudo\/">Conteúdo para respostas<\/a>/);
   }
 });

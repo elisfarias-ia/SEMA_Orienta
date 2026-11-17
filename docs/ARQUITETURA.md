@@ -216,3 +216,15 @@ O texto informado pode conter e-mail do domínio institucional configurado (`ser
 ### Aparência da administração
 
 A tela não menciona "demonstração" nem exibe faixa de ambiente: o acesso é o botão "Acessar administração" (sem autenticação real) e "Sair". Continuam apenas no código e na documentação: o ator registrado "Servidor de demonstração", a administração local e a ausência de autenticação institucional (a identificação não tem valor jurídico).
+
+## Edição e exclusão de fontes (Sprint 5, Passo 5B3a)
+
+Edição e exclusão **lógica** de textos, documentos e links da versão atual (`services/admin/edicao-fonte.js`, orquestrado por `revisao-servico.js`; rotas `GET`, `PATCH` e `DELETE` em `/__admin/servicos/<id>/fontes/<fonteId>`).
+
+- **Versionamento:** só a versão atual em elaboração é editada; versão revisada, congelada ou publicada nunca é alterada (409 `versao_congelada`) e a alteração exige "Criar nova versão para editar"; a anterior fica intacta.
+- **Editar link:** título, URL, órgão que publicou, descrição, data de publicação e localização relevante. **Editar texto:** título e texto original (o hash do texto em `entradas.json` é recalculado). O servidor relê a fonte do disco; o cliente só envia campos permitidos e a revisão otimista (hash canônico). URL repetida entre fontes ativas do serviço é recusada.
+- **Reinício:** toda edição devolve a fonte a "Ainda não revisada" (`validado` volta a `em_validacao`, sem `dataConsulta`, `publicado` falso) e **reabre** as informações aceitas que a usam (voltam a "Em elaboração"); o hash congelado deixa de valer porque a versão nunca fica congelada enquanto é editada. Link alterado perde a linhagem de reutilização se a URL mudar.
+- **Excluir (lógico):** grava `excluidaEm` (data) na fonte; ela continua no arquivo (histórico preservado), sai da lista ativa e vai para "Itens excluídos", nunca é usada em novas informações, na reutilização nem pelo assistente, e não conta como pendência. `excluidaEm` é o único campo novo: a revogação por vigência (`vigencia.situacao = revogada`) só vale para legislação e não serve para retirar um link ou texto. A fonte revogada (como o decreto 695/2020 da LAC) aparece em "Itens excluídos" como "Revogada" e não é editável nem excluível.
+- **Referências:** a exclusão é recusada (nada é removido sozinho) se informação em elaboração ou aceita usar a fonte (a resposta lista só os títulos) ou se conteúdo antigo a citar (`service.json`, documentos, perguntas e blocos de teste).
+- **Entre versões:** a exclusão lógica vale nas versões seguintes (a nova versão copia a fonte já excluída, que continua fora das listas ativas); a "lixeira" é preservada por auditoria e pode ser limpa em etapa futura.
+- **Segurança:** trava comum, transação com rollback, erros genéricos, histórico privado com as ações `editar_fonte` e `excluir_fonte` (sem conteúdo), `DELETE` sem corpo com a revisão no cabeçalho `X-Revisao`. Nada é publicado.

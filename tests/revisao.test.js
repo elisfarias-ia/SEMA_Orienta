@@ -408,7 +408,7 @@ test('R12. histórico: só os campos previstos, sem conteúdo, texto original, t
     assert.deepEqual(acoes.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco', 'concluir_revisao']);
     for (const x of acoes) {
       assert.deepEqual(validarAcaoRevisao(x), []);
-      assert.deepEqual(Object.keys(x).sort(), ['acao', 'ator', 'dataHora', 'hashConteudo', 'id', 'resultado', 'servicoId', 'tipo', 'versaoId']);
+      assert.deepEqual(Object.keys(x).sort(), ['acao', 'ator', 'dataHora', 'hashConteudo', 'id', 'itemId', 'itemTipo', 'resultado', 'servicoId', 'tipo', 'versaoId']);
     }
     // o validador recusa campos extras e atores diferentes
     assert.ok(validarAcaoRevisao({ ...acoes[0], texto: 'x' }).length > 0);

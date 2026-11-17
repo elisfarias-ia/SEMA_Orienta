@@ -460,7 +460,7 @@ export function resumirConhecimento(c) {
   if (!ehObjeto(c) || !ehObjeto(c.manifesto) || !ehTexto(c.manifesto.estado) || !Number.isInteger(c.manifesto.numero)) return null;
   if (!ehObjeto(c.service) || !ehObjeto(c.fontes) || !Array.isArray(c.fontes.fontes)) return null;
   if (!ehObjeto(c.conteudoAssistente) || !Array.isArray(c.conteudoAssistente.blocos)) return null;
-  const fontes = c.fontes.fontes.filter((f) => ehObjeto(f) && ehTexto(f.id)).map((f) => ({
+  const fontes = c.fontes.fontes.filter((f) => ehObjeto(f) && ehTexto(f.id) && !ehTexto(f.excluidaEm)).map((f) => ({
     id: f.id, titulo: ehTexto(f.titulo) ? f.titulo : 'Fonte', tipo: rotuloTipoFonte(f.tipo), revogada: ehObjeto(f.vigencia) && f.vigencia.situacao === 'revogada',
   }));
   const titulos = new Map(fontes.map((f) => [f.id, f.titulo]));
@@ -551,8 +551,8 @@ export function criarClienteAdmin({ fetchImpl }) {
   let token = null;
   let gravando = false;
 
-  async function chamar(metodo, caminho, corpo, { comToken = true } = {}) {
-    const cabecalhos = { Accept: 'application/json' };
+  async function chamar(metodo, caminho, corpo, { comToken = true, extras = {} } = {}) {
+    const cabecalhos = { Accept: 'application/json', ...extras };
     if (comToken) cabecalhos[CABECALHO_TOKEN] = token;
     const opcoes = { method: metodo, headers: cabecalhos, cache: 'no-store', credentials: 'omit', redirect: 'error' };
     if (corpo !== undefined) {
@@ -667,6 +667,60 @@ export function criarClienteAdmin({ fetchImpl }) {
     },
 
     /** Grava uma ação da revisão. Uma gravação por vez; retorna { ok } ou { ok: false, mensagem, recarregar? }. */
+    /** Campos atuais de uma fonte para o formulário de edição (o texto original só vem daqui, sob demanda). */
+    async carregarFonteParaEdicao(servicoId, fonteId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirFonteParaEdicao(r.corpo) : null;
+      if (resumo === null) return { ok: false, mensagem: r.status === 401 || r.status === 404 || r.status === 409 ? mensagemDaFonte(r.status, r.corpo).mensagem : 'Não foi possível carregar esta fonte. Tente de novo.' };
+      return { ok: true, ...resumo };
+    },
+
+    /** Impacto da exclusão de uma fonte (somente leitura): informações e conteúdo antigo afetados, em linguagem comum. */
+    async carregarImpactoDaFonte(servicoId, fonteId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}/impacto`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirImpacto(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o impacto da exclusão. Tente de novo.' } : mensagemDaFonte(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+
+    /** Edita uma fonte (PATCH): `campos` só com o que mudou; a revisão atual vai junto. Retorna { ok, blocosReabertos } ou { ok: false, mensagem, ... }. */
+    async editarFonte(servicoId, fonteId, campos, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId) || !ehObjeto(campos) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('PATCH', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`, { ...campos, revisao: revisaoAtual });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 200) return { ok: true, blocosReabertos: ehObjeto(r.corpo) && Number.isInteger(r.corpo.blocosReabertos) && r.corpo.blocosReabertos > 0 ? r.corpo.blocosReabertos : 0 };
+        return { ok: false, ...mensagemDaFonte(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
+    /** Exclusão LÓGICA (DELETE sem corpo; a revisão atual vai no cabeçalho X-Revisao). */
+    async excluirFonte(servicoId, fonteId, revisaoAtual) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !idSeguro(fonteId) || !ehTexto(revisaoAtual)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('DELETE', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/fontes/${encodeURIComponent(fonteId)}`, undefined, { extras: { 'X-Revisao': revisaoAtual } });
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 200) return { ok: true };
+        return { ok: false, ...mensagemDaFonte(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
     async gravarRevisao(acao, servicoId, corpo) {
       if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
       if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
@@ -1082,6 +1136,7 @@ const contagem = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
 /** Rótulo do tipo da fonte: nunca devolve o texto original. */
 export const rotuloFormaDaFonte = (forma) => (forma === 'link' ? 'Link' : 'Texto informado');
 export function rotuloSituacaoDaFonte(f) {
+  if (f.excluida) return 'Excluída';
   if (f.revogada) return 'Revogada';
   if (f.revisada) return 'Revisado';
   // Fonte que nenhum bloco usa pode ficar sem revisão: não é pendência para concluir.
@@ -1103,7 +1158,7 @@ export function traduzirPendencia(p) {
   const titulo = ehObjeto(p) ? textoCurto(p.titulo) : '';
   const nome = titulo === '' ? '' : ` "${titulo}"`;
   switch (ehObjeto(p) ? p.codigo : null) {
-    case 'sem_bloco_aceito': return 'Aceite pelo menos uma informação do chatbot.';
+    case 'sem_bloco_aceito': return FRASE_SEM_INFORMACAO_ACEITA;
     case 'bloco_pendente': return `A informação${nome} ainda não foi aceita nem excluída.`;
     case 'fonte_pendente': return `O documento ou link${nome} ainda não foi revisado.`;
     case 'fonte_revogada': return `O documento ou link${nome} foi revogado e não pode mais ser usado.`;
@@ -1118,7 +1173,7 @@ export function resumirRevisao(corpo) {
   if (!ehObjeto(corpo) || !ehTexto(corpo.revisao) || corpo.revisao === '' || corpo.revisao.length > 200) return null;
   if (!ehObjeto(corpo.resumo) || !Array.isArray(corpo.fontes) || !Array.isArray(corpo.blocos) || !Array.isArray(corpo.pendencias)) return null;
   const fontes = corpo.fontes.filter(ehObjeto).filter((f) => idSeguro(f.id)).map((f) => {
-    const base = { id: f.id, titulo: textoCurto(f.titulo) || 'Documento ou link', forma: f.forma === 'link' ? 'link' : 'texto', revisada: f.revisada === true, revogada: f.revogada === true, usadaPorBloco: f.usadaPorBloco === true, podeRevisar: f.podeRevisar === true };
+    const base = { id: f.id, titulo: textoCurto(f.titulo) || 'Documento ou link', forma: f.forma === 'link' ? 'link' : 'texto', revisada: f.revisada === true, revogada: f.revogada === true, excluida: f.excluida === true, usadaPorBloco: f.usadaPorBloco === true, podeRevisar: f.podeRevisar === true, podeEditar: f.podeEditar === true, podeExcluir: f.podeExcluir === true };
     return { ...base, rotuloForma: rotuloFormaDaFonte(base.forma), situacao: rotuloSituacaoDaFonte(base) };
   });
   const blocos = corpo.blocos.filter(ehObjeto).filter((b) => idSeguro(b.id)).map((b) => ({
@@ -1131,7 +1186,8 @@ export function resumirRevisao(corpo) {
     podeReabrir: b.podeReabrir === true,
     podeRejeitar: b.podeRejeitar === true,
   }));
-  const pendencias = corpo.pendencias.filter(ehObjeto).map((p) => traduzirPendencia(p));
+  const pendenciasDetalhe = corpo.pendencias.filter(ehObjeto).map((p) => ({ codigo: ehTexto(p.codigo) ? p.codigo : '', id: idSeguro(p.id) ? p.id : null, titulo: textoCurto(p.titulo), frase: traduzirPendencia(p) }));
+  const pendencias = pendenciasDetalhe.map((p) => p.frase);
   const editavel = corpo.editavel === true;
   return {
     revisao: corpo.revisao,
@@ -1148,6 +1204,7 @@ export function resumirRevisao(corpo) {
     fontes,
     blocos,
     pendencias,
+    pendenciasDetalhe,
     podeConcluir: corpo.podeConcluir === true && editavel,
   };
 }
@@ -1212,9 +1269,160 @@ export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensag
   return { ok: false, ...mensagemDaRevisao(r.status, r.corpo) };
 }
 
+/** `?pendencias=1`: abre a área de pendências ao carregar a página de conteúdo. */
+export const pendenciasDaUrl = (busca) => { try { return new URLSearchParams(ehTexto(busca) ? busca : '').get('pendencias') === '1'; } catch { return false; } };
+
 /** Lê `?servico=` e devolve o id apenas se tiver o formato válido; qualquer outro valor é ignorado. */
 export function servicoDaUrl(busca) {
   let valor = null;
   try { valor = new URLSearchParams(ehTexto(busca) ? busca : '').get('servico'); } catch { return null; }
   return ehTexto(valor) && valor.length <= LIMITES.id && PADRAO_ID.test(valor) ? valor : null;
+}
+
+// ---------- Editar e excluir fontes (Passo 5B3a) ----------
+
+export const TEXTO_CONFIRMAR_EXCLUSAO_FONTE = 'Este item não aparecerá mais na gestão. O histórico será preservado.';
+export const TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO = 'A exclusão será aplicada ao chatbot após a publicação desta versão.';
+export const FRASE_SEM_INFORMACAO_ACEITA = 'Inclua e aceite pelo menos uma informação para concluir a revisão.';
+export const PASSOS_PARA_RESOLVER = Object.freeze(['Incluir ou editar uma informação.', 'Relacionar ao menos uma fonte ativa.', 'Revisar a fonte usada.', 'Aceitar a informação.', 'Concluir a revisão.']);
+export const AVISO_EDITAR_FONTE = 'Ao salvar, esta fonte volta para revisão e as informações aceitas que a usam voltam para Em elaboração.';
+export const MENSAGEM_URL_DUPLICADA = 'Já existe outro link com este endereço neste serviço.';
+const CAMPOS_FORMULARIO_FONTE = Object.freeze({ link: ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao'], texto: ['titulo', 'texto'] });
+export const LIMITES_EDICAO_FONTE = Object.freeze({ localizacao: 200 });
+
+const DESFECHOS = Object.freeze({
+  continua: 'continuará com outras fontes',
+  volta_para_elaboracao: 'voltará para Em elaboração',
+  sai_do_conteudo_ativo: 'sairá do conteúdo ativo',
+});
+
+export function fraseBlocosReabertos(n) {
+  if (!Number.isInteger(n) || n <= 0) return '';
+  return n === 1 ? '1 informação voltou para Em elaboração.' : `${n} informações voltaram para Em elaboração.`;
+}
+
+/**
+ * GET .../fontes/<id>/impacto: o que a exclusão causa, em linguagem comum e sem ids. Retorna null se o formato não for o esperado.
+ * informacoes: título e desfecho; conteudoAntigo: o que sai do conteúdo ativo e os campos do serviço que ficam pendentes.
+ */
+export function resumirImpacto(corpo) {
+  if (!ehObjeto(corpo) || !Array.isArray(corpo.informacoes)) return null;
+  const informacoes = corpo.informacoes.filter(ehObjeto).map((i) => ({
+    titulo: textoCurto(i.titulo),
+    desfecho: Object.hasOwn(DESFECHOS, i.desfecho) ? i.desfecho : 'volta_para_elaboracao',
+    frase: DESFECHOS[Object.hasOwn(DESFECHOS, i.desfecho) ? i.desfecho : 'volta_para_elaboracao'],
+  }));
+  const a = ehObjeto(corpo.conteudoAntigo) ? corpo.conteudoAntigo : {};
+  const antigo = {
+    blocosDeTeste: contagem(a.blocosDeTeste),
+    documentos: contagem(a.documentos),
+    perguntas: contagem(a.perguntas),
+    camposDoServico: Array.isArray(a.camposDoServico) ? a.camposDoServico.filter(ehTexto).map((t) => textoCurto(t, 80)).filter((t) => t !== '').slice(0, 30) : [],
+    normasRelacionadas: contagem(a.normasRelacionadas),
+    secoesDoRoteiro: Array.isArray(a.secoesDoRoteiro) ? a.secoesDoRoteiro.filter(ehTexto).map((t) => textoCurto(t, 80)).filter((t) => t !== '').slice(0, 30) : [],
+  };
+  return { informacoes, conteudoAntigo: antigo };
+}
+
+/** Frases do que sai do conteúdo antigo (só o que existir). */
+export function frasesConteudoAntigo(a) {
+  const frases = [];
+  const plural = (n, um, varios) => (n === 1 ? `1 ${um}` : `${n} ${varios}`);
+  if (a.documentos > 0) frases.push(`${plural(a.documentos, 'documento', 'documentos')} do conteúdo antigo sairá do conteúdo ativo.`.replace('sairá', a.documentos === 1 ? 'sairá' : 'sairão'));
+  if (a.perguntas > 0) frases.push(`${plural(a.perguntas, 'pergunta frequente', 'perguntas frequentes')} do conteúdo antigo ${a.perguntas === 1 ? 'sairá' : 'sairão'} do conteúdo ativo.`);
+  if (a.blocosDeTeste > 0) frases.push(`${plural(a.blocosDeTeste, 'bloco de teste', 'blocos de teste')} do conteúdo antigo ${a.blocosDeTeste === 1 ? 'sairá' : 'sairão'} do conteúdo ativo.`);
+  if (a.camposDoServico.length > 0) frases.push(`O texto dos campos do serviço que dependem só desta fonte será apagado e eles ficarão pendentes: ${a.camposDoServico.join(', ')}.`);
+  if ((a.secoesDoRoteiro ?? []).length > 0) frases.push(`No roteiro do serviço, ficarão pendentes as seções: ${a.secoesDoRoteiro.join(', ')}.`);
+  if (a.normasRelacionadas > 0) frases.push(`A relação entre normas será ajustada em ${plural(a.normasRelacionadas, 'fonte', 'fontes')}.`);
+  return frases;
+}
+
+/** GET ...: só os campos de edição (strings) e a revisão. Retorna null se o formato não for o esperado. */
+export function resumirFonteParaEdicao(corpo) {
+  if (!ehObjeto(corpo) || (corpo.forma !== 'link' && corpo.forma !== 'texto')) return null;
+  const campos = {};
+  for (const c of CAMPOS_FORMULARIO_FONTE[corpo.forma]) campos[c] = ehTexto(corpo[c]) ? corpo[c] : '';
+  return { forma: corpo.forma, campos, revisao: ehTexto(corpo.revisao) ? corpo.revisao : '' };
+}
+
+function mensagemDeUrlInvalida(url) {
+  if (url === '') return 'Informe o endereço do link.';
+  if (url.length > LIMITES_GESTAO.url) return `Use até ${LIMITES_GESTAO.url} caracteres no endereço.`;
+  let objeto = null;
+  try { objeto = new URL(url); } catch { /* inválido, tratado abaixo */ }
+  if (objeto === null || objeto.protocol !== 'https:' || !objeto.hostname.includes('.')) return 'Use um endereço completo que comece com https://.';
+  if (objeto.username !== '' || objeto.password !== '' || /\s/.test(url)) return 'O endereço não pode ter usuário, senha nem espaços.';
+  if (pareceDadoPessoal(url)) return 'O endereço parece ter dado pessoal ou senha. Use o endereço público da página.';
+  return null;
+}
+
+/**
+ * Valida o formulário de edição de uma fonte. `original`: campos carregados (para enviar só o que mudou).
+ * Retorna { ok: true, corpo } (corpo pode ser vazio: nada mudou) ou { ok: false, erros } com mensagens por campo.
+ */
+export function validarEdicaoDeFonte(forma, valores, original) {
+  const v = ehObjeto(valores) ? valores : {};
+  const o = ehObjeto(original) ? original : {};
+  const erros = {};
+  const novo = {};
+  const dados = {};
+  validarTitulo(v, erros, dados);
+  novo.titulo = dados.titulo;
+  if (forma === 'texto') {
+    const texto = ehTexto(v.texto) ? v.texto.trim() : '';
+    if (texto === '') erros.texto = 'Escreva o texto.';
+    else if (Array.from(texto).length > LIMITES_GESTAO.texto) erros.texto = `Use até ${LIMITES_GESTAO.texto.toLocaleString('pt-BR')} caracteres no texto.`;
+    else if (pareceDadoPessoal(texto)) erros.texto = 'O texto parece ter dado pessoal, telefone, e-mail ou senha. Retire essa parte e tente de novo.';
+    novo.texto = texto;
+  } else {
+    const url = ehTexto(v.url) ? v.url.trim() : '';
+    const erroUrl = mensagemDeUrlInvalida(url);
+    if (erroUrl !== null) erros.url = erroUrl;
+    novo.url = url;
+    const orgao = textoAparado(v.orgaoResponsavel);
+    if (orgao === '') erros.orgaoResponsavel = 'Informe o órgão que publicou o conteúdo.';
+    else if (orgao.length > LIMITES_GESTAO.orgao) erros.orgaoResponsavel = `Use até ${LIMITES_GESTAO.orgao} caracteres no órgão.`;
+    novo.orgaoResponsavel = orgao;
+    const descricao = textoAparado(v.descricao);
+    if (descricao.length > LIMITES_GESTAO.descricao) erros.descricao = `Use até ${LIMITES_GESTAO.descricao} caracteres na descrição.`;
+    else if (pareceDadoPessoal(descricao)) erros.descricao = 'A descrição não pode ter dados pessoais nem senhas.';
+    novo.descricao = descricao;
+    const data = ehTexto(v.dataPublicacao) ? v.dataPublicacao.trim() : '';
+    if (data !== '' && !dataIsoValida(data)) erros.dataPublicacao = 'Use uma data válida, ou deixe em branco.';
+    novo.dataPublicacao = data;
+    const localizacao = textoAparado(v.localizacao);
+    if (localizacao.length > LIMITES_EDICAO_FONTE.localizacao) erros.localizacao = `Use até ${LIMITES_EDICAO_FONTE.localizacao} caracteres.`;
+    else if (pareceDadoPessoal(localizacao)) erros.localizacao = 'A referência não pode ter dados pessoais nem senhas.';
+    novo.localizacao = localizacao;
+  }
+  if (Object.keys(erros).length) return { ok: false, erros };
+  const corpo = {};
+  for (const [campo, valor] of Object.entries(novo)) {
+    const antes = ehTexto(o[campo]) ? (campo === 'texto' ? o[campo].trim() : textoAparado(o[campo])) : '';
+    if (valor !== antes) corpo[campo] = valor;
+  }
+  return { ok: true, erros: {}, corpo };
+}
+
+/** Mensagem curta por código (editar e excluir fonte). Nunca usa texto da resposta, exceto os títulos de informações que usam a fonte. */
+export function mensagemDaFonte(status, corpo) {
+  const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
+  if (status === 401 || status === 403) return mensagemDaRevisao(status, corpo);
+  if (status === 404) return { mensagem: 'Não encontramos esta fonte. Os dados foram atualizados.', recarregar: true };
+  if (status === 409) {
+    if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
+    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'url_duplicada') return { mensagem: MENSAGEM_URL_DUPLICADA, erros: { url: MENSAGEM_URL_DUPLICADA } };
+    if (erro === 'fonte_excluida' || erro === 'fonte_ja_excluida') return { mensagem: 'Esta fonte não está mais disponível. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
+    return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
+  }
+  if (status === 422) {
+    const campos = ehObjeto(corpo) && Array.isArray(corpo.campos) ? corpo.campos.filter((c) => ehTexto(c) && ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao', 'texto'].includes(c)) : [];
+    if (campos.length) return { mensagem: 'Revise os campos indicados e tente de novo.', erros: Object.fromEntries(campos.map((c) => [c, 'Revise este campo.'])) };
+    return { mensagem: 'Revise os dados e tente de novo.' };
+  }
+  if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
+  if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
+  return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
 }
