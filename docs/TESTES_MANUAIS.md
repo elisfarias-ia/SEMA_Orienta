@@ -287,3 +287,17 @@ Conferência manual feita pela usuária, em ambiente temporário (cópia de `ser
 | Importação sempre em elaboração, sem aceitação, revisão ou publicação automática | **Aprovada** |
 
 Depois do ajuste foram executados apenas os testes direcionados (Node da importação: 27 ok; Playwright real da importação: 6 ok; `validate:services` ok; `git diff --check` limpo). A bateria completa e o build não foram repetidos depois do filtro; os últimos resultados completos estão na seção de fechamento acima. Nenhum dado real foi alterado e nada foi publicado.
+
+### Execução — seleção de respostas do chat publicado (Sprint 5, correção do 5C)
+
+Conferência manual feita pela usuária, em ambiente temporário (cópia de `services/`, com dados fictícios e a LAC da cópia publicada); **aprovada**. A primeira conferência encontrou uma falha de relevância: a pergunta sobre `zorbulante` trazia também o bloco de link e sua URL, por coincidência de palavras genéricas. A seleção foi corrigida (termos distintivos pesam mais; termos presentes em mais da metade das informações valem zero; o segundo bloco só entra com pontuação comparável) e conferida de novo.
+
+| Pergunta (termo fictício) | Resultado |
+|---|---|
+| `zorbulante` | Retornou **somente** o texto cadastrado, sem fonte nem URL |
+| `quimerônico` | Retornou **somente** o bloco de link e a sua URL |
+| Pergunta combinada | Utilizou **os dois** blocos |
+| `pendurabilis` (em elaboração) e `excluidônio` (excluído) | **Não revelaram** conteúdo |
+| Perguntas genéricas | Podem retornar a resposta de limitação, pois a busca atual é textual e determinística (sem IA) |
+
+Nenhum dado real foi alterado e nada da LAC real foi publicado.

@@ -289,3 +289,64 @@ test('CP10. a interface pública não usa innerHTML, storage nem cookies; a base
   assert.equal(lerConteudoPublicado(RAIZ, 'lac'), null);
   assert.equal(fs.existsSync(path.join(RAIZ, 'services', 'lac', 'publico')), false);
 });
+
+// ---- Relevância da seleção (termos fictícios, sem regra específica para eles) ----
+
+const fonteLink = (id, url) => ({ id, formaEntrada: 'link', url, statusValidacao: 'validado', publicado: false });
+const fonteTexto = (id) => ({ id, formaEntrada: 'texto', url: null, statusValidacao: 'validado', publicado: false });
+const blocoPronto = (id, titulo, texto, fonteIds, extra = {}) => ({ id, tipo: 'conhecimento', titulo, texto, fonteIds, statusValidacao: 'validado', revisaoAtualidade: 'concluida', alertas: [], ...extra });
+const URL_A = 'https://exemplo.mt.gov.br/documento-a';
+
+/** Gera o conteúdo público com o gerador existente (só entra o que está aceito, com fonte ativa) e valida como o chat faz. */
+function publicadoDe(blocos, fontes) {
+  const g = gerarConteudoPublico({ service: { nome: 'Serviço fictício' }, fontes: { fontes }, conteudoAssistente: { blocos } }, { temaNome: 'Tema fictício' });
+  assert.equal(g.ok, true);
+  const v = validarConteudoPublicado(g.conteudo);
+  assert.ok(v);
+  return v;
+}
+
+test('CR1. termo distintivo seleciona só o bloco correspondente; palavras genéricas compartilhadas não trazem o outro (cenário da conferência)', () => {
+  const p = publicadoDe([
+    blocoPronto('b1', 'Informação fictícia da orientação de demonstração', 'Esta orientação fictícia de demonstração trata do flurbo cadastrado.', ['t1']),
+    blocoPronto('b2', 'Informação fictícia do link de demonstração', 'Este link fictício de demonstração trata do xandrilhão oficial.', ['l1']),
+  ], [fonteTexto('t1'), fonteLink('l1', URL_A)]);
+  const texto = responderComConteudoPublicado('O que diz a orientação fictícia de demonstração sobre flurbo?', p);
+  assert.deepEqual(texto.partes, ['Esta orientação fictícia de demonstração trata do flurbo cadastrado.']);
+  assert.deepEqual(texto.fontes, [], 'texto cadastrado não mostra fonte nem URL');
+  const link = responderComConteudoPublicado('O que é xandrilhão?', p);
+  assert.deepEqual(link.partes, ['Este link fictício de demonstração trata do xandrilhão oficial.']);
+  assert.deepEqual(link.fontes, [{ titulo: URL_A, url: URL_A }]);
+  // só palavras genéricas compartilhadas: nada é selecionado
+  const generica = responderComConteudoPublicado('O que diz a informação fictícia de demonstração sobre isso?', p);
+  assert.equal(generica.tipo, 'sem_informacao');
+  assert.deepEqual(generica.fontes, []);
+});
+
+test('CR2. pergunta realmente relacionada a dois blocos usa ambos; a URL é só a dos blocos selecionados', () => {
+  const p = publicadoDe([
+    blocoPronto('b1', 'Informação fictícia sobre flurbo', 'Detalhe do flurbo fictício.', ['t1']),
+    blocoPronto('b2', 'Informação fictícia sobre xandrilhão', 'Detalhe do xandrilhão fictício.', ['l1']),
+    blocoPronto('b3', 'Informação fictícia sobre tobiluz', 'Detalhe do tobiluz fictício.', ['l2']),
+  ], [fonteTexto('t1'), fonteLink('l1', URL_A), fonteLink('l2', 'https://exemplo.mt.gov.br/documento-b')]);
+  const dois = responderComConteudoPublicado('Explique flurbo e xandrilhão.', p);
+  assert.deepEqual(dois.partes, ['Detalhe do flurbo fictício.', 'Detalhe do xandrilhão fictício.']);
+  assert.deepEqual(dois.fontes.map((f) => f.url), [URL_A]);
+  const um = responderComConteudoPublicado('Explique tobiluz.', p);
+  assert.deepEqual(um.fontes.map((f) => f.url), ['https://exemplo.mt.gov.br/documento-b']);
+});
+
+test('CR3. excluído, em elaboração ou não aceito não participa da resposta', () => {
+  const g = gerarConteudoPublico({
+    service: { nome: 'Serviço fictício' },
+    fontes: { fontes: [fonteTexto('t1'), fonteLink('l1', URL_A), { ...fonteLink('l2', 'https://exemplo.mt.gov.br/excluida'), excluidaEm: '2026-11-01' }] },
+    conteudoAssistente: { blocos: [
+      blocoPronto('b1', 'Informação sobre flurbo', 'Texto do flurbo aceito.', ['t1']),
+      blocoPronto('b2', 'Informação sobre tobiluz', 'Texto do tobiluz em elaboração.', ['l1'], { statusValidacao: 'rascunho', revisaoAtualidade: 'pendente' }),
+      blocoPronto('b3', 'Informação sobre xandrilhão', 'Texto do xandrilhão com fonte excluída.', ['l2']),
+    ] },
+  }, { temaNome: 'Tema fictício' });
+  const p = validarConteudoPublicado(g.conteudo);
+  for (const termo of ['tobiluz', 'xandrilhão']) assert.equal(responderComConteudoPublicado(`Fale sobre ${termo}.`, p).tipo, 'sem_informacao', termo);
+  assert.deepEqual(responderComConteudoPublicado('Fale sobre flurbo.', p).partes, ['Texto do flurbo aceito.']);
+});

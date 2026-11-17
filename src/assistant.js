@@ -247,20 +247,37 @@ function palavrasUteis(texto) {
 
 const casam = (a, b) => a === b || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
 
-/** Pontua uma informação: palavras da pergunta que aparecem no título (peso 2) ou no texto (peso 1). */
-function pontuar(palavras, informacao) {
-  const titulo = palavrasUteis(informacao.titulo);
-  const corpo = palavrasUteis(informacao.texto);
-  let pontos = 0;
+/**
+ * Termos distintivos da pergunta: os que casam com alguma informação, mas NÃO com todas (ou quase todas) elas.
+ * Palavra comum a todos os blocos (ex.: "orientação", "fictícia") não distingue nada e não conta. Com uma única informação não há
+ * como distinguir, então toda palavra útil que casar conta.
+ */
+function termosDistintivos(palavras, bases) {
+  const n = bases.length;
+  const resultado = [];
   for (const p of palavras) {
-    if (titulo.some((t) => casam(p, t))) pontos += 2;
-    else if (corpo.some((t) => casam(p, t))) pontos += 1;
+    const df = bases.filter((b) => b.titulo.some((t) => casam(p, t)) || b.corpo.some((t) => casam(p, t))).length;
+    if (df === 0) continue;
+    if (n >= 2 && df / n > 0.5) continue; // presente em mais da metade dos blocos: genérico
+    resultado.push({ palavra: p, peso: Math.log(1 + n / df) });
+  }
+  return resultado;
+}
+
+/** Pontua uma informação só pelos termos distintivos: título pesa o dobro do texto. */
+function pontuar(distintivos, base) {
+  let pontos = 0;
+  for (const { palavra, peso } of distintivos) {
+    if (base.titulo.some((t) => casam(palavra, t))) pontos += 2 * peso;
+    else if (base.corpo.some((t) => casam(palavra, t))) pontos += peso;
   }
   return pontos;
 }
 
 /**
- * Responde SOMENTE com as informações publicadas (busca simples por palavras, determinística).
+ * Responde SOMENTE com as informações publicadas (busca simples por palavras, determinística, sem IA).
+ * Só entra a informação que casa ao menos um termo distintivo da pergunta; as que casam apenas palavras genéricas compartilhadas ficam
+ * de fora, e a segunda informação só entra se tiver pontuação comparável (pelo menos 60%) à da melhor.
  * @param {string} pergunta
  * @param {{ informacoes: object[] }|null} publicado resultado de validarConteudoPublicado
  */
@@ -268,13 +285,15 @@ export function responderComConteudoPublicado(pergunta, publicado) {
   if (!publicado || !Array.isArray(publicado.informacoes) || publicado.informacoes.length === 0) return respostaIndisponivel();
   const palavras = palavrasUteis(pergunta);
   const avisos = reconhecerIntencao(pergunta).intencoes.includes('enquadramento') ? [AVISO_ANALISE_DA_SEMA] : [];
+  const bases = publicado.informacoes.map((i) => ({ titulo: palavrasUteis(i.titulo), corpo: palavrasUteis(i.texto) }));
+  const distintivos = termosDistintivos(palavras, bases);
   const pontuadas = publicado.informacoes
-    .map((informacao, ordem) => ({ informacao, ordem, pontos: pontuar(palavras, informacao) }))
+    .map((informacao, ordem) => ({ informacao, ordem, pontos: pontuar(distintivos, bases[ordem]) }))
     .filter((x) => x.pontos > 0)
-    .sort((a, b) => b.pontos - a.pontos || a.ordem - b.ordem);
+    .sort((x, y) => y.pontos - x.pontos || x.ordem - y.ordem);
   if (pontuadas.length === 0) return { tipo: 'sem_informacao', partes: [RESPOSTA_SEM_INFORMACAO_PUBLICADA], fontes: [], avisos };
   const melhor = pontuadas[0].pontos;
-  const escolhidas = pontuadas.filter((x) => x.pontos * 2 >= melhor).slice(0, 2).map((x) => x.informacao);
+  const escolhidas = pontuadas.filter((x) => x.pontos >= melhor * 0.6).slice(0, 2).map((x) => x.informacao);
   const fontes = [];
   for (const i of escolhidas) for (const url of i.links) if (!fontes.some((f) => f.url === url)) fontes.push({ titulo: url, url });
   for (const i of escolhidas) for (const alerta of i.alertas) if (!avisos.includes(alerta)) avisos.push(alerta);

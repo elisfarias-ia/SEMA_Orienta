@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { criarPluginAdminDev } from '../services/admin/admin-endpoint.js';
 import { criarPluginAssistenteDev } from '../services/assistant-endpoint.js';
+import { criarPluginConteudoPublico } from '../services/conteudo-publico-build.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORTA = 5183;
@@ -59,7 +60,7 @@ export default async function preparar() {
     root: RAIZ,
     logLevel: 'error',
     server: { port: PORTA, strictPort: true, host: 'localhost' },
-    plugins: [criarPluginAdminDev({ raiz: copia }), criarPluginAssistenteDev({ raiz: copia }), redirecionarAdmin],
+    plugins: [criarPluginAdminDev({ raiz: copia }), criarPluginAssistenteDev({ raiz: copia }), criarPluginConteudoPublico({ raiz: copia }), redirecionarAdmin],
   });
   await servidor.listen();
 
