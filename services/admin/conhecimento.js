@@ -108,7 +108,7 @@ function conferirResultado(novo, fontes) {
 }
 
 /** Cria um bloco de conhecimento no fim da lista: rascunho, não publicado, revisão pendente, ambiente publico. */
-export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id, data } = {}) {
+export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id, data, origemImportacao } = {}) {
   const problema = conferirEntrada(versao, conteudo);
   if (problema) return problema;
   if (!idValido(id) || id.length > 60) return falha('id_invalido');
@@ -119,6 +119,8 @@ export function montarBlocoConhecimento(versao, conteudo, fontes, entrada, { id,
   const bloco = {
     id, tipo: TIPO_CONHECIMENTO, ...v.dados, origem: 'fonte', ambiente: 'publico', statusValidacao: 'rascunho', publicado: false,
     revisaoAtualidade: 'pendente', criadoEm: data, atualizadoEm: data,
+    // Importação de conteúdo existente (5B3c): origem interna, opcional, só para evitar duplicação.
+    ...(origemImportacao !== undefined ? { origemImportacao: { tipo: origemImportacao.tipo, referencia: origemImportacao.referencia } } : {}),
   };
   // criadoEm e atualizadoEm saem de `data`, já conferida acima como AAAA-MM-DD válida (código fechado: data_invalida).
   if (!dataIsoValida(bloco.criadoEm) || !dataIsoValida(bloco.atualizadoEm)) return falha('data_invalida');
@@ -145,6 +147,7 @@ export function alterarBlocoConhecimento(versao, conteudo, fontes, id, entrada, 
   const bloco = {
     id: atual.id, tipo: TIPO_CONHECIMENTO, ...v.dados, origem: 'fonte', ambiente: 'publico', statusValidacao: 'rascunho', publicado: false,
     revisaoAtualidade: 'pendente', criadoEm: atual.criadoEm, atualizadoEm: data,
+    ...(atual.origemImportacao !== undefined ? { origemImportacao: structuredCloneSeguro(atual.origemImportacao) } : {}),
   };
   const blocos = structuredCloneSeguro(conteudo.blocos);
   blocos[indice] = bloco;

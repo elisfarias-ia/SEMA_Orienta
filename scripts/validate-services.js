@@ -48,10 +48,13 @@ export const TEMAS_PERGUNTA = [
 ];
 export const TIPOS_BLOCO_ASSISTENTE = ['limitacao', 'descricao', 'sequencia', 'link', 'sem_conteudo', 'conhecimento'];
 // Campos exclusivos do bloco de conhecimento e conjunto completo de campos permitidos nele.
-export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm'];
+export const CAMPOS_EXCLUSIVOS_CONHECIMENTO = ['titulo', 'referencias', 'alertas', 'criadoEm', 'atualizadoEm', 'origemImportacao'];
+// Origem da importação de conteúdo existente (Passo 5B3c): campo interno e opcional, só tipo + referência estável do item de origem.
+export const TIPOS_ORIGEM_IMPORTACAO = ['descricao', 'etapas', 'link', 'norma', 'bloco', 'documento', 'pergunta'];
+const PADRAO_REFERENCIA_IMPORTACAO = /^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*)?$/;
 export const CAMPOS_BLOCO_CONHECIMENTO = [
   'id', 'tipo', 'titulo', 'texto', 'origem', 'fonteIds', 'referencias', 'alertas', 'ambiente', 'statusValidacao', 'publicado',
-  'revisaoAtualidade', 'criadoEm', 'atualizadoEm',
+  'revisaoAtualidade', 'criadoEm', 'atualizadoEm', 'origemImportacao',
 ];
 export const AMBIENTES_ASSISTENTE = ['teste_local', 'publico'];
 export const BLOQUEIOS_PERGUNTA = [
@@ -592,6 +595,13 @@ function validarBlocoConhecimento(b, ref, fonteIds) {
     if (ids.some((id) => !citadas.includes(id))) erros.push(`${ref}: toda fonte de fonteIds exige uma referência`);
   }
 
+  if (b.origemImportacao !== undefined) {
+    const o = b.origemImportacao;
+    if (!ehObjeto(o) || Object.keys(o).some((k) => k !== 'tipo' && k !== 'referencia') || !TIPOS_ORIGEM_IMPORTACAO.includes(o.tipo)
+      || typeof o.referencia !== 'string' || o.referencia.length > 130 || !PADRAO_REFERENCIA_IMPORTACAO.test(o.referencia)) {
+      erros.push(`${ref}: origemImportacao inválida`);
+    }
+  }
   if (b.alertas !== undefined) {
     if (!Array.isArray(b.alertas) || !b.alertas.every(textoPreenchido)) erros.push(`${ref}: alertas deve ser uma lista de textos não vazios`);
     else if (b.alertas.some((t) => contemEmailNaoPermitido(t) || PADRAO_TELEFONE.test(t))) erros.push(`${ref}: alertas contém e-mail ou telefone`);

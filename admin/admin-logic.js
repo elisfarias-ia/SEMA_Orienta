@@ -732,6 +732,33 @@ export function criarClienteAdmin({ fetchImpl }) {
       }
     },
 
+    /** Candidatos à importação de conteúdo existente (GET, somente leitura; nada é gravado). */
+    async carregarCandidatosDeImportacao(servicoId) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId)) return { ok: false, mensagem: MENSAGENS.generica };
+      const r = await chamar('GET', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/importacao`);
+      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+      const resumo = r.ok ? resumirCandidatos(r.corpo) : null;
+      if (resumo === null) return { ok: false, ...(r.ok ? { mensagem: 'Não foi possível carregar o conteúdo existente. Tente de novo.' } : mensagemDaRevisao(r.status, r.corpo)) };
+      return { ok: true, ...resumo };
+    },
+
+    /** Importa UM item (POST): informação em elaboração. Retorna { ok } ou { ok: false, mensagem, recarregar? }. */
+    async importarConteudo(servicoId, corpo) {
+      if (token === null) return { ok: false, mensagem: MENSAGENS.sessao };
+      if (!idSeguro(servicoId) || !ehObjeto(corpo)) return { ok: false, mensagem: MENSAGENS.generica };
+      if (gravando) return { ok: false, emAndamento: true, mensagem: MENSAGENS.emAndamento };
+      gravando = true;
+      try {
+        const r = await chamar('POST', `${ROTAS.servicos}/${encodeURIComponent(servicoId)}/importacao`, corpo);
+        if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
+        if (r.status === 201) return { ok: true };
+        return { ok: false, ...mensagemDaRevisao(r.status, r.corpo) };
+      } finally {
+        gravando = false;
+      }
+    },
+
     /**
      * Cadastra um assunto, um serviço ou uma fonte (nesse caso, `contexto.servicoId` indica o serviço).
      * Retorna { ok, item } ou { ok: false, mensagem }.
@@ -1277,6 +1304,7 @@ export function mensagemDaRevisao(status, corpo) {
     if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
     if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
     if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'ja_importado') return { mensagem: 'Este conteúdo já foi importado. Os dados foram atualizados.', recarregar: true };
     if (erro === 'fonte_ja_revisada') return { mensagem: 'Este documento ou link já foi revisado. Os dados foram atualizados.', recarregar: true };
     if (erro === 'bloco_ja_aceito') return { mensagem: 'Esta informação já foi aceita. Os dados foram atualizados.', recarregar: true };
     if (erro === 'estado_nao_permite_nova_versao') return { mensagem: 'Ainda não é possível criar uma nova versão. Conclua a revisão antes.', recarregar: true };
@@ -1608,4 +1636,44 @@ export function mensagemDaEdicao(status, corpo, contexto = 'servico') {
   if (status === 413) return { mensagem: 'Os dados enviados são grandes demais.' };
   if (status === 500) return { mensagem: 'O servidor local não conseguiu concluir. Nada foi alterado; tente de novo.' };
   return { mensagem: 'Não foi possível concluir. Nada foi alterado.' };
+}
+
+// ---------- Importar conteúdo existente (Passo 5B3c) ----------
+
+export const ROTULOS_CANDIDATO = Object.freeze({
+  descricao: 'Descrição', etapas: 'Etapas', link: 'Link', norma: 'Norma', bloco: 'Conteúdo anterior', documento: 'Documento exigido', pergunta: 'Pergunta frequente',
+});
+export const TEXTO_IMPORTACAO = 'O conteúdo existente continua como está. Importe um item por vez: ele preenche o formulário, você confere e confirma, e a informação entra em elaboração, sem ser aceita nem publicada.';
+export const FRASE_SEM_CANDIDATOS = 'Não há conteúdo existente para importar neste serviço.';
+export const MENSAGEM_IMPORTADA = 'Informação importada. Ela está em elaboração e ainda não está disponível no chatbot. O conteúdo existente continua preservado.';
+const LIMITE_PREVIA = 300;
+
+/** Prévia curta do texto (sem quebras), para a lista de candidatos. */
+export const previaDoTexto = (texto, limite = LIMITE_PREVIA) => {
+  const t = textoCurto(texto, 100000).replace(/\s+/g, ' ');
+  return t.length > limite ? `${t.slice(0, limite).trimEnd()}…` : t;
+};
+
+/**
+ * Resume GET .../importacao só com o que a tela usa. `ref` e `fonteIds` são internos (nunca exibidos). Retorna null se o formato
+ * não for o esperado.
+ */
+export function resumirCandidatos(corpo) {
+  if (!ehObjeto(corpo) || !ehTexto(corpo.revisao) || !/^[0-9a-f]{64}$/.test(corpo.revisao) || !Array.isArray(corpo.candidatos)) return null;
+  const candidatos = corpo.candidatos.filter(ehObjeto).filter((c) => ehTexto(c.ref) && /^[a-z]+(:[a-z][a-z0-9-]*)?$/.test(c.ref) && Object.hasOwn(ROTULOS_CANDIDATO, c.tipo) && ehTexto(c.titulo) && ehTexto(c.texto)).map((c) => ({
+    ref: c.ref,
+    tipo: c.tipo,
+    rotulo: ROTULOS_CANDIDATO[c.tipo],
+    titulo: c.titulo,
+    texto: c.texto,
+    previa: previaDoTexto(c.texto),
+    referencias: (Array.isArray(c.referencias) ? c.referencias : []).filter(ehObjeto).filter((r) => idSeguro(r.fonteId)).map((r) => ({ fonteId: r.fonteId, localizacao: ehTexto(r.localizacao) ? r.localizacao : '' })),
+    alertas: (Array.isArray(c.alertas) ? c.alertas : []).filter(ehTexto),
+  }));
+  return { revisao: corpo.revisao, candidatos };
+}
+
+/** Corpo do POST: só o que a pessoa conferiu no formulário mais a referência do item e a revisão vista. Nunca estados nem ids novos. */
+export function corpoDaImportacao(ref, dados, revisaoAtual) {
+  return { ...corpoDoConhecimento(dados), ref, revisao: revisaoAtual };
 }

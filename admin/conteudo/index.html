@@ -86,11 +86,22 @@
           <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg></span>
           <h2 id="titulo-blocos">Informações cadastradas</h2>
           <button type="button" class="botao" id="botao-nova-orientacao" aria-controls="cartao-form" aria-expanded="false" hidden>Incluir informação</button>
+          <button type="button" class="botao botao--secundario" id="botao-importar" aria-controls="cartao-importacao" aria-expanded="false" hidden>Importar conteúdo existente</button>
         </div>
         <p class="ajuda">Aqui aparecem somente as informações deste serviço. Nenhuma fica disponível no chatbot enquanto não for revisada e publicada.</p>
         <div id="blocos" aria-busy="false">
           <p class="vazio">Escolha um serviço para ver as informações.</p>
         </div>
+      </section>
+
+      <section id="cartao-importacao" class="cartao" aria-labelledby="titulo-importacao" hidden>
+        <div class="cartao__titulo">
+          <h2 id="titulo-importacao" tabindex="-1">Importar conteúdo existente</h2>
+          <button type="button" class="botao botao--secundario" id="importacao-fechar">Fechar</button>
+        </div>
+        <p class="ajuda" id="importacao-ajuda"></p>
+        <p id="importacao-estado" class="ajuda" role="status" aria-live="polite"></p>
+        <ul id="importacao-lista" class="pendencias" aria-busy="false"></ul>
       </section>
 
       <section id="cartao-form" class="cartao" aria-labelledby="titulo-form" hidden>

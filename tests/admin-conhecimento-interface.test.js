@@ -322,7 +322,7 @@ test('IC13. nenhuma gravação ao abrir: gravarConhecimento só é chamado depoi
   assert.doesNotMatch(iniciar, /gravarConhecimento|cadastrar|confirmar\(/);
   assert.doesNotMatch(/async function carregarServico\([\s\S]*?\r?\n\}\r?\n/.exec(JS)[0], /gravarConhecimento/);
   // confirmação antes de criar, alterar e excluir; Voltar e Cancelar não gravam; Esc não fecha durante a gravação
-  assert.match(JS, /abrirConfirmacao\(\{[\s\S]*?operacao: criando \? 'criar' : 'alterar'/);
+  assert.match(JS, /const operacao = editando !== null \? 'alterar' : importando !== null \? 'importar' : 'criar';[\s\S]*?abrirConfirmacao\(\{[\s\S]*?operacao, servicoId/);
   assert.doesNotMatch(JS, /operacao: 'excluir'/, 'a exclusão virou "Excluir informação", com confirmação própria e a rota de rejeição');
   assert.match(JS, /botaoVoltar\.addEventListener\('click', fecharConfirmacao\)/);
   assert.match(JS, /\$\('bloco-cancelar'\)\.addEventListener\('click', cancelar\)/);

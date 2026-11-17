@@ -6,6 +6,7 @@
 // conteúdo mudou desde então, a ação é recusada (revisao_divergente). Cada gravação é uma transação (tudo ou nada) e o
 // histórico privado é acrescentado DENTRO da conferência final: se o histórico não puder ser gravado, a base volta ao que era.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
@@ -14,6 +15,7 @@ import { registrarDecisaoMaterial } from './decisoes.js';
 import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
 import { dadosParaEdicao, editarFonte, excluirFonte, impactoDaExclusao } from './edicao-fonte.js';
+import { importarCandidato, listarCandidatos } from './importacao-conteudo.js';
 import { edicaoDoServicoExigeConfirmacao, editarServicoPuro, informacoesAceitas, nomeDoServicoNoDisco } from './edicao-tema-servico.js';
 import { aceitarBloco, avaliarPendencias, reabrirBloco, rejeitarBloco, revisarFonte, situacaoDaRevisao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
@@ -27,7 +29,7 @@ const dataLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 const falha = (erro, extra = {}) => ({ ok: false, erro, ...extra });
 const livre = () => [];
 
-export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date(), verificarFinal = (r) => validarServicos(r).erros } = {}) {
+export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date(), verificarFinal = (r) => validarServicos(r).erros, gerarIdBloco = () => `bc-${crypto.randomBytes(6).toString('hex')}` } = {}) {
   const arm = criarArmazenamento({ raiz, sistema });
   const historico = criarHistoricoRevisao({ raiz, sistema, agora });
 
@@ -236,6 +238,44 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
+  /** Candidatos à importação de conteúdo existente (somente leitura; nada é gravado). Só a versão atual em elaboração. */
+  function listarCandidatosDeImportacao(servicoId) {
+    try {
+      const c = carregar(servicoId);
+      if (!c.ok) return c;
+      if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
+      return { ok: true, candidatos: listarCandidatos(c.atual.arquivos), revisao: c.hash };
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  /**
+   * Importa UM item do conteúdo existente como informação em elaboração (nunca aceita, revisa nem publica). Grava só o conteúdo do
+   * assistente da versão atual, em transação única, com revisão otimista, trava comum (feita pela rota) e histórico só com metadados.
+   */
+  function importarConteudoDoServico(servicoId, { revisao, ref, entrada }) {
+    return gravar({
+      servicoId, revisao, acao: 'importar_conteudo',
+      preparar: (atual, data) => {
+        const existentes = new Set(atual.arquivos.conteudoAssistente.blocos.map((b) => b && b.id));
+        let id = null;
+        for (let i = 0; i < 20 && id === null; i += 1) {
+          const candidato = gerarIdBloco();
+          if (!existentes.has(candidato)) id = candidato;
+        }
+        if (id === null) return falha('indisponivel');
+        const r = importarCandidato({ manifesto: atual.manifesto, arquivos: atual.arquivos, ref, entrada, id, data });
+        if (!r.ok) return r;
+        return {
+          ok: true,
+          passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }],
+          item: { itemId: id, itemTipo: r.candidato.tipo },
+        };
+      },
+    });
+  }
+
   function reabrirBlocoDoServico(servicoId, { blocoId, revisao }) {
     return gravar({
       servicoId, revisao, acao: 'reabrir_bloco',
@@ -362,6 +402,8 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     editarFonte: editarFonteDoServico,
     excluirFonte: excluirFonteDoServico,
     lerServicoParaEdicao,
+    listarCandidatosDeImportacao,
+    importarConteudo: importarConteudoDoServico,
     editarServico: editarServicoDoServico,
     concluirRevisao,
     criarNovaVersao,

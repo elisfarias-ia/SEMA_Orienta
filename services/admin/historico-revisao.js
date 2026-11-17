@@ -13,12 +13,12 @@ import { criarArmazenamento } from './armazenamento.js';
 import { validarHistorico, validarRegistro } from './decisoes.js';
 
 export const ATOR_DEMONSTRACAO = Object.freeze({ responsavel: 'Servidor de demonstração', unidade: 'Ambiente local de demonstração' });
-export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'concluir_revisao', 'nova_versao']);
+export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'importar_conteudo', 'concluir_revisao', 'nova_versao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
 
 const CAMPOS_ACAO = ['id', 'tipo', 'servicoId', 'versaoId', 'hashConteudo', 'acao', 'dataHora', 'resultado', 'ator', 'itemId', 'itemTipo'];
-const TIPOS_DE_ITEM = ['fonte', 'link', 'texto', 'servico', 'tema'];
+const TIPOS_DE_ITEM = ['fonte', 'link', 'texto', 'servico', 'tema', 'descricao', 'etapas', 'norma', 'bloco', 'documento', 'pergunta'];
 const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 const PADRAO_HASH = /^[0-9a-f]{64}$/;
 const PADRAO_DATA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;

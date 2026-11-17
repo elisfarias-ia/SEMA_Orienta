@@ -5,7 +5,7 @@
 // A publicação não existe nesta tela.
 
 import {
-  corpoDoConhecimento, criarClienteAdmin, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
+  corpoDaImportacao, corpoDoConhecimento, criarClienteAdmin, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
 } from '../admin-logic.js';
 
@@ -19,6 +19,10 @@ let editando = null; // id do bloco em edição (só em memória, nunca exibido)
 let pendente = null; // { operacao, servicoId, blocoId, corpo, dados, gatilho }
 let destinoDoFoco = 'gatilho';
 let sequencia = 0;
+let sequenciaImportacao = 0;
+let importando = null; // { ref, revisao } do item importado que está no formulário (só em memória, nunca exibido)
+let importacaoAberta = false; // lista de conteúdo existente visível
+let candidatos = null; // { revisao, candidatos } da última leitura (somente leitura no servidor) ou null
 let ocupado = false; // uma ação de revisão por vez, até a tela terminar de atualizar
 let formAberto = false; // o formulário de nova orientação fica recolhido até a pessoa pedir
 
@@ -109,7 +113,10 @@ function limparContexto(mensagem = 'Escolha um serviço para ver as informaçõe
   renderizarFontes();
   limparFormulario();
   formAberto = false;
+  importacaoAberta = false;
+  candidatos = null;
   atualizarFormulario();
+  renderizarImportacao();
   atualizarVoltar();
   atualizarPermissoes();
 }
@@ -145,6 +152,9 @@ function atualizarFormulario() {
   $('cartao-form').hidden = !(permitido && formAberto);
   $('botao-nova-orientacao').hidden = !permitido;
   $('botao-nova-orientacao').setAttribute('aria-expanded', permitido && formAberto ? 'true' : 'false');
+  $('botao-importar').hidden = !permitido;
+  $('botao-importar').setAttribute('aria-expanded', permitido && importacaoAberta ? 'true' : 'false');
+  $('cartao-importacao').hidden = !(permitido && importacaoAberta);
 }
 
 function abrirFormulario() {
@@ -457,6 +467,7 @@ function mostrarErros(erros) {
 function limparFormulario() {
   $('form-bloco').reset();
   editando = null;
+  importando = null;
   $('titulo-form').textContent = 'Incluir informação';
   $('bloco-enviar').textContent = 'Salvar informação';
   limparErros();
@@ -499,8 +510,9 @@ function atualizarPermissoes() {
   $('bloco-enviar').disabled = !livre || contexto.fontes.length === 0;
   $('bloco-cancelar').disabled = cliente.gravando() || ocupado;
   $('botao-nova-orientacao').disabled = !livre;
+  $('botao-importar').disabled = !livre;
   const parada = !cliente.sessaoPronta() || cliente.gravando() || ocupado;
-  for (const botao of document.querySelectorAll('#blocos button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao]')) {
+  for (const botao of document.querySelectorAll('#blocos button[data-acao], #importacao-lista button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao]')) {
     botao.disabled = parada || botao.dataset.indisponivel === 'true';
   }
 }
@@ -549,15 +561,16 @@ function aoEnviar(evento) {
   }
   limparErros();
   mostrarStatus('');
-  const criando = editando === null;
+  const operacao = editando !== null ? 'alterar' : importando !== null ? 'importar' : 'criar';
   abrirConfirmacao({
-    operacao: criando ? 'criar' : 'alterar', servicoId: contexto.servicoId, blocoId: editando, dados: r.dados, corpo: corpoDoConhecimento(r.dados), gatilho: $('bloco-enviar'),
-    titulo: criando ? 'Confirmar cadastro da informação' : 'Confirmar alteração da informação', rotuloConfirmar: 'Confirmar e salvar',
+    operacao, servicoId: contexto.servicoId, blocoId: editando, dados: r.dados, gatilho: $('bloco-enviar'),
+    corpo: operacao === 'importar' ? corpoDaImportacao(importando.ref, r.dados, importando.revisao) : corpoDoConhecimento(r.dados),
+    titulo: { criar: 'Confirmar cadastro da informação', alterar: 'Confirmar alteração da informação', importar: 'Confirmar importação da informação' }[operacao], rotuloConfirmar: 'Confirmar e salvar',
     linhas: resumoDoConhecimento(r.dados, contexto.fontes, contexto.nomeServico),
   });
 }
 
-const MENSAGEM_SUCESSO = { criar: 'Informação salva. Ela está em elaboração e ainda não está disponível no chatbot.', alterar: 'Informação alterada. Ela continua em elaboração e ainda não está disponível no chatbot.' };
+const MENSAGEM_SUCESSO = { criar: 'Informação salva. Ela está em elaboração e ainda não está disponível no chatbot.', alterar: 'Informação alterada. Ela continua em elaboração e ainda não está disponível no chatbot.', importar: MENSAGEM_IMPORTADA };
 
 async function confirmar() {
   if (pendente === null || cliente.gravando() || ocupado) return;
@@ -566,7 +579,7 @@ async function confirmar() {
   botaoVoltar.disabled = true;
   botaoConfirmar.disabled = true;
   dialogo.setAttribute('aria-busy', 'true');
-  const promessa = cliente.gravarConhecimento(operacao, servicoId, blocoId, corpo);
+  const promessa = operacao === 'importar' ? cliente.importarConteudo(servicoId, corpo) : cliente.gravarConhecimento(operacao, servicoId, blocoId, corpo);
   atualizarPermissoes(); // a gravação começou: ações bloqueadas até o fim
   const r = await promessa;
   destinoDoFoco = 'status';
@@ -577,13 +590,23 @@ async function confirmar() {
     atualizarFormulario();
     fecharConfirmacao();
     const atualizado = await carregarServico(servicoId);
+    if (operacao === 'importar') await carregarCandidatos(false);
     const salvo = operacao === 'alterar' ? blocoId : (contexto?.blocos.find((b) => !idsAntes.has(b.id))?.id ?? null);
     const focou = focarItem(salvo === null ? null : itemDoBloco(salvo));
     mostrarStatus(`${MENSAGEM_SUCESSO[operacao]}${atualizado.ok ? '' : ' A lista não pôde ser atualizada; recarregue a página.'}`, 'info', !focou);
     return;
   }
   fecharConfirmacao();
-  if (r.recarregar) await carregarServico(servicoId);
+  if (r.recarregar) {
+    // O conteúdo mudou: a lista e o formulário preenchido ficaram desatualizados; a pessoa escolhe o item de novo.
+    if (operacao === 'importar') {
+      limparFormulario();
+      formAberto = false;
+      atualizarFormulario();
+    }
+    await carregarServico(servicoId);
+    if (operacao === 'importar') await carregarCandidatos(false);
+  }
   atualizarPermissoes();
   mostrarStatus(r.mensagem, 'erro', true);
 }
@@ -602,6 +625,104 @@ botaoVoltar.addEventListener('click', fecharConfirmacao);
 botaoConfirmar.addEventListener('click', confirmar);
 $('form-bloco').addEventListener('submit', aoEnviar);
 $('bloco-cancelar').addEventListener('click', cancelar);
+
+// ---------- Importar conteúdo existente (5B3c) ----------
+// A lista só LÊ o conteúdo antigo (nada é gravado ao abrir). "Importar" apenas preenche o formulário; a gravação exige a confirmação
+// de sempre e cria uma informação em elaboração (nunca aceita, revisa nem publica).
+
+function renderizarImportacao() {
+  const lista = $('importacao-lista');
+  lista.replaceChildren();
+  $('importacao-ajuda').textContent = TEXTO_IMPORTACAO;
+  if (contexto === null || !importacaoAberta || candidatos === null) return;
+  if (candidatos.candidatos.length === 0) {
+    $('importacao-estado').textContent = FRASE_SEM_CANDIDATOS;
+    return;
+  }
+  const n = candidatos.candidatos.length;
+  $('importacao-estado').textContent = n === 1 ? '1 item pode ser importado.' : `${n} itens podem ser importados.`;
+  const titulos = new Map(contexto.fontes.map((f) => [f.id, f.titulo]));
+  for (const c of candidatos.candidatos) {
+    const item = criar('li', 'bloco');
+    item.tabIndex = -1;
+    item.append(criar('p', 'bloco__titulo', c.titulo));
+    const tipo = criar('p', 'bloco__linha');
+    tipo.append('Tipo: ', selo(c.rotulo, false));
+    item.append(tipo, criar('p', 'bloco__texto', c.previa));
+    const fontes = c.referencias.map((r) => titulos.get(r.fonteId)).filter((t) => typeof t === 'string');
+    item.append(criar('p', 'bloco__linha', fontes.length > 0 ? `Documento ou link sugerido: ${fontes.join('; ')}` : 'Você escolherá o documento ou link no formulário.'));
+    const acoes = criar('div', 'bloco__acoes');
+    acoes.append(criarBotao('Importar', `Importar: ${c.titulo}`, 'importar', () => escolherCandidato(c)));
+    item.append(acoes);
+    lista.append(item);
+  }
+}
+
+/** Lê os candidatos (GET). `anunciar`: mostra "Carregando…" e esvazia a lista (abertura pela pessoa). */
+async function carregarCandidatos(anunciar = true) {
+  if (contexto === null || !importacaoAberta) return;
+  const servicoId = contexto.servicoId;
+  const minha = ++sequenciaImportacao;
+  if (anunciar) {
+    $('importacao-estado').textContent = 'Carregando o conteúdo existente…';
+    $('importacao-lista').replaceChildren();
+  }
+  $('importacao-lista').setAttribute('aria-busy', 'true');
+  const r = await cliente.carregarCandidatosDeImportacao(servicoId);
+  if (minha !== sequenciaImportacao || contexto === null || contexto.servicoId !== servicoId || !importacaoAberta) return;
+  $('importacao-lista').setAttribute('aria-busy', 'false');
+  if (!r.ok) {
+    candidatos = null;
+    $('importacao-estado').textContent = r.mensagem;
+    $('importacao-lista').replaceChildren();
+    return;
+  }
+  candidatos = { revisao: r.revisao, candidatos: r.candidatos };
+  renderizarImportacao();
+  atualizarPermissoes();
+}
+
+async function abrirImportacao() {
+  if (!podeEditar()) return;
+  importacaoAberta = true;
+  candidatos = null;
+  atualizarFormulario();
+  $('titulo-importacao').scrollIntoView({ block: 'nearest' });
+  $('titulo-importacao').focus();
+  await carregarCandidatos(true);
+}
+
+function fecharImportacao() {
+  if (cliente.gravando() || ocupado) return;
+  importacaoAberta = false;
+  candidatos = null;
+  sequenciaImportacao += 1;
+  atualizarFormulario();
+  renderizarImportacao();
+  $('botao-importar').focus();
+}
+
+/** O candidato só preenche o formulário; nada é gravado até a pessoa conferir e confirmar. */
+function escolherCandidato(c) {
+  if (!podeEditar() || candidatos === null) return;
+  limparFormulario();
+  importando = { ref: c.ref, revisao: candidatos.revisao };
+  formAberto = true;
+  atualizarFormulario();
+  $('titulo-form').textContent = 'Importar informação';
+  $('bloco-enviar').textContent = 'Revisar e salvar informação';
+  $('bloco-titulo').value = c.titulo;
+  $('bloco-texto').value = c.texto;
+  $('bloco-alertas').value = c.alertas.join('\n');
+  renderizarFontes(c.referencias);
+  mostrarStatus('Confira o conteúdo importado, escolha o documento ou link e informe onde a informação aparece na fonte.');
+  atualizarPermissoes();
+  $('titulo-form').scrollIntoView({ block: 'nearest' });
+  $('titulo-form').focus();
+}
+
+$('botao-importar').addEventListener('click', abrirImportacao);
+$('importacao-fechar').addEventListener('click', fecharImportacao);
 
 // ---------- Ações da revisão ----------
 
@@ -941,7 +1062,11 @@ async function carregarServico(servicoId) {
   const outroServico = contexto === null || contexto.servicoId !== servicoId;
   const selecaoAtual = outroServico ? [] : lerFormularioAtualParaManter();
   contexto = { servicoId, nomeServico: r.nomeServico, numero: r.numero, estado: r.estado, editavel, fontes: r.fontes, blocos: r.blocos };
-  if (outroServico || (editando !== null && !mantidaEdicao)) {
+  if (!editavel) {
+    importacaoAberta = false;
+    candidatos = null;
+  }
+  if (outroServico || (editando !== null && !mantidaEdicao) || (importando !== null && !editavel)) {
     limparFormulario();
     formAberto = false;
   } else renderizarFontes(selecaoAtual);
@@ -950,6 +1075,7 @@ async function carregarServico(servicoId) {
   renderizarFontesRevisao();
   renderizarBlocos();
   renderizarConclusao();
+  renderizarImportacao();
   atualizarPermissoes();
   if (!rev.ok) mostrarStatus(rev.mensagem, 'erro');
   return r;

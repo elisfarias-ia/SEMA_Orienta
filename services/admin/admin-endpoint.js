@@ -29,6 +29,8 @@
 //   PATCH  /__admin/servicos/<id>/fontes/<fonteId>        -> edita link ou texto; reinicia a revisão e reabre as informações que a usam
 //   GET    /__admin/servicos/<id>/fontes/<fonteId>/impacto -> o que a exclusão afetaria (informações e conteúdo antigo)
 //   DELETE /__admin/servicos/<id>/fontes/<fonteId>        -> exclusão LÓGICA em cascata (cabeçalho X-Revisao); retira as referências ativas
+//   GET   /__admin/servicos/<id>/importacao -> candidatos a importar do conteúdo existente (somente leitura; 5B3c)
+//   POST  /__admin/servicos/<id>/importacao -> importa UM item como informação em elaboração (revisão otimista; não aceita nem publica)
 //   GET   /__admin/servicos/<id>/edicao   -> nome, tema e informações aceitas do serviço (versão em elaboração) e a `revisao` (5B3b)
 //   PATCH /__admin/servicos/<id>/edicao   -> altera nome e/ou tema; exige `confirmado` se o tema muda ou há informações aceitas
 //   GET   /__admin/temas/<id>/edicao      -> nome do tema e nomes dos serviços que o usam, mais a `revisao`
@@ -60,6 +62,7 @@ import { criarServicoRevisao } from './revisao-servico.js';
 import { validarCorpoDaAcao } from './revisao.js';
 import { fonteIdValido, validarCorpoEdicaoFonte } from './edicao-fonte.js';
 import { criarEdicaoTema, validarCorpoEdicaoServico, validarCorpoEdicaoTema } from './edicao-tema-servico.js';
+import { validarCorpoImportacao } from './importacao-conteudo.js';
 import { buscarLinksReutilizaveis, criarCopiaDeLink } from './reutilizacao.js';
 import { validarBuscaLink, validarCamposLinkNovo, validarCorpoServicoSimples, validarIdentidadeLink } from './gestao-simples.js';
 import { validarVersao } from './versao.js';
@@ -93,6 +96,7 @@ const PADRAO_ROTA_INFORMACOES = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/inform
 const PADRAO_ROTA_FONTE_ITEM = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes\/([a-z][a-z0-9-]{0,59})$/;
 const PADRAO_ROTA_FONTE_IMPACTO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/fontes\/([a-z][a-z0-9-]{0,59})\/impacto$/;
 const PADRAO_ROTA_EDICAO_SERVICO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/edicao$/;
+const PADRAO_ROTA_IMPORTACAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/importacao$/;
 const PADRAO_ROTA_EDICAO_TEMA = /^\/__admin\/temas\/([a-z][a-z0-9-]*)\/edicao$/;
 const PADRAO_REVISAO_CABECALHO = /^[0-9a-f]{64}$/;
 const PADRAO_ROTA_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/revisao$/;
@@ -110,6 +114,7 @@ const STATUS_DA_REVISAO = Object.freeze({
   versao_congelada: 409, revisao_divergente: 409, fonte_ja_revisada: 409, bloco_ja_aceito: 409, estado_nao_permite_nova_versao: 409, validacao_em_andamento: 409,
   revisao_incompleta: 422, fonte_pendente: 422, fonte_revogada: 422, fonte_inexistente: 422, bloco_nao_aceitavel: 422, bloco_nao_aceito: 422, bloco_nao_removivel: 422, bloco_sem_fonte: 422,
   fonte_excluida: 409, fonte_ja_excluida: 409, fonte_em_uso: 409, fonte_em_conteudo_antigo: 409, url_duplicada: 409,
+  ja_importado: 409, candidato_nao_encontrado: 404,
   entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
 });
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
@@ -210,7 +215,7 @@ export function criarManipuladorAdmin({
   let escrevendo = false;
   const armazenamento = criarArmazenamento({ raiz, sistema });
   const gravadorEntradas = criarGravadorEntradas({ raiz, sistema, agora, verificarFinal });
-  const servicoRevisao = criarServicoRevisao({ raiz, sistema, agora, verificarFinal });
+  const servicoRevisao = criarServicoRevisao({ raiz, sistema, agora, verificarFinal, gerarIdBloco });
   const edicaoTema = criarEdicaoTema({ raiz, sistema, agora, verificarFinal });
 
   const tokenValido = (recebido) => {
@@ -698,11 +703,12 @@ export function criarManipuladorAdmin({
     const rotaAcaoRevisao = PADRAO_ROTA_ACAO_REVISAO.exec(caminho);
     const rotaEdicaoServico = PADRAO_ROTA_EDICAO_SERVICO.exec(caminho);
     const rotaEdicaoTema = PADRAO_ROTA_EDICAO_TEMA.exec(caminho);
+    const rotaImportacao = PADRAO_ROTA_IMPORTACAO.exec(caminho);
     const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || caminho === ROTA_SERVICO_COM_TEMA || rotaDeFontes !== null || rotaDeConhecimentos !== null || rotaSimples !== null || rotaAcaoRevisao !== null;
-    const metodosPermitidos = rotaEdicaoServico !== null || rotaEdicaoTema !== null ? ['GET', 'PATCH'] : rotaFonteItem !== null ? ['GET', 'PATCH', 'DELETE'] : rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
+    const metodosPermitidos = rotaImportacao !== null ? ['GET', 'POST'] : rotaEdicaoServico !== null || rotaEdicaoTema !== null ? ['GET', 'PATCH'] : rotaFonteItem !== null ? ['GET', 'PATCH', 'DELETE'] : rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
     if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
     // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
-    const temCorpo = rotaDeCadastro || (rotaDeConhecimento !== null && req.method === 'PATCH') || (rotaFonteItem !== null && req.method === 'PATCH') || ((rotaEdicaoServico !== null || rotaEdicaoTema !== null) && req.method === 'PATCH');
+    const temCorpo = rotaDeCadastro || (rotaImportacao !== null && req.method === 'POST') || (rotaDeConhecimento !== null && req.method === 'PATCH') || (rotaFonteItem !== null && req.method === 'PATCH') || ((rotaEdicaoServico !== null || rotaEdicaoTema !== null) && req.method === 'PATCH');
     const tamanho = req.headers['content-length'];
     if (indice !== -1) return responder(400, { erro: 'requisicao_invalida' });
     if (!temCorpo && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
@@ -720,9 +726,15 @@ export function criarManipuladorAdmin({
       }
       if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
-      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes ?? rotaRevisao ?? rotaAcaoRevisao ?? rotaFonteItem ?? rotaFonteImpacto ?? rotaEdicaoServico)?.[1];
+      const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes ?? rotaRevisao ?? rotaAcaoRevisao ?? rotaFonteItem ?? rotaFonteImpacto ?? rotaEdicaoServico ?? rotaImportacao)?.[1];
       if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {
         return responder(404, { erro: 'nao_encontrado' });
+      }
+      if (rotaImportacao !== null && req.method === 'GET') {
+        // Somente leitura: lista os candidatos em elaboração; nada é gravado ao abrir.
+        const r = servicoRevisao.listarCandidatosDeImportacao(rotaImportacao[1]);
+        if (!r.ok) return responderResultado(respostaDaRevisao(r));
+        return responderJson({ candidatos: r.candidatos, revisao: r.revisao });
       }
       if (rotaEdicaoServico !== null && req.method === 'GET') {
         const r = servicoRevisao.lerServicoParaEdicao(rotaEdicaoServico[1]);
@@ -774,6 +786,11 @@ export function criarManipuladorAdmin({
           corpo = JSON.parse(lido.texto);
         } catch {
           return responder(400, { erro: 'requisicao_invalida' });
+        }
+        if (rotaImportacao !== null) {
+          const v = validarCorpoImportacao(corpo);
+          if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
+          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.importarConteudo(rotaImportacao[1], v.dados), 201)));
         }
         if (rotaEdicaoServico !== null) {
           const v = validarCorpoEdicaoServico(corpo);
