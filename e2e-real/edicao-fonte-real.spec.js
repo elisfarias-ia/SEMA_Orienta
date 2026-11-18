@@ -13,6 +13,9 @@ const status = (page) => page.locator('#status');
 const dlg = (page) => page.locator('#dialogo-editar-fonte');
 const fonteDa = (page, titulo) => page.locator('#fontes-revisao li.bloco').filter({ hasText: titulo });
 const blocoDa = (page, titulo) => page.locator('#blocos li.bloco').filter({ hasText: titulo });
+const emFontes = (page) => page.locator('#aba-fontes').click();
+const emInfos = (page) => page.locator('#aba-informacoes').click();
+const irGestao = (page) => page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' });
 
 function observar(page) {
   const lista = [];
@@ -65,9 +68,11 @@ async function irParaConteudo(page) {
   await expect(page).toHaveURL(/\/admin\/conteudo\/\?servico=/);
   await expect(page.locator('#servico-situacao')).toBeVisible();
   await expect(page.locator('#fontes-revisao')).toHaveAttribute('aria-busy', 'false');
+await emFontes(page);
 }
 
 async function criarBloco(page, titulo, fonte) {
+  await emInfos(page);
   await botao(page, 'Incluir informação').click();
   await page.getByLabel('Tema da informação', { exact: true }).fill(titulo);
   await page.getByLabel('O que o chatbot deve informar ao cidadão?').fill(`Orientação de teste: ${titulo}.`);
@@ -91,11 +96,13 @@ async function conferirCoerencia(page) {
 }
 
 async function abrirEdicao(page, titulo) {
+  await emFontes(page);
   await botao(page, `Editar fonte: ${titulo}`).click();
   await expect(dlg(page)).toBeVisible();
   await expect(page.locator('#ef-titulo')).toBeFocused();
 }
 async function revisarFonte(page, titulo) {
+  await emFontes(page);
   await botao(page, `Marcar como revisado: ${titulo}`).click();
   await expect(fonteDa(page, titulo)).toContainText('Situação: Revisado');
 }
@@ -196,6 +203,7 @@ test('4. editar fonte revisada: aviso antes de salvar, volta para revisão, info
   await irParaConteudo(page);
   await criarBloco(page, 'Prazos de análise', 'Link Usado');
   await revisarFonte(page, 'Link Usado');
+  await emInfos(page);
   await botao(page, 'Aceitar informação: Prazos de análise').click();
   await expect(blocoDa(page, 'Prazos de análise')).toContainText('Situação: Aceita');
   expect(await conferirCoerencia(page)).toBe(0);
@@ -213,6 +221,7 @@ test('4. editar fonte revisada: aviso antes de salvar, volta para revisão, info
   await expect(botao(page, 'Concluir revisão')).toBeHidden();
   // revisar e aceitar de novo zera as pendências
   await revisarFonte(page, 'Link Usado');
+  await emInfos(page);
   await botao(page, 'Aceitar informação: Prazos de análise').click();
   await expect(blocoDa(page, 'Prazos de análise')).toContainText('Situação: Aceita');
   expect(await conferirCoerencia(page)).toBe(0);
@@ -249,17 +258,19 @@ test('5. excluir fonte sem uso: impacto e confirmação próprios, DELETE sem co
   await expect(fonteDa(page, 'Link Descartavel')).toBeFocused();
   await expect(page.locator('#fontes-excluidas')).toHaveCount(0);
   // excluída não aparece como opção em formulários de informação
+  await emInfos(page);
   await botao(page, 'Incluir informação').click();
   await expect(page.getByRole('checkbox', { name: /Texto Descartavel/ })).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: /^Link Mantido/ })).toBeVisible();
   await botao(page, 'Cancelar').click();
   // excluir um link e cadastrar a mesma URL de novo
+  await emFontes(page);
   await botao(page, 'Excluir fonte: Link Descartavel').click();
   await botao(page, 'Excluir').click();
   await expect(status(page)).toContainText('Item excluído.');
   await expect(fonteDa(page, 'Link Descartavel')).toHaveCount(0);
   await expect(fonteDa(page, 'Link Mantido')).toBeFocused();
-  await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+  await irGestao(page).click();
   await page.getByRole('button', { name: ACESSAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: d.nome })).toBeVisible();
   await botao(page, 'Link').click();
@@ -278,6 +289,7 @@ test('5. excluir fonte sem uso: impacto e confirmação próprios, DELETE sem co
 test('6. informação com outra fonte permanece (volta a Em elaboração) e informação sem fonte sai da lista; contagens acompanham', async ({ page }) => {
   await criarServico(page, 'Serviço Fonte Seis', { links: ['Link A', 'Link B'] });
   await irParaConteudo(page);
+  await emInfos(page);
   await botao(page, 'Incluir informação').click();
   await page.getByLabel('Tema da informação', { exact: true }).fill('Com duas fontes');
   await page.getByLabel('O que o chatbot deve informar ao cidadão?').fill('Orientação com duas fontes.');
@@ -291,12 +303,14 @@ test('6. informação com outra fonte permanece (volta a Em elaboração) e info
   await criarBloco(page, 'Só com a fonte B', 'Link B');
   await revisarFonte(page, 'Link A');
   await revisarFonte(page, 'Link B');
+  await emInfos(page);
   await botao(page, 'Aceitar informação: Com duas fontes').click();
   await expect(blocoDa(page, 'Com duas fontes')).toContainText('Situação: Aceita');
   await botao(page, 'Aceitar informação: Só com a fonte B').click();
   await expect(blocoDa(page, 'Só com a fonte B')).toContainText('Situação: Aceita');
   expect(await conferirCoerencia(page)).toBe(0);
   // o diálogo mostra o impacto ANTES de confirmar
+  await emFontes(page);
   await botao(page, 'Excluir fonte: Link B').click();
   const dialogoExcluir = page.locator('#dialogo-excluir-fonte');
   await expect(dialogoExcluir).toBeVisible();
@@ -312,6 +326,7 @@ test('6. informação com outra fonte permanece (volta a Em elaboração) e info
   await expect(blocoDa(page, 'Com duas fontes')).not.toContainText('Link B');
   expect(await conferirCoerencia(page)).toBeGreaterThan(0);
   await expect(page.locator('#servico-situacao')).toContainText('Revisão pendente');
+  await emInfos(page);
   await botao(page, 'Incluir informação').click();
   await expect(page.getByRole('checkbox', { name: /^Link B/ })).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: /^Link A/ })).toBeVisible();
@@ -321,6 +336,7 @@ test('7. LAC copiada: decreto revogado é excluível pela lista normal; fonte do
   await page.goto('/admin/conteudo/?servico=lac');
   await expect(page.locator('#servico-situacao')).toBeVisible();
   await expect(page.locator('#fontes-revisao')).toHaveAttribute('aria-busy', 'false');
+  await emFontes(page);
   await expect(page.locator('#fontes-excluidas')).toHaveCount(0);
   const decreto = fonteDa(page, 'Decreto nº 695');
   await expect(decreto).toContainText('Situação: Revogada');
@@ -347,6 +363,7 @@ test('7. LAC copiada: decreto revogado é excluível pela lista normal; fonte do
   expect(await page.locator('#fontes-revisao li.bloco').count()).toBe(antes - 1);
   expect(await page.locator('#situacao-resumo').innerText()).toBeTruthy();
   void resumoAntes;
+  await emInfos(page);
   await botao(page, 'Incluir informação').click();
   await expect(page.getByRole('checkbox', { name: /Termo de Referência/ })).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: /Decreto nº 695/ })).toHaveCount(0);
@@ -358,6 +375,7 @@ test('8. versão congelada sem Editar/Excluir; na nova versão a exclusão vale 
   await irParaConteudo(page);
   await criarBloco(page, 'Conteúdo congelado', 'Link Congelado');
   await revisarFonte(page, 'Link Congelado');
+  await emInfos(page);
   await botao(page, 'Aceitar informação: Conteúdo congelado').click();
   await expect(blocoDa(page, 'Conteúdo congelado')).toContainText('Situação: Aceita');
   await botao(page, 'Concluir revisão').click();
@@ -367,6 +385,7 @@ test('8. versão congelada sem Editar/Excluir; na nova versão a exclusão vale 
   await expect(botao(page, 'Criar nova versão para editar')).toBeVisible();
   await botao(page, 'Criar nova versão para editar').click();
   await expect(status(page)).toContainText('Nova versão criada.');
+  await emFontes(page);
   await expect(botao(page, 'Editar fonte: Link Congelado')).toBeVisible();
   await abrirEdicao(page, 'Link Congelado');
   await page.locator('#ef-titulo').fill('Link Da Nova Versao');
@@ -431,7 +450,7 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   await expect(page.locator('#situacao-selo')).toBeHidden();
   await expect(botao(page, 'Concluir revisão')).toBeVisible();
   // de volta ao painel: sem pendências, sem "Resolver pendências"
-  await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+  await irGestao(page).click();
   await page.getByRole('button', { name: ACESSAR }).click();
   await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para concluir.');
   await expect(page.getByRole('link', { name: 'Resolver pendências' })).toBeHidden();
@@ -456,6 +475,8 @@ test('10. teclado: Enter abre a edição, Enter no campo salva, Esc fecha devolv
   const enviados = observar(page);
   await criarServico(page, 'Serviço Fonte Dez', { links: ['Link Teclado'], texto: 'Texto Teclado' });
   await irParaConteudo(page);
+  await emFontes(page);
+  await page.keyboard.press('Shift'); // modalidade de teclado: o foco por script passa a casar com :focus-visible
   const editar = botao(page, 'Editar fonte: Link Teclado');
   await editar.focus();
   expect(await page.evaluate(() => { const c = getComputedStyle(document.activeElement); return c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) > 0; })).toBe(true);

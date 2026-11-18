@@ -62,10 +62,12 @@ test('o chat responde só com a informação publicada pertinente; texto sem fon
   await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
   await incluirInformacao(page, 'Informação da orientação', TEXTO_1, 'Texto Flurbo');
   await incluirInformacao(page, 'Informação do link', TEXTO_2, 'Portal Tobiluz');
+  await page.locator('#aba-fontes').click();
   for (const fonte of ['Texto Flurbo', 'Portal Tobiluz']) {
     const revisar = botao(page, `Marcar como revisado: ${fonte}`);
     if (await revisar.count()) { await revisar.click(); await expect(status(page)).toContainText('marcado como revisado'); }
   }
+  await page.locator('#aba-informacoes').click();
   for (const tema of ['Informação da orientação', 'Informação do link']) {
     await botao(page, `Aceitar informação: ${tema}`).click();
     await expect(status(page)).toContainText('Informação aceita.');

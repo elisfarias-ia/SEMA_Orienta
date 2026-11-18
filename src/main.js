@@ -84,19 +84,60 @@ function linkSeguro(url, titulo) {
   return a;
 }
 
-function criarMensagem({ autor, texto, partes, fontes, avisos }) {
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const HORARIOS = new WeakMap(); // horário local de cada mensagem, só em memória
+
+function horario(mensagem) {
+  if (!HORARIOS.has(mensagem)) {
+    HORARIOS.set(mensagem, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  }
+  return HORARIOS.get(mensagem);
+}
+
+function criarAvatar(autor) {
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  if (autor !== 'usuario') {
+    // Assistente: imagem circular original (modelo oculto no index.html, para o Vite incluí-la no build).
+    const modelo = document.getElementById('avatar-assistente-modelo');
+    if (modelo instanceof HTMLImageElement && modelo.getAttribute('src')) {
+      avatar.classList.add('avatar--imagem');
+      const imagem = document.createElement('img');
+      imagem.src = modelo.getAttribute('src');
+      imagem.alt = 'SEMA Orienta';
+      imagem.width = 44;
+      imagem.height = 42;
+      avatar.append(imagem);
+      return avatar;
+    }
+  }
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const uso = document.createElementNS(SVG_NS, 'use');
+  uso.setAttribute('href', autor === 'usuario' ? '#av-pessoa' : '#av-assistente');
+  svg.append(uso);
+  avatar.append(svg);
+  return avatar;
+}
+
+function criarMensagem(mensagem) {
+  const { autor, texto, partes, fontes, avisos } = mensagem;
   const item = document.createElement('article');
   item.className = `message message--${autor}`;
+  const balao = document.createElement('div');
+  balao.className = 'bubble';
+  item.append(criarAvatar(autor), balao);
 
-  item.append(paragrafo('message__author', ROTULOS[autor]));
+  balao.append(paragrafo('message__author', ROTULOS[autor]));
   const blocos = Array.isArray(partes) && partes.length > 0 ? partes : [texto];
-  for (const parte of blocos) item.append(paragrafo('message__text', parte));
+  for (const parte of blocos) balao.append(paragrafo('message__text', parte));
 
-  for (const aviso of avisos ?? []) item.append(paragrafo('message__aviso', aviso));
+  for (const aviso of avisos ?? []) balao.append(paragrafo('message__aviso', aviso));
 
   const links = (fontes ?? []).map((f) => ({ f, a: linkSeguro(f.url, f.titulo) })).filter(({ a }) => a);
   if (links.length > 0) {
-    item.append(paragrafo('message__fontes-titulo', 'Fontes oficiais:'));
+    balao.append(paragrafo('message__fontes-titulo', 'Fontes oficiais:'));
     const ul = document.createElement('ul');
     ul.className = 'message__fontes';
     for (const { a } of links) {
@@ -104,8 +145,12 @@ function criarMensagem({ autor, texto, partes, fontes, avisos }) {
       li.append(a);
       ul.append(li);
     }
-    item.append(ul);
+    balao.append(ul);
   }
+  const hora = document.createElement('time');
+  hora.className = 'message__hora';
+  hora.textContent = horario(mensagem);
+  balao.append(hora);
   return item;
 }
 

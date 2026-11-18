@@ -46,8 +46,30 @@ function criar(tag, classe, texto) {
   return elemento;
 }
 
-function criarBotao(texto, rotuloAcessivel, acao, aoClicar, { secundario = true, indisponivel = false } = {}) {
-  const botao = criar('button', secundario ? 'botao botao--secundario' : 'botao', texto);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Ícone local do sprite inline da página (<svg><use href="#i-nome">), sempre decorativo (oculto para leitores de tela). */
+function icone(nome, classe = 'icone-botao') {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  if (classe !== '') svg.setAttribute('class', classe);
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const uso = document.createElementNS(SVG_NS, 'use');
+  uso.setAttribute('href', `#i-${nome}`);
+  svg.append(uso);
+  return svg;
+}
+
+/** Troca só o texto do botão, preservando o ícone que ele já tem. */
+function definirTextoDoBotao(botao, texto) {
+  const no = [...botao.childNodes].find((n) => n.nodeType === 3);
+  if (no !== undefined) no.textContent = texto;
+  else botao.append(texto);
+}
+
+function criarBotao(texto, rotuloAcessivel, acao, aoClicar, { secundario = true, indisponivel = false, icone: nomeIcone = null, perigo = false } = {}) {
+  const botao = criar('button', perigo ? 'botao botao--destrutivo' : secundario ? 'botao botao--secundario' : 'botao', nomeIcone === null ? texto : undefined);
+  if (nomeIcone !== null) botao.append(icone(nomeIcone), texto);
   botao.type = 'button';
   botao.dataset.acao = acao;
   botao.dataset.indisponivel = indisponivel ? 'true' : 'false';
@@ -134,6 +156,10 @@ function renderizarSituacao() {
   raiz.hidden = false;
   $('situacao-nome').textContent = contexto.nomeServico;
   $('situacao-versao').textContent = `Versão ${contexto.numero}`;
+  const assuntoEscolhido = $('assunto').selectedOptions[0];
+  $('situacao-assunto').textContent = assuntoEscolhido !== undefined && $('assunto').value !== '' ? assuntoEscolhido.textContent : 'Não informado';
+  $('situacao-pendencias').textContent = revisao === null ? 'Não disponível' : revisao.pendencias.length === 0 ? 'Nenhuma' : `${revisao.pendencias.length} para resolver`;
+  $('situacao-aceitas').textContent = revisao === null ? 'Não disponível' : String(revisao.resumo.informacoesAceitas);
   $('situacao-estado').textContent = revisao !== null ? revisao.rotulo : rotuloEstado(contexto.estado);
   const pendenteSelo = $('situacao-selo');
   pendenteSelo.hidden = !(revisao !== null && revisao.revisaoPendente);
@@ -163,6 +189,7 @@ function atualizarFormulario() {
 
 function abrirFormulario() {
   if (!podeEditar()) return;
+  selecionarAba('aba-informacoes');
   formAberto = true;
   atualizarFormulario();
   atualizarPermissoes();
@@ -173,8 +200,35 @@ function abrirFormulario() {
 /** Link de volta e navegação reabrem o MESMO serviço em /admin/ (o id vai só na URL, nunca na tela). */
 function atualizarVoltar() {
   const destino = contexto === null ? '../' : `../?servico=${encodeURIComponent(contexto.servicoId)}`;
-  $('voltar-gestao').setAttribute('href', destino);
   document.querySelector('nav .navegacao__link').setAttribute('href', destino);
+}
+
+// ---------- Abas internas: Informações e Fontes e documentos ----------
+
+const ABAS = [
+  { aba: 'aba-informacoes', painel: 'painel-informacoes' },
+  { aba: 'aba-fontes', painel: 'painel-fontes' },
+];
+
+/** Mostra uma das abas (padrão de abas do WAI-ARIA: só a aba ativa entra na ordem de Tab; setas trocam de aba). */
+function selecionarAba(idDaAba, { foco = false } = {}) {
+  for (const { aba, painel } of ABAS) {
+    const ativa = aba === idDaAba;
+    $(aba).setAttribute('aria-selected', ativa ? 'true' : 'false');
+    $(aba).tabIndex = ativa ? 0 : -1;
+    $(painel).hidden = !ativa;
+    if (ativa && foco) $(aba).focus();
+  }
+}
+for (const { aba } of ABAS) {
+  $(aba).addEventListener('click', () => selecionarAba(aba));
+  $(aba).addEventListener('keydown', (evento) => {
+    const atual = ABAS.findIndex((a) => a.aba === aba);
+    const destino = { ArrowRight: (atual + 1) % ABAS.length, ArrowLeft: (atual + ABAS.length - 1) % ABAS.length, Home: 0, End: ABAS.length - 1 }[evento.key];
+    if (destino === undefined) return;
+    evento.preventDefault();
+    selecionarAba(ABAS[destino].aba, { foco: true });
+  });
 }
 
 function focarItem(elemento) {
@@ -205,26 +259,26 @@ function renderizarFontesRevisao() {
   }
   const lista = criar('ul', 'blocos');
   ativas.forEach((f, indice) => {
-    const item = criar('li', 'bloco');
+    const item = criar('li', 'bloco bloco--fonte');
     item.tabIndex = -1;
     item.__fonteId = f.id;
-    item.append(criar('p', 'bloco__titulo', f.titulo));
+    const marca = criar('span', 'icone');
+    marca.setAttribute('aria-hidden', 'true');
+    marca.append(icone(f.forma === 'link' ? 'link' : 'texto', ''));
+    const principal = criar('div', 'bloco__principal');
+    principal.append(criar('h3', 'bloco__titulo', f.titulo));
     const tipo = criar('p', 'bloco__linha');
     tipo.append('Tipo: ', criar('span', 'selo selo--neutro', f.rotuloForma));
-    item.append(tipo);
     const situacao = criar('p', 'bloco__linha');
     situacao.append('Situação: ', selo(f.situacao, !f.revisada || f.revogada));
-    item.append(situacao);
-    if (f.podeRevisar && !revisao.congelada) {
-      const acoes = criar('div', 'bloco__acoes');
-      acoes.append(criarBotao('Marcar como revisado', `Marcar como revisado: ${f.titulo}`, 'revisar-fonte', () => executarRevisao('fonte', { fonteId: f.id }, 'Documento ou link marcado como revisado.', undefined, { fonte: f.id })));
-      item.append(acoes);
-    }
+    principal.append(tipo, situacao);
+    item.append(marca, principal);
     if (!revisao.congelada) {
-      const acoesFonte = criar('div', 'bloco__acoes');
-      if (f.podeEditar) acoesFonte.append(criarBotao('Editar', `Editar fonte: ${f.titulo}`, 'editar-fonte', (gatilho) => abrirEdicaoFonte(f, gatilho)));
-      if (f.podeExcluir) acoesFonte.append(criarBotao('Excluir', `Excluir fonte: ${f.titulo}`, 'excluir-fonte', (gatilho) => abrirExclusaoFonte(f, gatilho, indice)));
-      if (acoesFonte.childElementCount > 0) item.append(acoesFonte);
+      const acoes = criar('div', 'bloco__acoes');
+      if (f.podeRevisar) acoes.append(criarBotao('Marcar como revisado', `Marcar como revisado: ${f.titulo}`, 'revisar-fonte', () => executarRevisao('fonte', { fonteId: f.id }, 'Documento ou link marcado como revisado.', undefined, { fonte: f.id }), { secundario: false, icone: 'check' }));
+      if (f.podeEditar) acoes.append(criarBotao('Editar', `Editar fonte: ${f.titulo}`, 'editar-fonte', (gatilho) => abrirEdicaoFonte(f, gatilho), { icone: 'editar' }));
+      if (f.podeExcluir) acoes.append(criarBotao('Excluir', `Excluir fonte: ${f.titulo}`, 'excluir-fonte', (gatilho) => abrirExclusaoFonte(f, gatilho, indice), { perigo: true, icone: 'excluir' }));
+      if (acoes.childElementCount > 0) item.append(acoes);
     }
     lista.append(item);
   });
@@ -255,30 +309,38 @@ function renderizarBlocos() {
     const aceito = rb !== undefined && rb.aceito;
     const item = criar('li', 'bloco');
     item.tabIndex = -1;
-    item.append(criar('p', 'bloco__titulo', b.titulo));
-    item.append(criar('p', 'bloco__texto', b.texto));
-    const fontes = criar('ul', 'bloco__fontes');
-    for (const r of b.referencias) fontes.append(criar('li', '', descreverFonte(r)));
-    item.append(criar('p', 'bloco__rotulo', 'Documentos ou links usados'));
-    item.append(fontes);
-    if (b.alertas.length > 0) {
-      item.append(criar('p', 'bloco__rotulo', 'Avisos ou limitações'));
-      const alertas = criar('ul', 'bloco__alertas');
-      for (const a of b.alertas) alertas.append(criar('li', '', a));
-      item.append(alertas);
-    }
+    const cabecalho = criar('div', 'bloco__cabecalho');
+    cabecalho.append(criar('h3', 'bloco__titulo', b.titulo));
     const situacao = criar('p', 'bloco__linha');
     situacao.append('Situação: ', selo(rb !== undefined ? rb.situacao : b.situacao, !aceito));
-    item.append(situacao);
-    item.append(criar('p', 'bloco__linha bloco__disponibilidade', b.publicacao));
-    item.append(criar('p', 'bloco__linha', `Criado em ${b.criadoEm} · Atualizado em ${b.atualizadoEm}`));
+    cabecalho.append(situacao);
+    item.append(cabecalho);
+    const orientacao = criar('div', 'bloco__secao');
+    orientacao.append(criar('p', 'bloco__rotulo', 'Orientação ao cidadão'), criar('p', 'bloco__texto', b.texto));
+    item.append(orientacao);
+    const fontes = criar('ul', 'bloco__fontes');
+    for (const r of b.referencias) fontes.append(criar('li', '', descreverFonte(r)));
+    const usadas = criar('div', 'bloco__secao');
+    usadas.append(criar('p', 'bloco__rotulo', 'Documentos ou links usados'), fontes);
+    item.append(usadas);
+    if (b.alertas.length > 0) {
+      const alertas = criar('ul', 'bloco__alertas');
+      for (const a of b.alertas) alertas.append(criar('li', '', a));
+      const aviso = criar('div', 'bloco__aviso');
+      aviso.append(criar('p', 'bloco__rotulo', 'Avisos ou limitações'), alertas);
+      item.append(aviso);
+    }
+    const rodape = criar('div', 'bloco__rodape');
+    const datas = criar('div', 'bloco__datas');
+    datas.append(criar('p', 'bloco__linha bloco__disponibilidade', b.publicacao), criar('p', 'bloco__linha', `Criado em ${b.criadoEm} · Atualizado em ${b.atualizadoEm}`));
+    rodape.append(datas);
     if (!bloqueada) {
       const acoes = criar('div', 'bloco__acoes');
-      if (b.editavel && !aceito) acoes.append(criarBotao('Editar', `Editar a informação ${b.titulo}`, 'editar', () => iniciarEdicao(b)));
+      if (b.editavel && !aceito) acoes.append(criarBotao('Editar', `Editar a informação ${b.titulo}`, 'editar', () => iniciarEdicao(b), { icone: 'editar' }));
       if (rb !== undefined && !aceito) {
         const ajudaId = `bloco-ajuda-${i}`;
         const faltam = explicarFontesPendentes(rb, revisao.fontes);
-        const aceitar = criarBotao('Aceitar informação', `Aceitar informação: ${b.titulo}`, 'aceitar', () => executarRevisao('bloco-aceitar', { blocoId: b.id }, 'Informação aceita.', undefined, { bloco: b.id }), { indisponivel: !rb.podeAceitar });
+        const aceitar = criarBotao('Aceitar informação', `Aceitar informação: ${b.titulo}`, 'aceitar', () => executarRevisao('bloco-aceitar', { blocoId: b.id }, 'Informação aceita.', undefined, { bloco: b.id }), { indisponivel: !rb.podeAceitar, secundario: false, icone: 'check' });
         acoes.append(aceitar);
         if (!rb.podeAceitar) {
           const ajuda = criar('p', 'bloco__ajuda', faltam !== '' ? faltam : 'Esta informação ainda não pode ser aceita. Confira se ela tem documento ou link usável.');
@@ -286,13 +348,14 @@ function renderizarBlocos() {
           aceitar.setAttribute('aria-describedby', ajudaId);
           item.append(ajuda);
         }
-        if (rb.podeRejeitar) acoes.append(criarBotao('Excluir informação', `Excluir informação: ${b.titulo}`, 'descartar', (gatilho) => pedirDescarte(b, gatilho)));
+        if (rb.podeRejeitar) acoes.append(criarBotao('Excluir informação', `Excluir informação: ${b.titulo}`, 'descartar', (gatilho) => pedirDescarte(b, gatilho), { perigo: true, icone: 'excluir' }));
       }
       if (rb !== undefined && rb.podeReabrir) {
-        acoes.append(criarBotao('Reabrir para correção', `Reabrir para correção: ${b.titulo}`, 'reabrir', () => executarRevisao('bloco-reabrir', { blocoId: b.id }, 'Informação reaberta para correção. Ela voltou para elaboração.', undefined, { bloco: b.id })));
+        acoes.append(criarBotao('Reabrir para correção', `Reabrir para correção: ${b.titulo}`, 'reabrir', () => executarRevisao('bloco-reabrir', { blocoId: b.id }, 'Informação reaberta para correção. Ela voltou para elaboração.', undefined, { bloco: b.id }), { icone: 'desfazer' }));
       }
-      if (acoes.childElementCount > 0) item.append(acoes);
+      if (acoes.childElementCount > 0) rodape.append(acoes);
     }
+    item.append(rodape);
     lista.append(item);
     item.__bloco = b;
   });
@@ -336,7 +399,7 @@ function renderizarConclusao() {
       const li = criar('li', 'pendencia', p.frase);
       li.tabIndex = -1;
       const acao = acaoDaPendencia(p);
-      if (acao !== null) li.append(' ', criarBotao(acao.texto, acao.rotulo, 'ir-pendencia', () => irParaPendencia(p)));
+      if (acao !== null) li.append(' ', criarBotao(acao.texto, acao.rotulo, 'ir-pendencia', () => irParaPendencia(p), { icone: 'seta' }));
       lista.append(li);
     }
   }
@@ -361,14 +424,17 @@ function irParaPendencia(p) {
     return;
   }
   if (p.codigo === 'fonte_pendente') {
+    selecionarAba('aba-fontes');
     focarItem(itemDaFonte(p.id));
     return;
   }
   if (p.codigo === 'fonte_revogada') {
     const usa = contexto.blocos.find((b) => b.referencias.some((r) => r.fonteId === p.id));
+    selecionarAba(usa !== undefined ? 'aba-informacoes' : 'aba-fontes');
     focarItem(usa !== undefined ? itemDoBloco(usa.id) : itemDaFonte(p.id));
     return;
   }
+  selecionarAba('aba-informacoes');
   focarItem(itemDoBloco(p.id));
 }
 
@@ -486,7 +552,7 @@ function limparFormulario() {
   importando = null;
   $('aviso-importacao').hidden = true;
   $('titulo-form').textContent = 'Incluir informação';
-  $('bloco-enviar').textContent = 'Salvar informação';
+  definirTextoDoBotao($('bloco-enviar'), 'Salvar informação');
   limparErros();
   renderizarFontes();
 }
@@ -498,7 +564,7 @@ function iniciarEdicao(bloco) {
   formAberto = true;
   atualizarFormulario();
   $('titulo-form').textContent = 'Editar informação';
-  $('bloco-enviar').textContent = 'Salvar informação';
+  definirTextoDoBotao($('bloco-enviar'), 'Salvar informação');
   $('bloco-titulo').value = bloco.titulo;
   $('bloco-texto').value = bloco.texto;
   $('bloco-alertas').value = bloco.alertas.join('\n');
@@ -728,7 +794,7 @@ function escolherCandidato(c) {
   atualizarFormulario();
   $('titulo-form').textContent = 'Importar informação';
   $('aviso-importacao').hidden = false; // aviso fora do campo de texto: nunca faz parte da orientação gravada
-  $('bloco-enviar').textContent = 'Revisar e salvar informação';
+  definirTextoDoBotao($('bloco-enviar'), 'Revisar e salvar informação');
   $('bloco-titulo').value = c.titulo;
   $('bloco-texto').value = c.texto;
   $('bloco-alertas').value = c.alertas.join('\n');

@@ -251,9 +251,9 @@ test('IC10. erros do servidor viram mensagens curtas e pedem recarregar quando o
 test('IC11. estrutura: título, aviso, navegação com três links, rótulos, regiões vivas, diálogo e formulário só nesta página', () => {
   assert.match(HTML, /<html lang="pt-BR">/);
   assert.match(HTML, /<title>SEMA Orienta — Conteúdo para respostas<\/title>/);
-  assert.match(HTML, /<h1>SEMA Orienta — Conteúdo para respostas<\/h1>/);
+  assert.match(HTML, /<h1>Conteúdo para respostas<\/h1>/);
   assert.doesNotMatch(HTML, /demonstra|sem autenticação|aviso-admin/i, 'a tela não repete avisos de demonstração nem de ambiente');
-  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">Gestão de conteúdo<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">Conteúdo para respostas<\/a>\s*<a class="navegacao__link" href="..\/saude\/">Saúde do sistema<\/a>\s*<\/nav>/);
+  assert.match(HTML, /<nav class="navegacao" aria-label="Seções da administração">\s*<a class="navegacao__link" href="..\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Gestão de conteúdo<\/a>\s*<a class="navegacao__link navegacao__link--atual" href=".\/" aria-current="page">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Conteúdo para respostas<\/a>\s*<a class="navegacao__link" href="..\/saude\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Saúde do sistema<\/a>\s*<\/nav>/);
   assert.match(HTML, /<a class="pular" href="#principal">/);
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1">/);
   assert.match(HTML, /<dialog id="confirmacao" class="dialogo" aria-labelledby="confirmacao-titulo" aria-describedby="confirmacao-descricao">/);
@@ -269,15 +269,20 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   assert.match(HTML, /Selecione onde esta informação pode ser conferida./);
   assert.match(HTML, /Opcional. Escreva um aviso por linha./);
   assert.ok((HTML.match(/class="icone[^"]*" aria-hidden="true"/g) ?? []).length >= 4, 'ícones só decorativos, ocultos para leitores de tela');
-  assert.match(HTML, /id="botao-nova-orientacao" aria-controls="cartao-form" aria-expanded="false" hidden>Incluir informação<\/button>/);
+  assert.match(HTML, /id="botao-nova-orientacao" aria-controls="cartao-form" aria-expanded="false" hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Incluir informação<\/button>/);
   assert.match(HTML, /<section id="cartao-form" class="cartao" aria-labelledby="titulo-form" hidden>/, 'formulário recolhido até a pessoa pedir');
   // Ícones SVG simples de traço (sem emojis nem biblioteca): currentColor, decorativos e do mesmo tamanho
   assert.doesNotMatch(HTML, /\p{Extended_Pictographic}/u, 'nenhum emoji na página');
   const svgs = HTML.match(/<svg [^>]*>/g) ?? [];
-  assert.equal(svgs.length, 7, 'folha, balão, documento, links, mais, lista e conclusão');
-  for (const s of svgs) assert.match(s, /viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"/);
-  assert.doesNotMatch(HTML, /<svg[^>]*(<script|onload|href=)|<img|<use|xlink/);
-  assert.match(CSS, /\.icone svg \{[^}]*width: 1\.25rem;[^}]*height: 1\.25rem;/);
+  const proprios = svgs.filter((s) => /viewBox/.test(s));
+  assert.equal(proprios.length, 4, 'balão, documento, mais e conclusão (os demais ícones vêm do sprite local)');
+  for (const s of proprios) assert.match(s, /viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"/);
+  for (const s of svgs.filter((x) => !/viewBox/.test(x))) assert.match(s, /aria-hidden="true" focusable="false"/);
+  assert.doesNotMatch(HTML, /<svg[^>]*(<script|onload|href=)|xlink/);
+  // Ícones só do sprite inline da própria página (<use href="#i-...">); a única imagem é a marca local, com texto alternativo.
+  assert.ok([...HTML.matchAll(/<use href="([^"]+)"/g)].every((m) => /^#i-[a-z]+$/.test(m[1]) && HTML.includes(`id="${m[1].slice(1)}"`)));
+  assert.deepEqual(HTML.match(/<img [^>]*>/g), ['<img class="cabecalho__logo" src="/src/assets/sema-orienta-marca.png" width="318" height="69" alt="SEMA Orienta — assistente virtual de serviços ambientais" />']);
+  assert.match(CSS, /\.icone svg \{[^}]*width: 1\.5rem;[^}]*height: 1\.5rem;/);
   assert.match(CSS, /\.icone \{[^}]*color: var\(--verde-800\);/);
   assert.match(JS, /Onde esta informação aparece na fonte\?/);
   assert.match(JS, /placeholder = 'Ex\.: página 3'/);
@@ -292,7 +297,7 @@ test('IC11. estrutura: título, aviso, navegação com três links, rótulos, re
   // O formulário não está na página administrativa principal nem na de saúde.
   for (const outra of [lerTexto('admin', 'index.html'), lerTexto('admin', 'saude', 'index.html')]) {
     assert.doesNotMatch(outra, /form-bloco|bloco-titulo|Nova informação|conteudo\.js/);
-    assert.match(outra, /href="(\.\/|\.\.\/)conteudo\/">Conteúdo para respostas<\/a>/);
+    assert.match(outra, /href="(\.\/|\.\.\/)conteudo\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Conteúdo para respostas<\/a>/);
   }
 });
 

@@ -40,7 +40,7 @@ test.describe('Administração local (somente leitura)', () => {
   test('/admin/saude/ abre pelo link e volta', async ({ page }) => {
     await page.goto('/admin/saude/');
     await expect(page.getByRole('heading', { level: 1, name: /Saúde do sistema/ })).toBeVisible();
-    await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+    await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' }).click();
     await expect(page).toHaveURL(/\/admin\/$/);
   });
 
