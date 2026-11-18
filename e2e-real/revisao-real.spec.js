@@ -53,6 +53,7 @@ async function irParaRevisao(page) {
 
 /** Cria uma informação do chatbot usando a fonte escolhida (por título). */
 async function criarBloco(page, titulo, fonte) {
+  await page.locator('#aba-informacoes').click();
   await page.getByRole('button', { name: 'Incluir informação', exact: true }).click();
   await expect(page.locator('#titulo-form')).toBeFocused();
   await page.getByLabel('Tema da informação', { exact: true }).fill(titulo);
@@ -83,6 +84,7 @@ async function conferirCoerencia(page) {
 const fonteDa = (page, titulo) => page.locator('#fontes-revisao li').filter({ hasText: titulo });
 const blocoDa = (page, titulo) => page.locator('#blocos li.bloco').filter({ hasText: titulo });
 async function revisarFonte(page, titulo) {
+  await page.locator('#aba-fontes').click();
   await page.getByRole('button', { name: `Marcar como revisado: ${titulo}`, exact: true }).click();
   await expect(status(page)).toContainText('Documento ou link marcado como revisado.');
   await expect(fonteDa(page, titulo)).toContainText('Situação: Revisado');
@@ -90,6 +92,7 @@ async function revisarFonte(page, titulo) {
   await conferirCoerencia(page);
 }
 const aceitar = async (page, titulo) => {
+  await page.locator('#aba-informacoes').click();
   await page.getByRole('button', { name: `Aceitar informação: ${titulo}`, exact: true }).click();
   await expect(status(page)).toContainText('Informação aceita.');
   await expect(blocoDa(page, titulo)).toContainText('Situação: Aceita');
@@ -148,6 +151,7 @@ test('2. revisar fonte, editar antes de aceitar, aceitar, reabrir para correçã
   await irParaRevisao(page);
   await criarBloco(page, 'Prazos', d.link);
   await revisarFonte(page, d.link);
+  await page.locator('#aba-informacoes').click();
   await expect(page.getByRole('button', { name: 'Aceitar informação: Prazos', exact: true })).toBeEnabled();
   // editar antes de aceitar
   await page.getByRole('button', { name: 'Editar a informação Prazos', exact: true }).click();
@@ -284,10 +288,12 @@ test('6. conflito de revisão: outra aba muda o conteúdo, a mensagem aparece e 
   const outra = await context.newPage();
   await outra.goto(page.url());
   await expect(outra.locator('#servico-situacao')).toBeVisible();
+  await outra.locator('#aba-fontes').click();
   await outra.getByRole('button', { name: `Marcar como revisado: ${d.link}`, exact: true }).click();
   await expect(outra.locator('#status')).toContainText('Documento ou link marcado como revisado.');
   await outra.close();
   // a primeira aba ainda tem a revisão antiga
+  await page.locator('#aba-fontes').click();
   await page.getByRole('button', { name: `Marcar como revisado: ${d.texto}`, exact: true }).click();
   await expect(status(page)).toContainText('O conteúdo mudou. Os dados foram atualizados; confira e tente de novo.');
   await expect(status(page)).toHaveAttribute('data-tipo', 'erro');
@@ -302,6 +308,7 @@ test('7. clique duplo envia uma única ação de revisão', async ({ page }) => 
   const enviados = observarPosts(page);
   const d = await criarServicoComFontes(page, 'Serviço Rev Mi');
   await irParaRevisao(page);
+  await page.locator('#aba-fontes').click();
   await page.getByRole('button', { name: `Marcar como revisado: ${d.link}`, exact: true }).dblclick();
   await expect(status(page)).toContainText('Documento ou link marcado como revisado.');
   expect(posts(enviados, '/revisao/fontes')).toHaveLength(1);
@@ -315,6 +322,7 @@ test('8. teclado: ações por Enter, foco na mensagem, diálogo com Esc e foco d
   const d = await criarServicoComFontes(page, 'Serviço Rev Ni');
   await irParaRevisao(page);
   await criarBloco(page, 'Via teclado', d.link);
+  await page.locator('#aba-fontes').click();
   const marcar = page.getByRole('button', { name: `Marcar como revisado: ${d.link}`, exact: true });
   await marcar.focus();
   await page.keyboard.press('Tab');
@@ -324,6 +332,7 @@ test('8. teclado: ações por Enter, foco na mensagem, diálogo com Esc e foco d
   await page.keyboard.press('Enter');
   await expect(status(page)).toContainText('Documento ou link marcado como revisado.');
   await expect(fonteDa(page, d.link)).toBeFocused();
+  await page.locator('#aba-informacoes').click();
   const descartar = page.getByRole('button', { name: 'Excluir informação: Via teclado', exact: true });
   await descartar.focus();
   await page.keyboard.press('Enter');
@@ -451,8 +460,8 @@ test('13. a revisão abre compacta, o painel e a página dizem o mesmo e Voltar 
   await aceitar(page, 'Informação do retorno');
   const { resumo } = await conferirCoerencia(page);
   const idDoServico = new URL(page.url()).searchParams.get('servico');
-  await expect(page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' })).toHaveAttribute('href', `../?servico=${idDoServico}`);
-  await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+  await expect(page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' })).toHaveAttribute('href', `../?servico=${idDoServico}`);
+  await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/\\?servico=${idDoServico}$`));
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: d.nome })).toBeVisible();

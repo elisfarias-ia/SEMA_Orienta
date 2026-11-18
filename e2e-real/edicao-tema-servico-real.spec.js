@@ -70,14 +70,16 @@ async function criarBlocoAceito(page, titulo, fonte) {
   await page.locator('#bloco-enviar').click();
   await botao(page, 'Confirmar e salvar').click();
   await expect(status(page)).toContainText('Informação salva.');
+  await page.locator('#aba-fontes').click();
   await botao(page, `Marcar como revisado: ${fonte}`).click();
   await expect(fonteDa(page, fonte)).toContainText('Situação: Revisado');
+  await page.locator('#aba-informacoes').click();
   await botao(page, `Aceitar informação: ${titulo}`).click();
   await expect(blocoDa(page, titulo)).toContainText('Situação: Aceita');
 }
 
 async function voltarParaGestao(page) {
-  await page.getByRole('link', { name: 'Voltar para Gestão de conteúdo' }).click();
+  await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' }).click();
   await page.getByRole('button', { name: ACESSAR }).click();
 }
 

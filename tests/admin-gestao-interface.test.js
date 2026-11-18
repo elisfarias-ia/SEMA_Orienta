@@ -235,8 +235,8 @@ test('G14. a tela abre com o botão Acessar administração, sem usuário nem se
   assert.match(HTML, />Sair<\/button>/);
   assert.match(HTML, /class="barra-sessao__quem">Administração<\/p>/);
   assert.doesNotMatch(`${HTML}\n${JS}`, /demonstra|sem autenticação|autenticação real|aviso-demo/i, 'sem textos de demonstração na tela');
-  assert.match(HTML, /href="\.\/saude\/">Saúde do sistema<\/a>/);
-  assert.match(HTML, /href="\.\/conteudo\/">Conteúdo para respostas<\/a>/);
+  assert.match(HTML, /href="\.\/saude\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Saúde do sistema<\/a>/);
+  assert.match(HTML, /href="\.\/conteudo\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Conteúdo para respostas<\/a>/);
   assert.doesNotMatch(HTML, /type="password"|name="(usuario|senha|login)"|autocomplete="(username|current-password)"/i);
   assert.match(HTML, /Novo serviço/);
   assert.match(HTML, />Texto<\/button>/);

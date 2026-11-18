@@ -375,8 +375,8 @@ test('V8. esquema e validador usam os mesmos tipos e ambientes', () => {
 test('E1. a interface não foi alterada e não usa o conteúdo nem a seleção do assistente (isso é do Passo 6)', () => {
   const arquivos = fs.readdirSync(path.join(RAIZ, 'src')).sort();
   // Passo 6 acrescentou src/assistant.js (reconhecimento local de intenção); nenhum arquivo importa o JSON do conteúdo.
-  assert.deepEqual(arquivos, ['assistant.js', 'chat.js', 'main.js', 'styles.css']);
-  for (const arquivo of ['index.html', ...arquivos.map((n) => path.join('src', n))]) {
+  assert.deepEqual(arquivos, ['assets', 'assistant.js', 'chat.js', 'main.js', 'styles.css']);
+  for (const arquivo of ['index.html', ...arquivos.filter((n) => n !== 'assets').map((n) => path.join('src', n))]) {
     const texto = lerTexto(arquivo);
     assert.doesNotMatch(texto, /assistant-content|conteudo-assistente|selecionarBlocosAssistente|teste_local|services\//, arquivo);
     for (const trecho of TRECHOS_EXCLUSIVOS) assert.equal(texto.includes(trecho), false, `${arquivo}: ${trecho}`);

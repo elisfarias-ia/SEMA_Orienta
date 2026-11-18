@@ -237,8 +237,8 @@ test('RV11. /admin/conteudo/: seções, diálogos próprios, texto de confirmaç
   assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_CONCLUSAO), 'texto exato da confirmação no diálogo');
   assert.equal(TEXTO_CONFIRMAR_CONCLUSAO, 'Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.');
   assert.doesNotMatch(HTML_CONTEUDO + LOGICA, /revisão para demonstração|AVISO_REVISAO_DEMONSTRACAO/, 'sem o aviso de demonstração');
-  assert.match(HTML_CONTEUDO, /id="botao-nova-versao"[^>]*hidden>Criar nova versão para editar</);
-  assert.match(HTML_CONTEUDO, /id="botao-concluir"[^>]*hidden>Concluir revisão</);
+  assert.match(HTML_CONTEUDO, /id="botao-nova-versao"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Criar nova versão para editar</);
+  assert.match(HTML_CONTEUDO, /id="botao-concluir"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Concluir revisão</);
   const botoes = [...(HTML_CONTEUDO + HTML_ADMIN).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
   assert.ok(botoes.length > 10);
   // 5C: o único botão com o verbo "Publicar" é o da etapa de publicação (a autorização tem rótulo próprio).
@@ -248,7 +248,7 @@ test('RV11. /admin/conteudo/: seções, diálogos próprios, texto de confirmaç
   assert.doesNotMatch(HTML_ADMIN, /<details/i);
   assert.equal((HTML_CONTEUDO.match(/<details/g) ?? []).length, 0, 'sem seção recolhida de itens excluídos');
   assert.doesNotMatch(HTML_CONTEUDO, /\bbc-[0-9a-f]{12}\b|[0-9a-f]{64}|hashConteudo|statusValidacao/);
-  assert.match(HTML_CONTEUDO, /href="\.\.\/">Gestão de conteúdo<\/a>/);
+  assert.match(HTML_CONTEUDO, /href="\.\.\/">(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Gestão de conteúdo<\/a>/);
   assert.doesNotMatch(HTML_CONTEUDO + HTML_ADMIN + lerTexto('admin', 'saude', 'index.html'), /Cadastro da base/);
 });
 
@@ -421,7 +421,7 @@ test('EF6. página: Editar e Excluir por fonte, diálogos próprios, impacto ant
   assert.match(HTML_CONTEUDO, /<dialog id="dialogo-excluir-fonte" class="dialogo" aria-labelledby="ex-titulo-dialogo" aria-describedby="ex-descricao">/);
   assert.match(HTML_CONTEUDO, /id="ex-confirmar">Excluir<\/button>/);
   assert.match(HTML_CONTEUDO, /<label for="ef-orgao">Órgão que publicou o conteúdo<\/label>/);
-  assert.match(HTML_CONTEUDO, /id="botao-resolver" hidden>Resolver pendências<\/button>/);
+  assert.match(HTML_CONTEUDO, /id="botao-resolver" hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Resolver pendências<\/button>/);
   assert.match(HTML_ADMIN, /id="painel-resolver" href="\.\/conteudo\/" hidden>Resolver pendências<\/a>/);
   assert.doesNotMatch(HTML_CONTEUDO + JS_CONTEUDO + CSS, /Itens excluídos|fontes-excluidas|lixeira|restaurar|usada por conteúdo antigo|Usada por informação/i);
   assert.doesNotMatch(HTML_CONTEUDO, /<details/);

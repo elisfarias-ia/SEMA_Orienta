@@ -80,8 +80,10 @@ async function prepararConcluido(page, nome) {
   await page.locator('#bloco-enviar').click();
   await botao(page, 'Confirmar e salvar').click();
   await expect(status(page)).toContainText('Informação salva.');
+  await page.locator('#aba-fontes').click();
   await botao(page, `Marcar como revisado: ${d.link}`).click();
   await expect(status(page)).toContainText('Documento ou link marcado como revisado.');
+  await page.locator('#aba-informacoes').click();
   await botao(page, 'Aceitar informação: Documentos exigidos').click();
   await expect(status(page)).toContainText('Informação aceita.');
   await botao(page, 'Concluir revisão').click();

@@ -19,7 +19,7 @@ const ARQUIVOS_PUBLICOS = ['index.html', 'src/main.js', 'src/chat.js', 'src/assi
 const TERMOS_ADMIN = /__admin|admin-endpoint|admin-private|x-admin-token|services\/admin|armazenamento|versao-atual|criarManipuladorAdmin|criarPluginAdminDev/;
 
 test('I1. a interface pública não importa nem menciona módulos, rotas ou token administrativos', () => {
-  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'src')).sort(), ['assistant.js', 'chat.js', 'main.js', 'styles.css']);
+  assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'src')).sort(), ['assets', 'assistant.js', 'chat.js', 'main.js', 'styles.css']);
   for (const arquivo of ARQUIVOS_PUBLICOS) assert.doesNotMatch(lerTexto(arquivo), TERMOS_ADMIN, arquivo);
   for (const arquivo of ['src/main.js', 'src/chat.js', 'src/assistant.js']) {
     assert.doesNotMatch(lerTexto(arquivo), /from '\.\.\/services|import\(.*services|\/admin\b/, arquivo);
@@ -126,12 +126,13 @@ test('I8. dist/ não tem rotas, token, catálogo, versão nem conteúdo administ
   const proibidos = [/__admin/, /x-admin-token/i, /sessao/i, /catalogo/i, /versao-atual/, /admin-endpoint/, /admin-private/, /armazenamento/i, /lac-v1/, /versoes\/v1/, /hashConteudo/,
     /licenciamento-ambiental/, new RegExp(assunto.nome), /timingSafeEqual|randomBytes/, /Cross-Origin-Resource-Policy/, /\b[0-9a-f]{64}\b/,
     /executarTransacao|montarEsqueletoServico|montarAssunto|validarCorpo(Assunto|Servico)|cadastrar(Assunto|Servico)|termosEquivalentes|versaoAtualId|versaoPublicadaId|sema-orienta-ensaio/];
-  for (const arquivo of listar(path.join(RAIZ, 'dist'))) {
+  for (const arquivo of listar(path.join(RAIZ, 'dist')).filter((f) => !f.endsWith('.png'))) {
     const texto = fs.readFileSync(arquivo, 'utf8');
     for (const p of proibidos) assert.doesNotMatch(texto, p, `${path.relative(RAIZ, arquivo)} ${p}`);
   }
-  // O build contém apenas a página, um script e uma folha de estilos.
-  assert.deepEqual(listar(path.join(RAIZ, 'dist')).map((f) => path.extname(f)).sort(), ['.css', '.html', '.js']);
+  // O build contém apenas a página, um script, uma folha de estilos e as duas imagens da marca (marca e avatar, com hash no nome).
+  assert.deepEqual(listar(path.join(RAIZ, 'dist')).map((f) => path.extname(f)).sort(), ['.css', '.html', '.js', '.png', '.png']);
+  assert.deepEqual(listar(path.join(RAIZ, 'dist')).filter((f) => f.endsWith('.png')).map((f) => path.basename(f).replace(/-[A-Za-z0-9_-]{8}\.png$/, '.png')).sort(), ['sema-orienta-avatar.png', 'sema-orienta-marca.png']);
 });
 
 test('I9. nenhum dado administrativo real: sem decisões, sem histórico e sem dados pessoais nos arquivos do passo', () => {

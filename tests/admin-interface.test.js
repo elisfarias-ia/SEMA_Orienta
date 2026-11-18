@@ -368,9 +368,10 @@ test('AI21. dist/ não contém a pasta admin, a tela, formulários administrativ
   assert.deepEqual(conferirDist(RAIZ), []);
   const lista = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? lista(path.join(d, e.name)) : [path.join(d, e.name)]));
   const arquivos = lista(path.join(RAIZ, 'dist'));
-  assert.deepEqual(arquivos.map((f) => path.extname(f)).sort(), ['.css', '.html', '.js']);
+  // Página, script, folha de estilos e as duas imagens da marca (marca e avatar do SEMA Orienta, com hash no nome).
+  assert.deepEqual(arquivos.map((f) => path.extname(f)).sort(), ['.css', '.html', '.js', '.png', '.png']);
   assert.equal(arquivos.some((f) => /admin/i.test(path.relative(path.join(RAIZ, 'dist'), f))), false);
-  for (const f of arquivos) {
+  for (const f of arquivos.filter((x) => !x.endsWith('.png'))) {
     assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /Gestão de conteúdo|Ambiente administrativo|__admin|X-Admin-Token|admin-logic|form-assunto|form-servico|Confirmar cadastro|Novo assunto|Novo serviço/i, f);
   }
 });

@@ -1,7 +1,7 @@
 // Lógica da conversa. Sem rede e sem IA. O estado fica apenas em memória.
 
 export const MENSAGEM_INICIAL =
-  'Olá! Sou o SEMA Orienta. Escreva sua dúvida sobre serviços ambientais para iniciar o atendimento.';
+  'Olá! Como posso orientar você? Escreva sua dúvida sobre os serviços ambientais da SEMA-MT.';
 
 export const RESPOSTA_TEMPORARIA =
   'Recebi sua pergunta. A base de informações da LAC está em configuração e será disponibilizada após a validação do conteúdo oficial.';

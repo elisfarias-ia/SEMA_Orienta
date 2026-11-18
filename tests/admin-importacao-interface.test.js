@@ -112,7 +112,7 @@ test('II5. mensagens: já importado, revisão divergente e versão congelada ped
 });
 
 test('II6. a página: botão, lista com "Importar" por item, foco/teclado, sem innerHTML nem armazenamento; nada é gravado ao abrir', () => {
-  assert.match(HTML, /id="botao-importar"[^>]*aria-controls="cartao-importacao"[^>]*aria-expanded="false"[^>]*hidden>Importar conteúdo existente</);
+  assert.match(HTML, /id="botao-importar"[^>]*aria-controls="cartao-importacao"[^>]*aria-expanded="false"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Importar conteúdo existente</);
   assert.match(HTML, /<section id="cartao-importacao"[^>]*aria-labelledby="titulo-importacao"[^>]*hidden>/);
   assert.match(HTML, /<h2 id="titulo-importacao" tabindex="-1">/);
   assert.match(HTML, /id="importacao-estado"[^>]*role="status"[^>]*aria-live="polite"/);

@@ -29,11 +29,15 @@ function renderizar(saude) {
     const item = criar('li', 'saude__item');
     item.dataset.estado = c.estado;
     item.append(criar('p', 'saude__nome', c.nome));
-    item.append(criar('p', 'saude__linha', `Capacidade: ${CAPACIDADES_SAUDE[c.capacidade]}`));
     item.append(criar('p', 'saude__linha saude__estado', `Estado: ${ESTADOS_SAUDE[c.estado]}`));
     item.append(criar('p', 'saude__linha', c.mensagem));
     if (c.capacidade === 'nao_implementado') item.append(criar('p', 'saude__linha saude__nota', NOTA_NAO_IMPLEMENTADO));
-    item.append(criar('p', 'saude__linha saude__hora', `Verificado em ${formatarDataHoraBr(c.verificadoEm, criarData)}`));
+    // Detalhes técnicos por expansão progressiva: só aparecem quando a pessoa pede.
+    const detalhes = criar('details', 'saude__detalhes');
+    detalhes.append(criar('summary', '', 'Ver detalhes'));
+    detalhes.append(criar('p', 'saude__linha', `Capacidade: ${CAPACIDADES_SAUDE[c.capacidade]}`));
+    detalhes.append(criar('p', 'saude__linha saude__hora', `Verificado em ${formatarDataHoraBr(c.verificadoEm, criarData)}`));
+    item.append(detalhes);
     lista.append(item);
   }
   raiz.append(lista);

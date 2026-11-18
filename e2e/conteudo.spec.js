@@ -156,8 +156,8 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.getByRole('button', { name: 'Incluir informação', exact: true })).toBeHidden();
     await expect(page.locator('#selecao-completa')).toBeVisible();
     await expect(page.locator('#servico-compacto')).toBeHidden();
-    await expect(page.locator('svg[aria-hidden="true"]')).toHaveCount(7);
-    for (const tamanho of await page.locator('.icone svg').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)).filter((w) => w > 0))) expect([20, 28]).toContain(tamanho);
+    for (const tamanho of await page.locator('.icone svg').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)).filter((w) => w > 0))) expect([24, 28]).toContain(tamanho);
+    for (const tamanho of await page.locator('.icone-menu').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)))) expect(tamanho).toBe(24);
     expect(await page.locator('.icone svg').first().evaluate((e) => getComputedStyle(e).stroke)).toBe(await page.locator('.icone').first().evaluate((e) => getComputedStyle(e).color));
     expect(await page.locator('main').innerText()).not.toMatch(/\p{Extended_Pictographic}/u);
     await expect(page.locator('#bloco-enviar')).toBeDisabled();
@@ -194,7 +194,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.getByRole('button', { name: 'Incluir informação', exact: true })).toHaveAttribute('aria-expanded', 'true');
     const lista = await page.locator('#blocos').boundingBox();
     const form = await page.locator('#form-bloco').boundingBox();
-    expect(form.y).toBeGreaterThan(lista.y + lista.height - 1);
+    expect(form.y).toBeLessThan(lista.y); // o formulário abre acima da lista de informações
     await page.getByLabel('Fonte Um (Página oficial)').check();
     await expect(page.getByLabel(/Onde esta informação aparece na fonte\? \(Fonte Um\)/)).toHaveAttribute('placeholder', 'Ex.: página 3');
     expect(await semRolagemHorizontal(page)).toBe(true);
@@ -321,6 +321,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
 
   test('documentos e links: tipo e situação em linguagem comum, aviso fixo, texto original nunca exibido e Marcar como revisado envia a revisão atual', async ({ page, servidor }) => {
     await abrir(page, servidor, { blocos: [BLOCO] });
+    await page.locator('#aba-fontes').click();
     const fontes = page.locator('#fontes-revisao');
     await expect(page.locator('#cartao-fontes')).not.toContainText('demonstração');
     await expect(fontes.locator('li').filter({ hasText: 'Fonte Um' })).toContainText('Tipo: Link');
@@ -346,8 +347,10 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     const aceitar = page.getByRole('button', { name: 'Aceitar informação: Bloco existente' });
     await expect(aceitar).toBeDisabled();
     await expect(page.locator('#blocos')).toContainText('Para aceitar esta informação, marque antes como revisado: "Fonte Um".');
+    await page.locator('#aba-fontes').click();
     await page.getByRole('button', { name: 'Marcar como revisado: Fonte Um' }).click();
     await expect(page.locator('#status')).toContainText('marcado como revisado');
+    await page.locator('#aba-informacoes').click();
     await expect(aceitar).toBeEnabled();
     await aceitar.click();
     await expect(page.locator('#status')).toContainText('Informação aceita.');
@@ -368,8 +371,10 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.locator('#pendencias')).toContainText('A informação "Bloco existente" ainda não foi aceita nem excluída.');
     expect(await page.locator('#cartao-conclusao').innerText()).not.toMatch(/sem_bloco_aceito|bloco_pendente/);
     await expect(page.getByRole('button', { name: 'Concluir revisão', exact: true })).toBeHidden();
+    await page.locator('#aba-fontes').click();
     await page.getByRole('button', { name: 'Marcar como revisado: Fonte Um' }).click();
     await expect(page.locator('#status')).toContainText('marcado como revisado');
+    await page.locator('#aba-informacoes').click();
     await page.getByRole('button', { name: 'Aceitar informação: Bloco existente' }).click();
     await expect(page.locator('#status')).toContainText('Informação aceita.');
     await expect(page.locator('#pendencias')).toBeEmpty();
@@ -401,6 +406,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
   test('conflito de revisão: mensagem comum, dados recarregados e nada de hash na tela', async ({ page, servidor }) => {
     await abrir(page, servidor, { blocos: [BLOCO] });
     servidor.estado.rev += 5; // outro lugar mudou o conteúdo depois que a página foi aberta
+    await page.locator('#aba-fontes').click();
     await page.getByRole('button', { name: 'Marcar como revisado: Fonte Um' }).click();
     await expect(page.locator('#status')).toContainText('O conteúdo mudou. Os dados foram atualizados; confira e tente de novo.');
     await expect(page.locator('#status')).toHaveAttribute('data-tipo', 'erro');
@@ -419,7 +425,6 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
     await expect(page.locator('#servico-compacto')).toBeVisible();
     await expect(page.locator('#selecao-completa')).toBeHidden();
-    await expect(page.locator('#voltar-gestao')).toHaveAttribute('href', '../?servico=servico-ficticio');
     await expect(page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link').first()).toHaveAttribute('href', '../?servico=servico-ficticio');
     expect(await page.locator('body').innerText()).not.toMatch(IDS_TECNICOS);
     await page.getByRole('button', { name: 'Trocar de serviço', exact: true }).click();

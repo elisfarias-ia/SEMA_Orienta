@@ -166,7 +166,7 @@ test('EI7. cliente: erros do servidor viram mensagens fixas; segunda gravação 
 });
 
 test('EI8. HTML: botões Editar, Salvar, Cancelar, diálogos acessíveis, rótulos, erros junto ao campo, sem ids, hash nem campos avançados', () => {
-  assert.match(HTML, /id="botao-editar-servico"[^>]*>Editar nome e tema</);
+  assert.match(HTML, /id="botao-editar-servico"[^>]*>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Editar nome e tema</);
   assert.match(HTML, /id="ed-salvar">Salvar</);
   assert.match(HTML, /id="ed-cancelar">Cancelar</);
   assert.match(HTML, /id="im-confirmar">Confirmar alteração</);

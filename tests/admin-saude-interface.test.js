@@ -137,11 +137,11 @@ test('SI7. a página é acessível e compacta: título, resumo, botão "Verifica
   assert.match(HTML, /<section class="cartao" aria-labelledby="titulo-saude">/);
   assert.match(HTML, /<h2 id="titulo-saude">Componentes<\/h2>/);
   assert.match(HTML, /<p id="saude-resumo" class="saude__resumo" aria-live="polite">Aguardando a primeira verificação\.<\/p>/);
-  assert.match(HTML, /<button type="button" class="botao" id="saude-verificar" disabled>Verificar novamente<\/button>/);
+  assert.match(HTML, /<button type="button" class="botao" id="saude-verificar" disabled>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Verificar novamente<\/button>/);
   assert.match(HTML, /<p id="saude-quando" class="ajuda" aria-live="polite">Ainda não verificado\.<\/p>/);
   assert.match(HTML, /<div id="saude-lista" aria-busy="false"><\/div>/);
   assert.match(HTML, /<p id="status" class="status" role="status" aria-live="polite" tabindex="-1"><\/p>/);
-  assert.match(HTML, /<a class="botao botao--secundario" href="..\/">Voltar para Gestão de conteúdo<\/a>/);
+  assert.doesNotMatch(HTML, /Voltar para Gestão de conteúdo/, 'a navegação é feita pelas abas, sem botão Voltar repetido');
   assert.match(HTML, /sem fingir funcionamento/);
   // A página de saúde tem só os elementos de saúde: nada de formulário de cadastro.
   assert.doesNotMatch(HTML, /<form|<input|<textarea|<select|<dialog/);
@@ -230,12 +230,15 @@ test('SI11. renderização real da página: mostra cada componente com capacidad
     const primeiro = itens[0];
     assert.equal(primeiro.dataset.estado, 'operacional');
     assert.deepEqual(primeiro.filhos.map((f) => f.textContent), [
-      'Aplicação administrativa', 'Capacidade: Implementado', 'Estado: Operacional', 'A aplicação administrativa local está respondendo.', `Verificado em ${hora}`,
+      'Aplicação administrativa', 'Estado: Operacional', 'A aplicação administrativa local está respondendo.', `Ver detalhesCapacidade: ImplementadoVerificado em ${hora}`,
     ]);
+    // Detalhes técnicos por expansão progressiva (<details>): capacidade e hora.
+    assert.equal(primeiro.filhos[3].tag, 'details');
+    assert.deepEqual(primeiro.filhos[3].filhos.map((f) => f.textContent), ['Ver detalhes', 'Capacidade: Implementado', `Verificado em ${hora}`]);
     assert.match(hora, /^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/);
-    assert.equal(itens[5].filhos[4].textContent, 'Ainda não existe no sistema. Isso não é uma falha.');
-    assert.equal(primeiro.filhos.length, 5, 'só os não implementados têm a nota');
-    assert.equal(itens[3].filhos[1].textContent, 'Capacidade: Não implementado');
+    assert.equal(itens[5].filhos[3].textContent, 'Ainda não existe no sistema. Isso não é uma falha.');
+    assert.equal(primeiro.filhos.length, 4, 'só os não implementados têm a nota');
+    assert.equal(itens[3].filhos.at(-1).filhos[1].textContent, 'Capacidade: Não implementado');
     assert.equal(itens[1].dataset.estado, 'degradado');
     assert.equal(itens[2].dataset.estado, 'indisponivel');
     assert.equal(tela.el('saude-resumo').textContent, 'Operacionais: 1. Degradados: 1. Indisponíveis: 1. Não verificados: 0. Não implementados: 3.');

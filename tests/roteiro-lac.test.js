@@ -121,7 +121,7 @@ test('P1-7. as perguntas frequentes (Passo 3) seguem sem publicação', () => {
 });
 
 test('P1-8. a interface não recebeu conteúdo da LAC (index.html e src/)', () => {
-  const arquivos = ['index.html', ...fs.readdirSync(path.join(RAIZ, 'src')).map((n) => path.join('src', n))];
+  const arquivos = ['index.html', ...fs.readdirSync(path.join(RAIZ, 'src')).filter((n) => n !== 'assets').map((n) => path.join('src', n))];
   const proibido = /Novo Requerimento|SIGA|Termo de Adesão|geográficos|termo de responsabilidade|Decreto|Lei Complementar/i;
   for (const arquivo of arquivos) assert.doesNotMatch(lerTexto(arquivo), proibido, arquivo);
   assert.match(lerTexto('src', 'chat.js'), /RESPOSTA_TEMPORARIA/);
