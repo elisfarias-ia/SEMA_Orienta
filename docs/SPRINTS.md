@@ -100,7 +100,7 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Passo 4B2 (gestão simples por serviço):** `/admin/` com entrada de demonstração (não é autenticação real; token só em memória), serviços, tema único, Adicionar informação (texto, link novo, link já cadastrado), rotas novas com a trava comum, detecção de credenciais de alta confiança, interface do 4B reprovado removida e teste Playwright real (`npm run test:e2e:real`, Vite na porta 5183 com cópia temporária de `services/`). Conferência manual: funcionalidades e linguagem aprovadas; responsividade reprovada e corrigida (texto ampliado: grade da saúde com largura mínima em rem, rótulos de fonte sem quebra); conferência visual aprovada e Sprint fechada com a bateria completa, o build e o `check-dist`.
 - **Aceite, testes e DoD:** na Issue #8.
 
-## Sprint 5 — Revisão, aprovação humana e publicação (concluída, aguardando PR; Issue #11)
+## Sprint 5 — Revisão, aprovação humana e publicação (concluída e integrada pela PR #12; Issue #11 fechada)
 
 - **Objetivo:** revisar conteúdo, concluir a revisão (versão e hash congelados), autorizar e publicar em ações humanas separadas.
 - **Regras:** só a versão expressamente autorizada, com as informações aceitas e suas fontes ativas, é publicada; a versão publicada anterior permanece ativa; alteração posterior exige nova versão; "Servidor de demonstração" não comprova identidade; texto cadastrado nunca mostra fonte e link mostra só a URL.
@@ -112,19 +112,44 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Passo 5B3c (importar conteúdo existente):** candidatos lidos do conteúdo antigo, um item por vez, em elaboração, com fonte ativa obrigatória e origem interna contra duplicação; a LAC real não foi convertida (`0f31170`); ajuste: lista reduzida a 24 orientações (sem documentos, normas, links nem conteúdo de teste), frase padronizada de pendência removida só no preenchimento e aviso de conteúdo antigo; conferência manual aprovada.
 - **Passo 5C (autorizar e publicar):** três ações separadas; publicação em transação única com rollback; conteúdo público imutável em `services/<serviço>/publico/conteudo-<hash16>.json` (esquema fechado); chatbot, build e `check-dist` usam só o publicado (`eabe3c8`).
 - **Fora do MVP / limitações:** sem autenticação real (entrada de demonstração); sem publicação real da LAC (continua em validação e não publicada); sem IA externa; edição de documentos e perguntas frequentes antigos não implementada; 4 testes de link simbólico NÃO TESTADOS no Windows (EPERM).
-- **Evidências:** `docs/TESTES_MANUAIS.md` e Issue #11.
+- **Evidências:** `docs/TESTES_MANUAIS.md` e Issue #11. Integrada à `main` pela PR #12 (merge `9a06b97`).
 
-## Sprint 6 — Links seguros e agente integrado (planejada)
+> **Apenas planejamento.** Nenhuma destas Sprints foi iniciada, nenhum provedor de IA foi contratado ou integrado, e os escopos poderão ser refinados durante o planejamento de cada Sprint. Cada Sprint futura terá Issue, branch, diagnóstico e aprovação próprios.
 
-- **Objetivo:** verificar links de forma determinística (https, sem rede privada, localhost ou metadados, inclusive após redirecionamentos; limites de tempo, tamanho e tentativas) e analisar texto e links por agente que só sugere.
-- **Antes:** estudo técnico curto do provedor de IA (custo, privacidade, limites, infraestrutura). Sem adaptador falso apresentado como agente real. Análise assíncrona em duas fases, sem fila ou banco, se justificada.
+## Sprint 6 — IA na preparação do conteúdo (planejada, não iniciada)
 
-## Sprint 7 — Busca e respostas inteligentes (planejada)
+- **Objetivo:** reduzir o trabalho manual de transformar documentos oficiais em orientações estruturadas, mantendo revisão e decisão humanas.
+- **Escopo previsto:**
+  - upload seguro de PDF;
+  - extração de texto preservando página e origem; inicialmente, só PDFs que já contenham texto;
+  - análise por agente com IA, com sugestões de título e orientação;
+  - indicação da página e do trecho que sustentam cada sugestão;
+  - opções de importar, editar antes de importar ou ignorar; a informação importada sempre nasce em elaboração;
+  - verificação básica e segura de links;
+  - revisão humana obrigatória, com o fluxo existente de versionamento, autorização e publicação.
+- **Fora do escopo inicial:** OCR de documentos digitalizados; publicação automática; decisão jurídica da IA; confirmação automática de vigência de normas; envio de documentos pessoais ou restritos para provedor externo; múltiplos PDFs em lote; banco de dados e autenticação institucional.
+- **Princípios:** a IA apenas sugere; nenhuma sugestão chega ao cidadão sem revisão e publicação; página e evidência acompanham cada sugestão; o PDF original permanece interno; o chatbot não consulta diretamente qualquer PDF enviado; provedor, custo, privacidade e limites serão avaliados antes da implementação (estudo técnico curto do provedor e sem adaptador falso apresentado como agente real).
 
-- **Objetivo:** o chat localiza blocos publicados e formula respostas, informando quando a base não basta.
-- **Origem:** só os links efetivamente usados; texto cadastrado sem fonte pública; rastreabilidade interna (versão, hash, origem, blocos) obrigatória.
-- **Entrega:** JSON público gerado somente com a versão publicada; cada nova publicação exige nova geração do build.
+## Sprint 7 — Chat híbrido com IA (planejada, não iniciada)
 
-## Sprint 8 — Endurecimento e evidências (planejada)
+- **Objetivo:** melhorar a linguagem das respostas sem perder o controle sobre o conteúdo institucional.
+- **Fluxo previsto:** (1) buscar somente informações publicadas; (2) recuperar os trechos mais relevantes; (3) enviar somente esses trechos para a IA; (4) gerar a resposta em linguagem natural; (5) validar se a resposta está sustentada pelo conteúdo recuperado; (6) apresentar apenas as fontes realmente utilizadas; (7) usar a resposta determinística atual se a IA estiver indisponível; (8) informar a limitação quando não houver conteúdo suficiente.
+- **Regras previstas:** a IA não usa conteúdo em elaboração, excluído ou não publicado, não inventa informações e não responde além do conteúdo recuperado; limites de tamanho, custo, tempo e frequência; chave somente no servidor; logs sem conteúdo sensível; modelo e provedor serão confirmados durante o planejamento; eventual faixa gratuita só será usada após análise das condições atuais.
+- **Fora do escopo inicial:** treinamento de modelo próprio; memória permanente das conversas; tomada de decisão administrativa; consulta a dados pessoais ou processos restritos.
 
-- **Objetivo:** saúde com estado "não aplicável", acessibilidade, evidências e demonstração confiável do MVP.
+## Sprint 8 — Preparação institucional (planejada, não iniciada)
+
+- **Objetivo:** preparar o sistema para implantação institucional controlada.
+- **Escopo previsto:** autenticação real; perfis e permissões; separação entre cadastro, revisão, autorização e publicação; identificação do responsável por cada ação; banco de dados persistente; migração controlada dos dados atuais; auditoria por usuário; monitoramento e logs técnicos; backup e recuperação; gestão de segredos; proteção de dados; implantação em ambiente institucional; plano de operação e suporte. Mantém-se o endurecimento já previsto para o MVP: saúde com estado "não aplicável", acessibilidade e evidências.
+- **Decisões futuras (sem tecnologia definitivamente aprovada):** mecanismo de autenticação; tecnologia do banco; infraestrutura e ambiente de hospedagem; política de retenção; integração com sistemas corporativos; requisitos de segurança e LGPD.
+
+## Evoluções posteriores (roadmap, sem Sprint atribuída)
+
+- integração com sistemas da SEMA;
+- consulta pública ao andamento de processos;
+- integração com bases oficiais de legislação;
+- alertas de conteúdo possivelmente desatualizado;
+- expansão para novos serviços;
+- métricas das dúvidas dos cidadãos;
+- OCR;
+- processamento de documentos em lote.

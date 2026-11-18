@@ -130,6 +130,8 @@ services/
 
 Novos serviços serão incluídos no registro e em pastas próprias. Banco de dados, busca vetorial, autenticação e integrações institucionais só serão avaliados depois que o MVP comprovar a necessidade.
 
+Roadmap previsto (somente planejamento; nenhuma Sprint iniciada e nenhum provedor de IA contratado ou integrado; detalhes e ressalvas em `docs/SPRINTS.md`): Sprint 6, IA na preparação do conteúdo (PDF com texto, sugestões com página e trecho de evidência, sempre em elaboração e com revisão humana); Sprint 7, chat híbrido com IA (apenas conteúdo publicado recuperado, validação da resposta e retorno à resposta determinística se a IA estiver indisponível); Sprint 8, preparação institucional (autenticação, perfis, banco persistente, auditoria, backup e implantação; tecnologias ainda sem decisão arquitetural). Evoluções posteriores: integrações com sistemas da SEMA e com bases oficiais de legislação, consulta pública ao andamento de processos, alertas de conteúdo desatualizado, novos serviços, métricas das dúvidas, OCR e processamento em lote.
+
 ## MCP local de consulta da base (Sprint 2)
 
 Ferramenta de apoio ao desenvolvimento, fora da aplicação: `.mcp.json` inicia `scripts/mcp/` (`npm run mcp`), com quatro ferramentas somente leitura (`listar_assuntos`, `listar_servicos`, `consultar_fontes`, `resumir_base`) sobre a base em `services/`. Não é endpoint do chat, não consta da saúde do sistema, não existe no `dist/` e não torna o conteúdo da LAC público. Evidências em `docs/EVIDENCIAS_MCP.md`.
