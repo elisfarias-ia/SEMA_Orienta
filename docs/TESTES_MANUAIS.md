@@ -337,3 +337,30 @@ Nada foi commitado. Detalhes e liberação autorizada: docs/ADMINISTRACAO.md.
 - **B1:** nada foi commitado, segundo a usuária, e o arquivo de teste foi removido.
 
 Também foi conferido que o hook do Claude Code resolve `$CLAUDE_PROJECT_DIR` corretamente numa sessão real. As regras A2, A4, A6, A7 e A0, a liberação por prazo curto e as regras B0 e B2 a B5 não foram conferidas ao vivo: estão cobertas só pelos testes automatizados. A regra B5 rodou de verdade no commit do Passo 6B (`e15a2fe`), em cerca de 3,6 s, mas só no caso em que o build passa.
+
+### Execução — revogação pelo navegador (Sprint 7, Passo 7E; Issue #24)
+
+A conferência do botão e do diálogo de revogação, pendente desde o Passo 7B, foi feita por um **teste automatizado de ponta a ponta executado de verdade**, não simulado: `e2e-real/revogacao-real.spec.js`, no Chromium do Playwright, contra o servidor do Vite real (porta 5183, só localhost), com uma **cópia temporária** de `services/` e dados fictícios (`e2e-real/preparar.js`). Nenhum dado real foi usado.
+
+**Execução:** 20/11/2026, `npx playwright test -c playwright.real.config.js revogacao-real zz-base-real`: **2 testes, 2 passaram** (5,6 s). O segundo teste (`zz-base-real.spec.js`) confere por hash que a pasta `services/` real não mudou; depois da execução, o `git status` não mostrou mudança na base e a pasta `data/` continuou inexistente no projeto.
+
+**O que o teste conferiu no navegador**
+
+| Etapa | Resultado conferido |
+|---|---|
+| 1. Publicar uma versão de teste | Texto e informação fictícios incluídos, fonte revisada, informação aceita, revisão concluída, autorização e publicação pelas telas reais; "Versão publicada." Antes da publicação, o botão "Revogar publicação" fica oculto. |
+| 2. Chat usa o conteúdo publicado | A resposta traz o texto publicado, e a página indica o arquivo de conteúdo público. |
+| 3. Revogar pelo botão | O botão aparece com a versão publicada; o diálogo "Revogar a publicação?" mostra o aviso; confirmar com o motivo em branco **não envia**, mantém o diálogo aberto e mostra "Informe o motivo da revogação." (campo marcado como inválido); com o motivo preenchido, a revogação é confirmada. |
+| 4. Situação na tela | O diálogo fecha, a mensagem e o cartão mostram "Publicação revogada." e o botão some. |
+| 5. Chat deixa de usar o conteúdo | A página não indica mais o arquivo público e a resposta não traz o texto revogado. A decisão de revogação, com o motivo e o perfil `demonstracao`, ficou no histórico privado **da cópia**. |
+
+**Coberto só por testes automatizados (não conferido por pessoa)**
+
+- O fluxo acima foi conferido pelo teste, não por olhar humano: aparência, leitura em tela, contraste e uso por teclado e leitor de tela do diálogo não foram avaliados.
+- As regras de revogação no domínio, na rota, no pre-commit e na verificação da PR estão cobertas por `tests/revogacao.test.js`, `tests/revogacao-rota.test.js`, `tests/atores.test.js` e `tests/hook-revogacao.test.js`.
+
+**Exigiria conferência manual da usuária**
+
+- Usar o diálogo por teclado (Tab, Esc e foco) e conferir a leitura por leitor de tela.
+- Conferir a aparência em celular (390 px) e em computador.
+- Fazer a revogação numa cópia preparada pela própria usuária, se quiser evidência visual (por exemplo, captura de tela), sem usar a base real.
