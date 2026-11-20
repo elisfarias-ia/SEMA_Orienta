@@ -186,7 +186,7 @@ test('TS4. tema: lê nome e serviços afetados (sem ids), edita só o nome com c
     assert.deepEqual(validarServicos(raiz).erros, []);
     const h = historicoDeTemas(raiz);
     assert.equal(h.length, 1);
-    assert.deepEqual([h[0].acao, h[0].itemTipo, h[0].itemId, h[0].resultado, h[0].ator], ['editar_tema', 'tema', 'licenciamento-ambiental', 'ok', 'Servidor de demonstração']);
+    assert.deepEqual([h[0].acao, h[0].itemTipo, h[0].itemId, h[0].resultado, h[0].ator], ['editar_tema', 'tema', 'licenciamento-ambiental', 'ok', { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }]);
     assert.deepEqual(Object.keys(h[0]).sort(), ['acao', 'ator', 'dataHora', 'id', 'itemId', 'itemTipo', 'resultado', 'tipo']);
     assert.ok(!JSON.stringify(h).includes('Florestal') && !JSON.stringify(h).includes('Licenciamento Ambiental'), 'o histórico não guarda nomes');
     const lido = await lerTema('licenciamento-ambiental');

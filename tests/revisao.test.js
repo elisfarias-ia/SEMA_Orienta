@@ -112,7 +112,7 @@ test('R2. revisar fonte: marca validada com dataConsulta, não publica nem alter
     // a nova revisão devolvida é a do conteúdo atual
     assert.equal(r.revisao, revisaoAtual(rev));
     const h = criarHistoricoRevisao({ raiz }).listarAcoes('lac');
-    assert.deepEqual(h.registros.map((x) => [x.acao, x.versaoId, x.resultado, x.ator]), [['revisar_fonte', 'lac-v1', 'ok', 'Servidor de demonstração']]);
+    assert.deepEqual(h.registros.map((x) => [x.acao, x.versaoId, x.resultado, x.ator]), [['revisar_fonte', 'lac-v1', 'ok', { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }]]);
     assert.equal(h.registros[0].hashConteudo, r.revisao);
     // revisar de novo a mesma fonte é recusado
     assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).erro, 'fonte_ja_revisada');
@@ -219,7 +219,8 @@ test('R7. concluir: congela, grava o hash, registra a decisão e leva a "Pronto 
     // histórico: decisão material (decisoes.js) e ação, sem autorização
     const dec = criarHistoricoRevisao({ raiz }).listarDecisoes('lac').registros;
     assert.equal(dec.length, 1);
-    assert.deepEqual([dec[0].tipo, dec[0].decisao, dec[0].versaoId, dec[0].hashConteudo, dec[0].responsavel, dec[0].unidade], ['decisao_material', 'validado_materialmente', 'lac-v1', s.revisao, 'Servidor de demonstração', 'Ambiente local de demonstração']);
+    // Sprint 7 (Passo 7C): a decisão grava o ator novo (fora do Git); o manifesto guarda só perfil e setor de quem validou.
+    assert.deepEqual([dec[0].tipo, dec[0].decisao, dec[0].versaoId, dec[0].hashConteudo, dec[0].ator, 'responsavel' in dec[0]], ['decisao_material', 'validado_materialmente', 'lac-v1', s.revisao, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }, false]);
     assert.deepEqual(validarHistorico(dec), []);
     assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao).slice(-1), ['concluir_revisao']);
     // depois de concluída: nada é editável nem revisável; concluir de novo é recusado

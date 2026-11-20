@@ -6,6 +6,7 @@
 //
 // Resultado das operações: { ok: true, ... } ou { ok: false, erro: '<codigo>', detalhes?: [...] }.
 
+import { validarResponsavelPublico } from './atores.js';
 import { ESTADOS_VERSAO, estadoVersaoValido, conteudoEditavel, verificarTransicao } from './fluxo.js';
 import { hashConteudo } from './hash.js';
 
@@ -50,6 +51,29 @@ export function validarArquivos(arquivos) {
 }
 const idValidoChave = (c) => /^[a-zA-Z][a-zA-Z0-9]*$/.test(c);
 
+// Responsáveis públicos da versão (Sprint 7, Passo 7C): cada etapa só existe a partir do estado em que ela acontece, e cada valor
+// é exatamente { perfil, setor } de um usuário autorizado (atores.js). Nunca usuarioId, nome ou e-mail: o manifesto vai para o Git.
+export const ETAPAS_COM_RESPONSAVEL = Object.freeze({
+  validacao: Object.freeze(['validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
+  autorizacao: Object.freeze(['autorizado_publicacao', 'publicado', 'revogado']),
+  publicacao: Object.freeze(['publicado', 'revogado']),
+  revogacao: Object.freeze(['revogado']),
+});
+
+function validarResponsaveis(responsaveis, estado) {
+  if (!ehObjeto(responsaveis) || Object.keys(responsaveis).length === 0) return ['responsaveis deve ser um objeto não vazio'];
+  const erros = [];
+  for (const [etapa, responsavel] of Object.entries(responsaveis)) {
+    if (!Object.hasOwn(ETAPAS_COM_RESPONSAVEL, etapa)) {
+      erros.push('responsaveis: etapa não prevista');
+      continue;
+    }
+    if (!ETAPAS_COM_RESPONSAVEL[etapa].includes(estado)) erros.push(`responsaveis.${etapa} não é permitido neste estado`);
+    erros.push(...validarResponsavelPublico(responsavel).map((e) => `responsaveis.${etapa}: ${e}`));
+  }
+  return erros;
+}
+
 /**
  * Confere a estrutura e a coerência de uma versão. Retorna a lista de erros (vazia se estiver correta).
  * Coerência: rascunho não tem hash nem envio; qualquer outro estado tem os dois.
@@ -59,7 +83,9 @@ export function validarVersao(v) {
   const erros = [];
   const esperados = ['arquivos', 'baseadaEm', 'criadoEm', 'enviadaEm', 'estado', 'hashConteudo', 'id', 'numero', 'servicoId'];
   // `publicadoEm` e `revogadoEm` são opcionais: só existem na versão publicada ou revogada (datas fora do hash, que não cobre o manifesto).
-  for (const k of Object.keys(v)) if (!esperados.includes(k) && k !== 'publicadoEm' && k !== 'revogadoEm') erros.push(`campo não previsto: ${k}`);
+  // `responsaveis` (Sprint 7, Passo 7C) é opcional: perfil e setor de quem validou, autorizou, publicou ou revogou.
+  const opcionais = ['publicadoEm', 'revogadoEm', 'responsaveis'];
+  for (const k of Object.keys(v)) if (!esperados.includes(k) && !opcionais.includes(k)) erros.push(`campo não previsto: ${k}`);
   for (const k of esperados) if (!(k in v)) erros.push(`campo obrigatório ausente: ${k}`);
   if (erros.length) return erros;
 
@@ -96,6 +122,7 @@ export function validarVersao(v) {
   } else if ('revogadoEm' in v) {
     erros.push('revogadoEm só é permitido em versão revogada: uma versão revogada não volta a ser usada');
   }
+  if ('responsaveis' in v) erros.push(...validarResponsaveis(v.responsaveis, v.estado));
   return erros;
 }
 

@@ -112,7 +112,7 @@ test('RR1. revogar pela rota: 200, manifesto revogado, registro sem publicação
     assert.deepEqual([e.publicado, e.versaoPublicadaId], [false, null]);
     assert.deepEqual(validarServicos(raiz).erros, []);
     const decisao = jsonl(raiz, 'decisoes').at(-1);
-    assert.deepEqual([decisao.tipo, decisao.versaoId, decisao.hashConteudo, decisao.responsavel], ['revogacao', 'lac-v1', hash, 'Servidor de demonstração']);
+    assert.deepEqual([decisao.tipo, decisao.versaoId, decisao.hashConteudo, decisao.ator, 'responsavel' in decisao], ['revogacao', 'lac-v1', hash, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }, false]);
     // o motivo é aparado na entrada da rota, como a tela já faz
     assert.equal(decisao.motivo, MOTIVO);
     assert.equal(jsonl(raiz, 'revisao').at(-1).acao, 'revogar');
