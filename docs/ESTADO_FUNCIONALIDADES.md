@@ -61,7 +61,8 @@ Situação em 19/11/2026, conferida nos arquivos do repositório (`main` em `898
 | Testes de ponta a ponta (somente leitura e com cópia da base) | Implementado | `e2e/`, `playwright.config.js`, `e2e-real/`, `playwright.real.config.js` |
 | Skills e subagentes do projeto | Implementado | `.claude/skills/`, `.claude/agents/` |
 | MCP local de consulta da base | Implementado | `.mcp.json`, `scripts/mcp/`; `tests/mcp-*.test.js` |
-| Hook de proteção | Planejado (Sprint 6) | — |
+| Hook de proteção do Claude Code (regras A1 a A7) | Implementado (Sprint 6, Passo 6A) | `.claude/settings.json`, `scripts/hooks/protecao-claude.js`; `tests/hook-claude.test.js` |
+| Pre-commit do Git e verificação no GitHub | Planejado (Sprint 6, Passos 6B e 6D) | — |
 | Publicação na Vercel | Planejado (Sprint 12) | — |
 
 ## Fora do plano atual
