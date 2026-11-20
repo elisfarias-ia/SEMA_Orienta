@@ -1,0 +1,3 @@
+#!/bin/sh
+# Pre-commit do SEMA Orienta (Sprint 6, Passo 6B). Ativar com: npm run hooks:instalar
+exec node "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit.js"

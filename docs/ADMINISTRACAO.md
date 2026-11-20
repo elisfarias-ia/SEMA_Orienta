@@ -239,3 +239,68 @@ Quando uma gravação na base for realmente autorizada (por exemplo, na Sprint 1
 - Ao terminar, apague o arquivo.
 
 **Limites:** a leitura dos comandos é aproximada, e um comando escrito de forma incomum pode escapar. O hook não impede a gravação feita pela administração local no `npm run dev` (o aviso A6 sinaliza) nem as suas próprias ações.
+
+## Proteção dos commits (Sprint 6, Passo 6B)
+
+O pre-commit do Git (`.githooks/pre-commit`, que chama `scripts/hooks/pre-commit.js` e as regras de `scripts/hooks/regras.js`) confere tudo o que está sendo commitado, por qualquer pessoa. Se encontrar um problema, o commit não acontece e a mensagem diz a regra e o arquivo.
+
+### Como ativar (uma vez em cada cópia do repositório)
+
+1. Abra o terminal na pasta do projeto.
+2. Rode `npm run hooks:instalar` (equivale a `git config core.hooksPath .githooks`).
+3. Para conferir, rode `git config core.hooksPath`: a resposta deve ser `.githooks`.
+
+Sem esse passo, o Git não usa o hook nesta cópia. A verificação no GitHub (Passo 6D, planejado) vai repetir as regras em cada PR.
+
+### O que é barrado
+
+| Regra | O que barra |
+|---|---|
+| B1 | Arquivo novo ou alterado em `services/<serviço>/publico/` sem publicação autorizada registrada. |
+| B2 | No `services/registry.json`: `publicado` passando a `true`, `versaoPublicadaId` preenchido ou `statusValidacao` passando a `"validado"`. Nos `versao.json`: `estado` passando a `validado_materialmente`, `autorizado_publicacao` ou `publicado`, ou `publicadoEm` preenchido. Só conta a **mudança** em relação ao último commit. |
+| B3 | `data/`, `dist/`, `node_modules/`, `test-results/`, `playwright-report/`, `.env*`, vídeos `.webm`, `.claude/settings.local.json`, `.claude/launch.json` e `.claude/liberacao-protecao.json`. |
+| B4 | Nas linhas adicionadas: chaves e tokens com formato conhecido, chave privada e credencial atribuída a um texto (em qualquer arquivo); e-mail fora dos domínios permitidos, CPF e telefone (fora das pastas de testes `tests/`, `e2e/`, `e2e-real/` e `e2e-demo/`). A mensagem mostra o arquivo, a linha e o tipo, nunca o valor. |
+| B5 | Se o commit mexe no que entra no build (`src/`, `admin/`, `index.html`, `vite.config.js`, `package.json`, `services/*.js`, `scripts/check-dist.js` ou conteúdo público), roda `npm run build` e `node scripts/check-dist.js`; se algum falhar, barra. |
+| B0 | Se algo não puder ser lido ou interpretado (por exemplo, um JSON inválido no arquivo de autorizações), o commit é barrado por padrão. |
+
+**Domínios de e-mail permitidos** (lista em `scripts/hooks/regras.js`):
+
+- `sema.mt.gov.br`: domínio institucional;
+- `orgaoexemplo.gov.br`: domínio **fictício** dos usuários de demonstração Maria Silva e Carlos Silva;
+- `example.com`, `example.org` e `example.net`: domínios reservados para documentação.
+
+Qualquer outro domínio é barrado. Para incluir um domínio, altere a lista e este documento no mesmo PR, com revisão.
+
+### Como registrar uma publicação autorizada (B1 e B2)
+
+Quando uma publicação for realmente autorizada (por exemplo, na Sprint 11, com a confirmação da CLABI), acrescente uma entrada em `.githooks/publicacoes-autorizadas.json`, no mesmo commit da publicação. O arquivo é versionado e passa por revisão no PR. Ele começa assim:
+
+```json
+{
+  "publicacoes": []
+}
+```
+
+Modelo de entrada para copiar e preencher:
+
+```json
+{
+  "publicacoes": [
+    {
+      "servicoId": "lac",
+      "versaoId": "lac-v1",
+      "hashConteudo": "<os 64 caracteres do hashConteudo do versao.json>",
+      "arquivoPublico": "conteudo-<os 16 primeiros caracteres do hash>.json",
+      "referencia": "Issue #<número> ou documento da CLABI que autorizou",
+      "data": "AAAA-MM-DD"
+    }
+  ]
+}
+```
+
+- Todos os campos são obrigatórios, e nenhum outro é aceito. Não registre nome de pessoa.
+- `arquivoPublico` precisa ser exatamente `conteudo-` mais os 16 primeiros caracteres do `hashConteudo`, mais `.json`.
+- A entrada só libera aquele serviço, aquela versão e aquele hash: qualquer outra publicação continua barrada.
+- A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que continua sendo da CLABI.
+
+**Limites:** `git commit --no-verify` pula o hook (o assistente é impedido pela regra A7, e o Passo 6D vai cobrir o restante). O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).
