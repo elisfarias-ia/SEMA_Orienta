@@ -111,41 +111,37 @@ Concluído (Passo 7E3B — simplificação inicial da administração):
 
 Pendente (ainda não iniciado): edição do conteúdo geral, documentos e perguntas, envio para validação, decisões e publicação. **Nenhuma decisão real nem validação material foi registrada, e não há publicação autorizada.** Decisões com identificação pessoal continuarão fora do Git.
 
-## Sprint 1 — Engenharia assistida e saúde do sistema (tecnicamente concluída; em revisão na PR #4)
+## Sprint 1 — Engenharia assistida e saúde do sistema (concluída; integrada pela PR #4)
 
 Ver `docs/SPRINTS.md`.
 
 - [x] 8A: `CLAUDE.md`, metodologia e templates Git (integrado pela PR #2);
 - [x] 8B: saúde do sistema, com `GET /__admin/saude` e a página `/admin/saude/`, capacidade e estado separados, verificações reais e componentes inexistentes como não implementados, em contagem separada (MCP fora da saúde, por ser ferramenta de desenvolvimento). Conferência manual aprovada pela usuária em 13/11/2026 (`docs/TESTES_MANUAIS.md`, MH-01 a MH-12); falhas simuladas cobertas por testes automatizados;
 - [x] 8C: Playwright dos fluxos críticos, 13 testes somente leitura passando (`npm run test:e2e`);
-- [ ] 8D: documentação, evidências (`docs/EVIDENCIAS_SPRINT_1.md`) e fechamento da Sprint, em revisão na PR #4 (Issue #3 aberta até o merge).
+- [x] 8D: documentação, evidências (`docs/EVIDENCIAS_SPRINT_1.md`) e fechamento da Sprint, integrados pela PR #4 (13/11/2026, merge `0e4b33b`); Issue #3 fechada.
 
-## M3 — Conversa com IA
+## M3 — Conversa fundamentada (replanejado após a avaliação do professor)
 
-- [ ] criar função serverless `/api/chat`;
-- [ ] configurar `GEMINI_API_KEY` no ambiente;
-- [ ] implementar adaptador do provedor;
-- [ ] identificar serviço e recuperar trechos;
-- [ ] validar resposta e fontes;
-- [ ] tratar ambiguidade, ausência de conteúdo e falha do provedor.
+O chat já responde com um motor determinístico, só com conteúdo publicado (`src/assistant.js`). A IA externa saiu deste marco: é evolução proposta, para depois do ciclo editorial, sem provedor definido (Gemini e Ollama local serão avaliados). Não há função serverless nem chave de provedor.
 
-**Saída:** resposta conversacional fundamentada na base.
+- [x] identificar o serviço e montar a resposta só com o conteúdo publicado (motor determinístico);
+- [x] mensagem segura quando não houver conteúdo;
+- [ ] mostrar as fontes que sustentam a resposta e o motivo da recusa (Sprint 10);
+- [ ] comprovar que um bloco revogado deixa de ser usado (Sprints 7 e 9);
+- [ ] depois do ciclo editorial: avaliar a IA na preparação do conteúdo e o chat híbrido, com chave só no servidor, adaptador e saída validada.
 
-## M4 — SEMA Check
+**Saída:** resposta fundamentada somente no conteúdo publicado, com fontes e motivo da recusa.
 
-- [ ] exibir checklist da LAC;
-- [ ] permitir marcação local e progresso;
-- [ ] mostrar condição e fonte de cada item;
-- [ ] deixar claro que marcação não valida o documento.
+## M4 — SEMA Check (cancelado)
 
-**Saída:** pré-conferência declarativa integrada ao chat.
+Cancelado por decisão da usuária: o SEMA Check foi retirado do projeto e não será desenvolvido. A lista de documentos da LAC continua na base como conteúdo informativo, sem marcação nem progresso.
 
 ## M5 — Qualidade e publicação
 
 - [ ] executar testes manuais e corrigir falhas;
-- [ ] verificar acessibilidade, responsividade e proteção da chave;
-- [ ] revisar textos com a área competente;
-- [ ] publicar protótipo na Vercel;
+- [ ] verificar acessibilidade e responsividade;
+- [ ] revisar textos com a área competente (conferência técnica da autora e confirmação material pela CLABI, Sprint 11);
+- [ ] publicar protótipo na Vercel como build estático, só com conteúdo validado, sem administração e com aviso de protótipo acadêmico (Sprint 12);
 - [ ] organizar README, evidências e apresentação final.
 
 **Saída:** MVP demonstrável com evidências reais.
@@ -160,11 +156,11 @@ Ver `docs/SPRINTS.md`.
 
 ## Ordem de prioridade
 
-1. conteúdo oficial e rastreabilidade;
-2. conversa segura e útil;
-3. proteção da chave e tratamento de falhas;
-4. checklist;
-5. acabamento visual e expansão.
+1. ciclo editorial completo de um serviço com conteúdo materialmente validado (publicação, resposta e revogação);
+2. conteúdo oficial e rastreabilidade;
+3. conversa segura e útil;
+4. acabamento visual e expansão;
+5. IA externa, depois do ciclo editorial.
 
 ## Sprint 2 — Engenharia assistida (tecnicamente concluída; hook cancelado)
 
@@ -173,7 +169,7 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [x] 2A: skills do projeto (`.claude/skills/`).
 - [x] 2B: subagentes do projeto (`.claude/agents/`).
 - [x] 2C: MCP local somente leitura (`.mcp.json`, `scripts/mcp/`) e demonstração real (`docs/EVIDENCIAS_MCP.md`).
-- [ ] 2D: hook de proteção — cancelado por decisão da usuária; não implementado.
+- [ ] 2D: hook de proteção — não implementado nesta Sprint; voltou ao plano como Sprint 6.
 - [x] Fechamento: evidências e verificação final (`docs/EVIDENCIAS_SPRINT_2.md`).
 
 ## Sprint 3 — Informações do chatbot (tecnicamente concluída)
@@ -191,4 +187,5 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [x] 4B1: `entradas.json`, texto com hash, reutilização de link e proteção do MCP.
 - [x] 4B2: `/admin/` por serviço com entrada de demonstração, tema único, texto, link novo e link já cadastrado; teste Playwright real; conferência manual aprovada em 15/11/2026 (`docs/EVIDENCIAS_SPRINT_4.md`).
 - [ ] Melhorias futuras: achados menores da auditoria (regras de credencial, nome antigo "Cadastro da base" na navegação, validador de `reutilizadaDe`, teste de fonte textual publicada no MCP).
-- [ ] Sprints 5 a 8: revisão e publicação, links seguros e agente, busca e chat inteligente, endurecimento (`docs/SPRINTS.md`).
+- [x] Sprint 5: revisão e publicação (PR #12).
+- [ ] Sprints 6 a 12: plano refeito após a avaliação do professor, centrado no ciclo editorial (`docs/SPRINTS.md`).

@@ -11,10 +11,9 @@ Construir o **SEMA Orienta**, assistente conversacional fundamentado em informa�
 3. A IA só pode usar a base cadastrada para orientar sobre serviços ambientais.
 4. Toda orientação material deve indicar a fonte oficial correspondente.
 5. Conteúdo ausente ou não validado deve permanecer `PENDENTE` e nunca ser inventado.
-6. O SEMA Check é um checklist declarativo; não recebe nem valida documentos no MVP.
-7. O sistema não decide elegibilidade, não aprova licença e não substitui a análise da SEMA.
-8. O sistema não deve solicitar dados pessoais para prestar a orientação do MVP.
-9. Não persistir conversas, perguntas ou dados do usuário.
+6. O sistema não decide elegibilidade, não aprova licença e não substitui a análise da SEMA.
+7. O sistema não deve solicitar dados pessoais para prestar a orientação do MVP.
+8. Não persistir conversas, perguntas ou dados do usuário.
 
 ## Regras técnicas
 
@@ -61,6 +60,8 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 ## Limites atuais
 
 - Só a LAC tem conteúdo; ele está **em validação e não publicado**. Nenhuma validação material ou publicação real foi autorizada ou criada.
+- A validação terá duas etapas: (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto). Só o conteúdo confirmado pela CLABI pode ser publicado de verdade; nenhuma publicação real foi autorizada ainda.
+- Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI) são usuários **fictícios** de demonstração do login simulado planejado; não são pessoas reais nem comprovam identidade.
 - Não há IA externa, API de produção, autenticação, banco de dados nem persistência de conversas.
 - A administração é local e **sem autenticação**: o token só impede uso por outro site aberto no navegador; não comprova identidade.
 - Decisões e histórico ficam fora do Git (`data/admin-private/` está no `.gitignore`); a pasta é criada em uso, com metadados sem título, URL nem texto.
@@ -91,6 +92,7 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 8. Não registrar teste manual como aprovado sem evidência da execução. Separar o que foi conferido pela usuária do que só os testes automatizados cobrem.
 9. Servidor local: iniciar só se pedido, sem `--host`, e encerrar apenas o processo do Vite deste repositório.
 10. Mudança no que o chat público mostra, em dependências ou em dados exige pedido explícito.
+11. Testes manuais com npm run dev gravam na base real. Ao final de qualquer sessão de teste manual, conferir git status e restaurar pelo Git toda mudança em services/ e data/, a menos que a usuária autorize mantê-la.
 
 ## Recursos do assistente de código no repositório
 

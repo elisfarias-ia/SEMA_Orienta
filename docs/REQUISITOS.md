@@ -11,11 +11,13 @@
 | RF05 | Orientar sobre a LAC | Pode apresentar descrição, condições, etapas, documentos, canal e dúvidas frequentes, conforme a base. |
 | RF06 | Exibir fontes | A resposta apresenta links ou referências oficiais cadastradas. |
 | RF07 | Tratar ausência de informação | Não inventa resposta e indica o canal oficial registrado. |
-| RF08 | Apresentar checklist | Exibe os documentos exigidos e permite marcação local pelo usuário. |
-| RF09 | Mostrar progresso | Informa quantos itens do checklist foram marcados, sem declarar validade documental. |
 | RF10 | Reiniciar conversa | O usuário pode limpar o histórico exibido na sessão. |
 | RF11 | Cadastrar novos serviços | Um serviço novo é adicionado por pasta/configuração, sem reescrever o fluxo principal. |
 | RF12 | Controlar validação | Conteúdo não validado não pode fundamentar resposta pública. |
+
+### Requisitos cancelados
+
+RF08 (apresentar checklist com marcação local) e RF09 (mostrar progresso do checklist) foram cancelados com a retirada do SEMA Check, por decisão da usuária. Os números não são reaproveitados. A lista de documentos continua na base como conteúdo informativo.
 
 ## Requisitos não funcionais
 
@@ -36,7 +38,7 @@
 - descrição e público;
 - condições e limites da orientação;
 - etapas do procedimento;
-- documentos e observações do checklist;
+- documentos e suas observações (conteúdo informativo);
 - sistema, canal ou local de início;
 - perguntas frequentes;
 - legislação e fontes oficiais;

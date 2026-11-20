@@ -1,66 +1,41 @@
 # Arquitetura do MVP
 
-## Visão geral
+## Visão geral (estado atual)
 
 ```mermaid
 flowchart TD
     U[Usuário] --> W[Interface de chat]
-    W --> A[API protegida]
-    A --> I[Identificador de serviço]
-    I --> B[Base oficial versionada]
-    B --> G[Adaptador de IA]
-    G --> V[Validador da resposta]
-    V --> W
+    W --> M[Motor determinístico no navegador]
+    M --> P[Conteúdo público publicado]
+    P --> W
+    A[Administração local, só em desenvolvimento] --> B[Base versionada em services/]
+    B -->|publicação autorizada| P
 ```
+
+Não há IA externa, API de produção, função serverless nem chave de provedor. O motor de respostas é determinístico: reconhece a intenção por palavras equivalentes e monta a resposta somente com o texto do conteúdo publicado.
 
 ## Componentes
 
 | Componente | Responsabilidade |
 |---|---|
-| Interface | Exibir conversa, fontes e checklist; manter somente o estado da sessão. |
-| API | Validar entrada, limitar requisições, orquestrar consulta e ocultar a chave. |
-| Registro de serviços | Relacionar identificadores, nomes, siglas, termos equivalentes e pastas de conteúdo. |
-| Base oficial | Armazenar roteiro, documentos, perguntas frequentes e fontes validadas. |
-| Adaptador de IA | Encapsular a chamada ao Gemini e permitir troca futura de provedor. |
-| Validador | Rejeitar resposta sem fonte, serviço ou suporte nos trechos recuperados. |
+| Interface (`index.html`, `src/main.js`, `src/chat.js`) | Exibir conversa e fontes; manter somente o estado da sessão, em memória. |
+| Motor determinístico (`src/assistant.js`) | Reconhecer a intenção e montar a resposta só com os blocos publicados; sem conteúdo, mensagem segura. |
+| Registro de serviços (`services/registry.json`) | Relacionar identificadores, nomes, versões e pastas de conteúdo. |
+| Base versionada (`services/<serviço>/versoes/vN/`) | Armazenar roteiro, documentos, perguntas frequentes, fontes e blocos de conteúdo. |
+| Conteúdo público (`services/<serviço>/publico/`, `services/publicacao-publica.js`) | Arquivo imutável, de esquema fechado, gerado só pela publicação autorizada. |
+| Administração local (`admin/`, `services/admin/`) | Cadastro, revisão, autorização e publicação, só no `npm run dev`. |
 
-## Fluxo da resposta
+## Fluxo da resposta (atual)
 
-1. A API recebe a mensagem e um histórico curto da sessão.
-2. Valida tamanho e formato da entrada.
-3. Identifica o serviço por termos cadastrados e, quando necessário, com classificação da IA.
-4. Recupera somente o conteúdo validado do serviço.
-5. Monta uma instrução com a pergunta, os trechos e as regras do assistente.
-6. O provedor gera uma resposta estruturada.
-7. O servidor valida serviço, fontes e tipo de resposta.
-8. A interface exibe o texto, as fontes e, quando solicitado, o checklist.
+1. A interface recebe a pergunta e a mantém só em memória.
+2. O motor reconhece a intenção por termos cadastrados, no próprio navegador.
+3. Usa somente os blocos do conteúdo publicado (no `npm run dev`, sem publicação, o conteúdo de teste local, com faixa de aviso).
+4. Monta a resposta com o texto desses blocos e mostra as fontes (links `https`).
+5. Sem conteúdo que sustente a resposta, mostra a mensagem segura de indisponibilidade.
 
-## Contrato inicial da API
+## IA externa (evolução proposta, sem provedor definido)
 
-### `POST /api/chat`
-
-Entrada:
-
-```json
-{
-  "message": "Quero saber como solicitar uma LAC",
-  "history": []
-}
-```
-
-Saída:
-
-```json
-{
-  "status": "answered",
-  "serviceId": "lac",
-  "answer": "...",
-  "sources": [],
-  "checklistAvailable": true
-}
-```
-
-Estados previstos: `answered`, `clarification_needed`, `not_available` e `error`.
+A IA externa não faz parte do sistema atual. Foi proposta como evolução posterior ao ciclo editorial (ver `docs/SPRINTS.md`), sem provedor escolhido: Gemini e um modelo local via Ollama serão avaliados. Se for adotada, deverá seguir estas condições: chamada só no servidor, chave só no servidor, acesso por uma interface adaptadora, entrada limitada ao conteúdo publicado e saída validada antes de chegar ao navegador. Nenhum contrato de API foi definido.
 
 ## Estrutura da base
 
@@ -118,19 +93,19 @@ services/
 
 ## Decisões de segurança
 
-- `GEMINI_API_KEY` existe somente no ambiente da função serverless;
-- nenhuma chamada direta ao Gemini parte do navegador;
+- não há chave de provedor de IA no projeto; se houver integração futura, a chave existirá só no servidor;
+- nenhuma chamada a provedor de IA parte do navegador;
 - mensagens e histórico não são gravados;
 - logs não devem registrar o conteúdo integral da conversa;
-- erros públicos não exibem prompt, chave, resposta bruta ou detalhes internos;
-- apenas conteúdo `validado` participa da recuperação;
-- limites de tamanho e frequência serão aplicados na API.
+- erros públicos não exibem chave, resposta bruta ou detalhes internos;
+- apenas conteúdo publicado participa da resposta pública;
+- o build público não contém administração nem conteúdo de teste (`scripts/check-dist.js`).
 
 ## Evolução
 
-Novos serviços serão incluídos no registro e em pastas próprias. Banco de dados, busca vetorial, autenticação e integrações institucionais só serão avaliados depois que o MVP comprovar a necessidade.
+Novos serviços serão incluídos no registro e em pastas próprias.
 
-Roadmap previsto (somente planejamento; nenhuma Sprint iniciada e nenhum provedor de IA contratado ou integrado; detalhes e ressalvas em `docs/SPRINTS.md`): Sprint 6, IA na preparação do conteúdo (PDF com texto, sugestões com página e trecho de evidência, sempre em elaboração e com revisão humana); Sprint 7, chat híbrido com IA (apenas conteúdo publicado recuperado, validação da resposta e retorno à resposta determinística se a IA estiver indisponível); Sprint 8, preparação institucional (autenticação, perfis, banco persistente, auditoria, backup e implantação; tecnologias ainda sem decisão arquitetural). Evoluções posteriores: integrações com sistemas da SEMA e com bases oficiais de legislação, consulta pública ao andamento de processos, alertas de conteúdo desatualizado, novos serviços, métricas das dúvidas, OCR e processamento em lote.
+Roadmap replanejado a partir da avaliação do professor (somente planejamento; nenhuma Sprint iniciada; detalhes em `docs/SPRINTS.md`): Sprint 6, hook de proteção; Sprint 7, diagnóstico de revogação e do registro do responsável; Sprint 8, login simulado com os perfis Cadastrante e Revisor (RBAC) e auditoria, substituindo o "Servidor de demonstração"; Sprint 9, prova técnica do ciclo publicação → resposta → revogação com dados sintéticos em ambiente isolado; Sprint 10, chat com fontes e motivo da recusa; Sprint 11, validação real com a CLABI e publicação autorizada; Sprint 12, publicação na Vercel como build estático, só com conteúdo validado, sem administração e com aviso de protótipo acadêmico. Depois: IA na preparação do conteúdo e chat híbrido (provedor a definir). Preparação institucional: login real com a conta Google institucional, banco de dados e auditoria persistente. Evoluções posteriores: integrações com sistemas da SEMA e com bases oficiais de legislação, consulta pública ao andamento de processos, alertas de conteúdo desatualizado, novos serviços, métricas das dúvidas, OCR e processamento em lote.
 
 ## MCP local de consulta da base (Sprint 2)
 
