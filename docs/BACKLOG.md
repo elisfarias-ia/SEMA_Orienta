@@ -189,3 +189,32 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [ ] Melhorias futuras: achados menores da auditoria (regras de credencial, nome antigo "Cadastro da base" na navegação, validador de `reutilizadaDe`, teste de fonte textual publicada no MCP).
 - [x] Sprint 5: revisão e publicação (PR #12).
 - [ ] Sprints 6 a 12: plano refeito após a avaliação do professor, centrado no ciclo editorial (`docs/SPRINTS.md`).
+
+## Revisão retrospectiva das Sprints 6 e 7 (20/11/2026)
+
+Revisão feita depois da adoção do fluxo com subagentes, só de leitura, sobre a `main` em `6a762a3` (PRs #20 a #29): arquitetura pelo `arquiteto-sema` e segurança pelo `auditor-sema`. Nenhum achado bloqueante. Os quatro achados graves (verificação da PR rodando o próprio código da PR, conteúdo substituído podendo voltar ao ar, motivo de revogação aceitando dados pessoais e evidência do B5 registrada como fato) estão na **Issue #31**. Os demais ficam aqui, com a gravidade que cada revisor deu. Nada foi corrigido ainda.
+
+**Arquitetura (`arquiteto-sema`)**
+
+- [ ] **Alto — duas fontes de verdade para "autorizado"** (achado 2). O domínio exige a decisão no histórico privado (`data/admin-private/`, fora do Git; `services/admin/decisoes.js`, `services/admin/publicacao.js`); o pre-commit exige a entrada versionada em `.githooks/publicacoes-autorizadas.json` (`scripts/hooks/regras.js`). As duas não se cruzam e podem divergir sem alerta. Direção: definir qual é a autoridade e documentar o histórico privado como auditoria local.
+- [ ] **Médio — o hook do Claude Code não cobre `.github/`** (achado 7; também no I2 do auditor). A regra A5 protege `.claude/settings*`, a liberação, `scripts/hooks/` e `.githooks/`, mas não `.github/workflows/`, o `package.json` (script `hooks:instalar`) nem o `CLAUDE.md`; o matcher não cobre ferramentas MCP. Direção: incluir ao menos `.github/workflows/` na A5.
+- [ ] **Médio — tela e rota divergem sobre o que pode ser revogado** (achado 6). `podeRevogar` exige que a versão atual seja a publicada; a rota revoga `versaoPublicadaId` mesmo quando a atual é outra. Com uma v2 em rascunho, a v1 publicada não pode ser revogada pela tela. Direção: basear o resumo na versão publicada ou restringir a rota de propósito.
+- [ ] **Médio — a regra da PR olha só o início e o fim da diferença** (achado 5). Publicar e revogar na mesma PR é barrado ("só se revoga versão publicada"), mesmo com cada commit aprovado pelo pre-commit. Direção: avaliar commit a commit na PR ou documentar que publicação e revogação vão em PRs separadas.
+- [ ] **Médio — "Concluir revisão" chega a `validado_materialmente` e o hook trata isso como publicação** (achado 3). A regra B2 exige uma entrada de publicação já na validação. Tratado em parte pela separação do Passo 8D (Issue #30).
+- [ ] **Baixo — regras duplicadas** (achado 8): conversão de id da versão em pasta escrita três vezes; nome do arquivo público em dois lugares (com um `.` não escapado em `regras.js`); listas de arquivos proibidos diferentes entre A4 e B3; datas do hook conferidas só pelo formato; três critérios para "pasta de serviço".
+- [ ] **Baixo — acoplamentos** (achado 9): a análise comum mora em `pre-commit.js` e é importada por `verificar-pr.js`; `pre-commit.js` repete expressões de `regras.js`; a regra B1 aceita **modificar** um arquivo público já autorizado; as mensagens dizem "(B1)" e "(B2)" para os códigos B1R e B2R.
+- [ ] **Baixo — atores e histórico** (achado 10): ator padrão silencioso (a fechar no 8C); perfil `demonstracao` aceito em manifestos; datas locais nas decisões e UTC nas ações; o motivo da revogação só fora do Git.
+
+**Segurança (`auditor-sema`)**
+
+- [ ] **Importante (I1) — formas de contornar o hook do Claude Code não documentadas** (hipóteses da leitura do código, não testadas): abreviação de opções longas do Git (`--no-verif`, `--forc`, `--al`); variáveis `GIT_CONFIG_*`; gravação por interpretador (`node -e`); no Windows, ponto final no nome e nomes curtos. Direção: aceitar prefixos nas regras A3, A4 e A7, barrar `GIT_CONFIG_*`, normalizar o nome e documentar os limites.
+- [ ] **Menor (M1)** — `orgaoexemplo.gov.br`, na lista de domínios permitidos do pre-commit, não é um domínio reservado; a liberação de todo `sema.mt.gov.br` deixa passar e-mails nominais de servidores.
+- [ ] **Menor (M2)** — o padrão de arquivo público da regra B1 só pega um nível; `services/<serviço>/publico/sub/arquivo.json` escapa.
+- [ ] **Menor (M3)** — na revogação, o hook não impede trocar o `hashConteudo` no mesmo commit, o que deixaria a B1R aceitar remover o arquivo público de outra versão (o validador barraria a incoerência).
+- [ ] **Menor (M4)** — na rota de revogação, a revisão do corpo prevalece sobre a do cabeçalho `X-Revisao` sem conferir se coincidem.
+- [ ] **Menor (M5)** — as ações do workflow estão fixadas por versão (`@v4`), não por SHA; o cache do npm é compartilhado entre PRs (risco baixo, sem segredos).
+- [ ] **Menor (M6, não testado, anterior às Sprints 6 e 7)** — o servidor de desenvolvimento do Vite talvez sirva `/services/<serviço>/publico/conteudo-*.json` diretamente, inclusive o arquivo revogado (só local; o chat não o usa). Conferir e, se for o caso, bloquear `/services/` no `npm run dev`.
+
+**Verificação do ambiente do assistente de código (não é achado de segurança do sistema)**
+
+- [ ] **Restrição de Bash por subagente:** confirmar se o Claude Code aplica a lista `tools:` com padrões de comando (por exemplo, `Bash(git diff:*)`) a cada subagente ou só as permissões da sessão. Na revisão retrospectiva, o `auditor-sema` usou `gh` mesmo com a definição restringindo o Bash. Se a restrição valer só por sessão, mover o controle para as regras de permissão do `.claude/settings.json`, em passo próprio, quando houver liberação do hook para isso (a regra A5 protege esse arquivo).
