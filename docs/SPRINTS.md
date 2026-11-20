@@ -16,9 +16,9 @@ Planejamento em ciclos curtos, com objetivo, backlog, critérios de aceite e Def
 | 8A | `CLAUDE.md`, metodologia e templates Git | Regras permanentes, técnicas com situação e evidências, modelos de issue e de pull request | **Concluído** (PR #2) |
 | 8B | Endpoint e tela de saúde | Estado operacional do sistema, visível só no ambiente local de desenvolvimento | **Concluído** (13/11/2026) |
 | 8C | Playwright dos fluxos críticos | Testes de ponta a ponta do chat público, da administração local e da ausência da administração no build | **Concluído** (13 testes) |
-| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint | Em revisão (PR #4) |
+| 8D | Documentação, evidências e fechamento | Documentos atualizados, evidências reunidas e retrospectiva da Sprint | **Concluído** (PR #4) |
 
-**Situação da Sprint:** tecnicamente concluída e em revisão na PR #4; a Issue #3 permanece aberta até o merge. Verificações do fechamento (validação da base, `npm test`, `npm run test:e2e`, build, `check-dist` e `git diff --check`) e evidências em `docs/EVIDENCIAS_SPRINT_1.md`. Os testes E2E são somente leitura e não cobrem o `preview` nem o build; a ausência da administração e da faixa de teste no `dist/` é verificada pelo `check-dist` e por testes Node.
+**Situação da Sprint:** concluída e integrada à `main` pela PR #4 (13/11/2026, merge `0e4b33b`); Issue #3 fechada. Verificações do fechamento (validação da base, `npm test`, `npm run test:e2e`, build, `check-dist` e `git diff --check`) e evidências em `docs/EVIDENCIAS_SPRINT_1.md`. Os testes E2E são somente leitura e não cobrem o `preview` nem o build; a ausência da administração e da faixa de teste no `dist/` é verificada pelo `check-dist` e por testes Node.
 
 ### Critérios de aceite
 
@@ -73,7 +73,7 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 
 - **Objetivo:** apoiar o desenvolvimento com skills, subagentes e um servidor MCP local de consulta da base, sem alterar a aplicação, os dados da LAC nem o que o chat público mostra.
 - **Entregas:** skills do projeto (`7459a28`), subagentes (`2875966`), MCP local somente leitura com quatro ferramentas (`d7fbc97`) e demonstração real (`d230773`).
-- **Cancelado:** o Passo 2D (hook de proteção) foi cancelado por decisão da usuária e não foi implementado.
+- **Não implementado:** o Passo 2D (hook de proteção) foi cancelado nesta Sprint por decisão da usuária; voltou ao plano como Sprint 6.
 - **Verificação de fechamento:** validação da base, 570 testes (566 passaram, 4 ignorados), 13 testes e2e, build e `check-dist` sem falhas.
 - **Evidências:** `docs/EVIDENCIAS_SPRINT_2.md` e `docs/EVIDENCIAS_MCP.md`.
 
@@ -114,34 +114,61 @@ Ao final da Sprint, registrar o que foi concluído, o que ficou pendente e o mot
 - **Fora do MVP / limitações:** sem autenticação real (entrada de demonstração); sem publicação real da LAC (continua em validação e não publicada); sem IA externa; edição de documentos e perguntas frequentes antigos não implementada; 4 testes de link simbólico NÃO TESTADOS no Windows (EPERM).
 - **Evidências:** `docs/TESTES_MANUAIS.md` e Issue #11. Integrada à `main` pela PR #12 (merge `9a06b97`).
 
-> **Apenas planejamento.** Nenhuma destas Sprints foi iniciada, nenhum provedor de IA foi contratado ou integrado, e os escopos poderão ser refinados durante o planejamento de cada Sprint. Cada Sprint futura terá Issue, branch, diagnóstico e aprovação próprios.
+## Replanejamento após a avaliação do professor (19/11/2026)
 
-## Sprint 6 — IA na preparação do conteúdo (planejada, não iniciada)
+A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes previstas (IA na preparação do conteúdo, chat híbrido com IA e preparação institucional) foram substituídas pela sequência abaixo.
 
-- **Objetivo:** reduzir o trabalho manual de transformar documentos oficiais em orientações estruturadas, mantendo revisão e decisão humanas.
-- **Escopo previsto:**
-  - upload seguro de PDF;
-  - extração de texto preservando página e origem; inicialmente, só PDFs que já contenham texto;
-  - análise por agente com IA, com sugestões de título e orientação;
-  - indicação da página e do trecho que sustentam cada sugestão;
-  - opções de importar, editar antes de importar ou ignorar; a informação importada sempre nasce em elaboração;
-  - verificação básica e segura de links;
-  - revisão humana obrigatória, com o fluxo existente de versionamento, autorização e publicação.
-- **Fora do escopo inicial:** OCR de documentos digitalizados; publicação automática; decisão jurídica da IA; confirmação automática de vigência de normas; envio de documentos pessoais ou restritos para provedor externo; múltiplos PDFs em lote; banco de dados e autenticação institucional.
-- **Princípios:** a IA apenas sugere; nenhuma sugestão chega ao cidadão sem revisão e publicação; página e evidência acompanham cada sugestão; o PDF original permanece interno; o chatbot não consulta diretamente qualquer PDF enviado; provedor, custo, privacidade e limites serão avaliados antes da implementação (estudo técnico curto do provedor e sem adaptador falso apresentado como agente real).
+- **Prioridade:** concluir o ciclo editorial de um serviço com conteúdo materialmente validado. Demonstrar um bloco autorizado chegando à resposta e um bloco revogado deixando de ser usado. A IA fica para depois.
+- **Motor atual:** determinístico, sem IA externa. A IA externa é evolução proposta, sem provedor definido (Gemini e Ollama local serão avaliados no futuro).
+- **SEMA Check:** retirado do projeto por decisão da usuária; não será desenvolvido.
+- **Validação em duas etapas:** (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto), começando por um recorte pequeno da LAC. Só o conteúdo confirmado pela CLABI pode ser publicado de verdade.
+- **Perfis da administração local:** login simulado com dois perfis (RBAC), substituindo o "Servidor de demonstração". **Cadastrante** cadastra fontes e informações e envia para revisão. **Revisor** revisa, registra a validação material, autoriza, publica e revoga. Usuários fictícios de demonstração: Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI). Não há perfil Administrador; a lista de usuários é fixa. Cada ação relevante fica registrada em auditoria (usuário, perfil, setor, ação, resultado e horário), incluindo tentativas negadas.
 
-## Sprint 7 — Chat híbrido com IA (planejada, não iniciada)
+> **Apenas planejamento.** Nenhuma destas Sprints foi iniciada, e os escopos poderão ser refinados no planejamento de cada uma. Cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
 
-- **Objetivo:** melhorar a linguagem das respostas sem perder o controle sobre o conteúdo institucional.
-- **Fluxo previsto:** (1) buscar somente informações publicadas; (2) recuperar os trechos mais relevantes; (3) enviar somente esses trechos para a IA; (4) gerar a resposta em linguagem natural; (5) validar se a resposta está sustentada pelo conteúdo recuperado; (6) apresentar apenas as fontes realmente utilizadas; (7) usar a resposta determinística atual se a IA estiver indisponível; (8) informar a limitação quando não houver conteúdo suficiente.
-- **Regras previstas:** a IA não usa conteúdo em elaboração, excluído ou não publicado, não inventa informações e não responde além do conteúdo recuperado; limites de tamanho, custo, tempo e frequência; chave somente no servidor; logs sem conteúdo sensível; modelo e provedor serão confirmados durante o planejamento; eventual faixa gratuita só será usada após análise das condições atuais.
-- **Fora do escopo inicial:** treinamento de modelo próprio; memória permanente das conversas; tomada de decisão administrativa; consulta a dados pessoais ou processos restritos.
+## Sprint 6 — Hook de proteção (planejada, não iniciada)
 
-## Sprint 8 — Preparação institucional (planejada, não iniciada)
+- **Objetivo:** proteger o repositório durante o desenvolvimento assistido (retoma o Passo 2D, não implementado na Sprint 2).
 
-- **Objetivo:** preparar o sistema para implantação institucional controlada.
-- **Escopo previsto:** autenticação real; perfis e permissões; separação entre cadastro, revisão, autorização e publicação; identificação do responsável por cada ação; banco de dados persistente; migração controlada dos dados atuais; auditoria por usuário; monitoramento e logs técnicos; backup e recuperação; gestão de segredos; proteção de dados; implantação em ambiente institucional; plano de operação e suporte. Mantém-se o endurecimento já previsto para o MVP: saúde com estado "não aplicável", acessibilidade e evidências.
-- **Decisões futuras (sem tecnologia definitivamente aprovada):** mecanismo de autenticação; tecnologia do banco; infraestrutura e ambiente de hospedagem; política de retenção; integração com sistemas corporativos; requisitos de segurança e LGPD.
+## Sprint 7 — Diagnóstico de revogação e do registro do responsável (planejada, não iniciada)
+
+- **Objetivo:** levantar como retirar de uso um conteúdo publicado e como o responsável por cada ação é registrado hoje (ator fixo "Servidor de demonstração"), propondo as mudanças antes de implementar.
+
+## Sprint 8 — Login simulado com perfis e auditoria (planejada, não iniciada)
+
+- **Objetivo:** substituir o "Servidor de demonstração" por login simulado com os perfis Cadastrante e Revisor, com lista fixa de usuários fictícios (Maria Silva e Carlos Silva, CLABI), sem perfil Administrador.
+- **Auditoria:** usuário, perfil, setor, ação, resultado e horário de cada ação relevante, incluindo tentativas negadas.
+- **Limite:** o login simulado não é autenticação real; o login com a conta Google institucional fica para a preparação institucional.
+
+## Sprint 9 — Prova técnica do ciclo editorial (planejada, não iniciada)
+
+- **Objetivo:** demonstrar publicação → resposta → revogação com dados sintéticos em ambiente isolado, usando os perfis.
+- **Cenários:** bloco autorizado chegando à resposta; bloco revogado deixando de ser usado; recusa de acesso (Cadastrante tentando publicar); um cenário de falha.
+
+## Sprint 10 — Chat com fontes e motivo da recusa (planejada, não iniciada)
+
+- **Objetivo:** o chat mostra as fontes que sustentam a resposta e, quando não responde, informa o motivo da recusa.
+
+## Sprint 11 — Validação real com a CLABI e publicação autorizada (planejada, não iniciada)
+
+- **Objetivo:** aplicar a validação em duas etapas a um recorte pequeno da LAC e publicar só o conteúdo confirmado pela CLABI.
+
+## Sprint 12 — Publicação na Vercel (planejada, não iniciada)
+
+- **Objetivo:** publicar o protótipo como build estático, só com conteúdo validado, sem administração e com aviso de protótipo acadêmico.
+
+## Depois do ciclo editorial
+
+- **IA na preparação do conteúdo:** sugestões a partir de documentos oficiais, sempre com revisão humana e o fluxo existente de versionamento, autorização e publicação.
+- **Chat híbrido:** IA redigindo respostas sustentadas somente pelas informações publicadas, com retorno à resposta determinística se a IA estiver indisponível.
+- Provedor, custo, privacidade e limites serão avaliados antes de qualquer implementação.
+
+## Preparação institucional
+
+- login real com a conta Google institucional;
+- banco de dados;
+- auditoria persistente;
+- demais itens antes previstos para a antiga Sprint 8: migração controlada dos dados, monitoramento e logs técnicos, backup e recuperação, gestão de segredos, proteção de dados (LGPD), implantação em ambiente institucional e plano de operação e suporte, sem tecnologia definitivamente aprovada.
 
 ## Evoluções posteriores (roadmap, sem Sprint atribuída)
 

@@ -2,7 +2,7 @@
 
 ## Princípio central
 
-O modelo interpreta a pergunta e redige a conversa; a base oficial define o conteúdo da resposta.
+O motor de respostas, determinístico, identifica a pergunta e monta a resposta somente com blocos publicados; a base oficial define o conteúdo. Se uma IA for adotada no futuro, ela poderá apenas redigir a conversa, nunca definir o conteúdo.
 
 ## Comportamento obrigatório
 
@@ -22,7 +22,7 @@ O modelo interpreta a pergunta e redige a conversa; a base oficial define o cont
 - criar link, contato, documento ou exigência não cadastrados;
 - decidir que uma atividade pode ou não obter LAC;
 - interpretar um documento enviado ou declarar que ele está correto;
-- afirmar que o checklist garante protocolo aceito;
+- afirmar que a lista de documentos garante protocolo aceito;
 - fingir integração com sistema institucional;
 - responder sobre outro serviço como se ele já estivesse disponível no MVP.
 
@@ -42,6 +42,6 @@ O canal só deve ser mostrado quando estiver cadastrado e validado.
 - fontes oficiais;
 - uma pergunta curta para continuidade, quando útil.
 
-## Checklist
+## Lista de documentos
 
-Cada item pode conter nome, descrição, obrigatoriedade, condição, observação e fonte. A marcação significa apenas que o usuário realizou sua própria conferência.
+A lista de documentos de um serviço é conteúdo informativo: cada item pode conter nome, descrição, obrigatoriedade, condição, observação e fonte, e só pode ser apresentado depois de validado e publicado. Não há marcação de itens nem progresso: o SEMA Check foi retirado do projeto.

@@ -19,7 +19,6 @@ Demonstrar o atendimento conversacional completo para um único serviço: **Lice
 3. Se faltar contexto, o assistente faz uma pergunta curta de esclarecimento.
 4. Para LAC, consulta somente a base oficial cadastrada.
 5. Responde com roteiro, documentos, orientações e fontes.
-6. Quando solicitado, apresenta o checklist de pré-conferência do SEMA Check.
 
 ## Escopo do MVP
 
@@ -27,11 +26,12 @@ Demonstrar o atendimento conversacional completo para um único serviço: **Lice
 - identificação da LAC por nome, sigla e termos equivalentes cadastrados;
 - respostas fundamentadas exclusivamente na base local validada;
 - indicação das fontes oficiais utilizadas;
-- checklist declarativo de documentos;
 - mensagem segura quando a base não contiver a resposta;
 - interface responsiva para computador e celular;
-- integração com IA por uma função executada no servidor;
+- respostas montadas por um motor determinístico, sem IA externa;
 - conversas não persistidas.
+
+O SEMA Check (checklist declarativo de documentos) foi retirado do projeto por decisão da usuária e não será desenvolvido. A lista de documentos da LAC continua na base como conteúdo informativo.
 
 ## Fora do escopo
 
@@ -47,15 +47,17 @@ Demonstrar o atendimento conversacional completo para um único serviço: **Lice
 
 Os procedimentos, documentos, legislação, links, canais e unidade responsável serão fornecidos e validados pela área competente. Até essa validação, esses campos devem permanecer marcados como `PENDENTE`; não podem ser completados por suposição.
 
-## Solução técnica inicial
+## Solução técnica atual
 
-- interface web simples e responsiva;
-- API serverless na Vercel;
-- Gemini API no nível gratuito durante o protótipo;
-- chave da API somente em variável de ambiente do servidor;
-- camada adaptadora para permitir troca futura do provedor de IA;
+- interface web simples e responsiva (Vite, JavaScript puro);
+- motor de respostas determinístico, que roda no navegador e usa somente o conteúdo publicado (`src/assistant.js`); não há IA externa, API, chave nem backend de produção;
 - base de conhecimento versionada em arquivos JSON e Markdown;
+- administração local, só no servidor de desenvolvimento;
 - Git e GitHub para controle de versões.
+
+**IA externa: evolução proposta, sem provedor definido.** Uma IA para apoiar a preparação de conteúdos e um chat híbrido poderão ser estudados depois do ciclo editorial (Gemini e um modelo local via Ollama serão avaliados). Qualquer integração futura deverá rodar no servidor, com a chave só no servidor, por uma camada adaptadora, recebendo apenas conteúdo publicado e com a saída validada.
+
+**Publicação do protótipo (planejada):** build estático na Vercel, só com conteúdo validado, sem administração e com aviso de protótipo acadêmico. Ainda não foi feita.
 
 ## Estrutura planejada
 
@@ -159,7 +161,7 @@ Para a demonstração local, `services/lac/versoes/v1/conteudo-assistente.json` 
 
 **Assistente em teste local.** No `npm run dev`, o servidor de desenvolvimento do Vite oferece o endpoint `GET /__assistente/blocos`, que entrega somente os 5 blocos de teste local. A interface os busca apenas em desenvolvimento, reconhece a pergunta livre **no próprio navegador** (por intenção e palavras equivalentes, sem IA externa, API ou chave) e responde só com o texto desses blocos, mostrando a faixa de teste local, o aviso e as fontes oficiais com links `https`. Sem o endpoint, e no build de produção, o chat mostra apenas a mensagem segura de indisponibilidade. A conversa fica só em memória. Para conferir que o build não contém nenhum desses textos: `npm run build` e depois `node scripts/check-dist.js`.
 
-**Assuntos e serviços.** Assunto (área ampla da SEMA, em `services/assuntos.json`) e serviço (atendimento específico, em `services/registry.json`) são conceitos distintos; cada serviço aponta para um assunto ativo por `assuntoId`. A LAC está vinculada ao assunto "Licenciamento Ambiental". Há também o modelo do fluxo de versões (`services/admin/fluxo.js`) e o cálculo de hash do conteúdo (`services/admin/hash.js`), **ainda não aplicados à LAC**: não há validação material nem publicação autorizada, e não existe interface administrativa.
+**Assuntos e serviços.** Assunto (área ampla da SEMA, em `services/assuntos.json`) e serviço (atendimento específico, em `services/registry.json`) são conceitos distintos; cada serviço aponta para um assunto ativo por `assuntoId`. A LAC está vinculada ao assunto "Licenciamento Ambiental". O fluxo de versões (`services/admin/fluxo.js`) e o hash do conteúdo (`services/admin/conteudo-versao.js`) já se aplicam à LAC: ela está na versão 1 (`lac-v1`), em rascunho, sem hash congelado, sem validação material e sem publicação autorizada. A administração local existe (`admin/` e `services/admin/`) e só roda no `npm run dev`; ela não entra no build.
 
 A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](docs/REVISAO_CONTEUDO_LAC.md).
 
@@ -168,10 +170,10 @@ A revisão técnica consolidada da base está em [docs/REVISAO_CONTEUDO_LAC.md](
 - Marco 0 — pacote de contexto concluído.
 - Marco 1 — interface inicial do chat concluída: conversa livre, envio por botão e Enter, reinício, layout responsivo (incluindo 390 px) e navegação por teclado. As respostas são temporárias e não trazem conteúdo da LAC.
 - Marco 2A — estrutura da base de conhecimento da LAC concluída (registro, esquemas, arquivos e validação automatizada). O conteúdo oficial segue pendente.
-- Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes) concluídos tecnicamente e em revisão na PR #4; a Issue #3 segue aberta até o merge.
-- Sprint 2 — engenharia assistida: skills, subagentes e MCP local de consulta da base, com evidências em [docs/EVIDENCIAS_SPRINT_2.md](docs/EVIDENCIAS_SPRINT_2.md). O hook de proteção (2D) foi cancelado e não foi implementado.
+- Sprint 1 — saúde do sistema (`/admin/saude/`) e testes de ponta a ponta com Playwright (13 testes): concluída e integrada à `main` pela PR #4 (13/11/2026); Issue #3 fechada.
+- Sprint 2 — engenharia assistida: skills, subagentes e MCP local de consulta da base, com evidências em [docs/EVIDENCIAS_SPRINT_2.md](docs/EVIDENCIAS_SPRINT_2.md). O hook de proteção (2D) não foi implementado naquela Sprint e voltou ao plano como Sprint 6.
 - Sprint 3 — informações do chatbot: blocos de conhecimento em rascunho (modelo, endpoints locais e a página `/admin/conteudo/`), sem publicação e sem alterar o chat público, com evidências em [docs/EVIDENCIAS_SPRINT_3.md](docs/EVIDENCIAS_SPRINT_3.md). O cadastro guiado de assunto, serviço e fontes ficou para a Sprint 4 (Issue #8).
 - Sprint 4 — cadastro guiado de assunto, serviço e fontes e gestão simples por serviço, com evidências em [docs/EVIDENCIAS_SPRINT_4.md](docs/EVIDENCIAS_SPRINT_4.md).
 - Sprint 5 — revisão e publicação: concluída e integrada à `main` pela PR #12. Revisão humana, edição e exclusão lógica de fontes, edição de temas e serviços, importação de conteúdo existente e publicação segura em arquivo público imutável, usado pelo chatbot e pelo build. A LAC continua em validação e **não publicada**; não há IA externa nem autenticação real. As evidências e as conferências manuais registradas estão em [docs/TESTES_MANUAIS.md](docs/TESTES_MANUAIS.md).
-- Roadmap (somente planejamento; nenhuma Sprint iniciada e nenhum provedor de IA contratado ou integrado): Sprint 6 — IA na preparação do conteúdo; Sprint 7 — chat híbrido com IA; Sprint 8 — preparação institucional. Detalhes em [docs/SPRINTS.md](docs/SPRINTS.md); cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
-- Próximas etapas: a integração com IA e a base oficial da LAC pertencem aos marcos seguintes e ainda não existem.
+- Roadmap replanejado a partir da avaliação do professor (somente planejamento; nenhuma Sprint iniciada): a prioridade é concluir o ciclo editorial de um serviço com conteúdo materialmente validado, mostrando um bloco autorizado chegando à resposta e um bloco revogado deixando de ser usado. Sprints 6 a 12: hook de proteção; diagnóstico de revogação e do registro do responsável; login simulado com perfis Cadastrante e Revisor e auditoria; prova técnica do ciclo com dados sintéticos; chat com fontes e motivo da recusa; validação real com a CLABI e publicação autorizada; publicação na Vercel. IA e preparação institucional ficam para depois. Detalhes em [docs/SPRINTS.md](docs/SPRINTS.md) e o que existe hoje em [docs/ESTADO_FUNCIONALIDADES.md](docs/ESTADO_FUNCIONALIDADES.md).
+- Validação em duas etapas: (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto), começando por um recorte pequeno da LAC. Só o conteúdo confirmado pela CLABI poderá ser publicado de verdade; nenhuma publicação real foi autorizada até agora.
