@@ -3,10 +3,12 @@
 // o token fica dentro do cliente (memória); ids, hashes, origem, ambiente, estados internos e datas ISO nunca aparecem; nada é
 // gravado ao abrir a página: toda gravação exige ação explícita (e confirmação quando é irreversível), uma por vez.
 // Autorizar e publicar são ações separadas, depois de concluir a revisão; cada uma pede confirmação própria e envia uma única requisição.
+// Revogar (Sprint 7) só aparece com a versão publicada e pede confirmação com motivo obrigatório.
 
 import {
   corpoDaImportacao, corpoDoConhecimento, criarClienteAdmin, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
   AVISO_AUTORIZACAO, MENSAGENS_PUBLICACAO, TEXTO_CONFIRMAR_AUTORIZACAO, TEXTO_CONFIRMAR_PUBLICACAO, TEXTO_DIFERENCA_ETAPAS, botoesDePublicacao, frasePublicacao, linhasDoResumoDePublicacao,
+  AVISO_MOTIVO_REVOGACAO, MENSAGEM_MOTIVO_OBRIGATORIO, TEXTO_CONFIRMAR_REVOGACAO,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
 } from '../admin-logic.js';
 
@@ -372,6 +374,7 @@ function renderizarPublicacao() {
   $('publicacao-estado').textContent = publicacao === null ? MENSAGENS_PUBLICACAO.indisponivel : frasePublicacao(publicacao);
   $('botao-autorizar').hidden = !b.autorizar.visivel;
   $('botao-publicar').hidden = !b.publicar.visivel;
+  $('botao-revogar').hidden = !b.revogar.visivel;
 }
 
 function renderizarConclusao() {
@@ -948,6 +951,36 @@ $('botao-publicar').addEventListener('click', (evento) => {
   abrirPublicacao(evento.currentTarget);
 });
 $('botao-nova-versao').addEventListener('click', () => executarRevisao('nova-versao', {}, 'Nova versão criada. Ela está em elaboração e nada foi publicado.'));
+
+// Revogar a publicação: confirmação com motivo obrigatório. Sem motivo, nada é enviado e o diálogo continua aberto.
+// O conteúdo do motivo (tamanho, sem e-mail) é conferido pelo servidor; aqui só se impede o envio em branco.
+const campoMotivo = $('revogacao-motivo');
+const erroMotivo = $('revogacao-motivo-erro');
+function mostrarErroDoMotivo(mensagem) {
+  erroMotivo.textContent = mensagem;
+  erroMotivo.hidden = mensagem === '';
+  if (mensagem === '') campoMotivo.removeAttribute('aria-invalid');
+  else campoMotivo.setAttribute('aria-invalid', 'true');
+}
+const abrirRevogacao = ligarDialogo($('dialogo-revogacao'), $('revogacao-voltar'), $('revogacao-confirmar'), async (fechar) => {
+  const motivo = campoMotivo.value.trim();
+  if (motivo === '') {
+    mostrarErroDoMotivo(MENSAGEM_MOTIVO_OBRIGATORIO);
+    campoMotivo.focus();
+    return;
+  }
+  mostrarErroDoMotivo('');
+  await executarRevisao('revogar', { motivo }, MENSAGENS_PUBLICACAO.revogada, fechar, { elemento: 'titulo-publicacao' });
+});
+$('botao-revogar').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || publicacao === null || !publicacao.podeRevogar) return;
+  $('revogacao-descricao').textContent = TEXTO_CONFIRMAR_REVOGACAO;
+  $('revogacao-motivo-ajuda').textContent = AVISO_MOTIVO_REVOGACAO;
+  campoMotivo.value = '';
+  mostrarErroDoMotivo('');
+  preencherResumo('revogacao-resumo');
+  abrirRevogacao(evento.currentTarget);
+});
 
 // ---------- Editar e excluir fontes ----------
 

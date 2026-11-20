@@ -470,7 +470,11 @@ test('P12. rotas: resumo (sem hash nem ids), autorização e publicação com re
     const antes = retrato(raiz);
     let r = await get('publicacao/resumo');
     assert.equal(r.status, 200);
-    assert.deepEqual(r.corpo, { versao: 1, rotulo: 'Pronto para publicar', dataRevisao: '2026-11-17', informacoesAceitas: 2, links: 1, textos: 1, podeAutorizar: true, podePublicar: false, publicado: false, dataPublicacao: null });
+    assert.deepEqual(r.corpo, {
+      versao: 1, rotulo: 'Pronto para publicar', dataRevisao: '2026-11-17', informacoesAceitas: 2, links: 1, textos: 1, podeAutorizar: true, podePublicar: false, publicado: false, dataPublicacao: null,
+      // revogação (Sprint 7, Passo 7B)
+      podeRevogar: false, revogado: false, dataRevogacao: null,
+    });
     assert.doesNotMatch(r.bruto, /[0-9a-f]{64}|lac-v1|bc-|services\//);
     assert.deepEqual(retrato(raiz), antes);
     assert.equal((await enviar(m, { url: '/__admin/servicos/lac/publicacao/resumo', method: 'GET' })).status, 401);

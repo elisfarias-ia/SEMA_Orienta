@@ -198,8 +198,11 @@ Só na versão atual em elaboração; versão congelada exige nova versão. A fo
 | `POST /__admin/servicos/<id>/autorizacao` | Registra a autorização da publicação. |
 | `GET /__admin/servicos/<id>/publicacao/resumo` | Resumo do que será publicado. |
 | `POST /__admin/servicos/<id>/publicacao` | Publica em transação única com rollback. |
+| `POST /__admin/servicos/<id>/revogacao` | Revoga a versão publicada (Sprint 7): corpo `{ revisao, motivo }`, motivo obrigatório; transação única com rollback. |
 
 As três ações são separadas. A publicação grava `services/<serviço>/publico/conteudo-<hash16>.json` (imutável), `publicadoEm` no manifesto e `versaoPublicadaId` no registro. O chatbot e o build usam só o conteúdo publicado; `check-dist` é estrito.
+
+**Revogar a publicação (Sprint 7, Passo 7B).** Em "Conteúdo para respostas", com a versão publicada, o botão "Revogar publicação" abre uma confirmação com o campo de motivo, obrigatório (até 500 caracteres, sem e-mail nem outros dados pessoais). Sem motivo, nada é enviado. Ao confirmar, numa única transação: o manifesto passa a "Publicação revogada" (`estado: revogado`, com `revogadoEm`), o registro deixa de apontar para a versão (`publicado: false`, `versaoPublicadaId: null`) e a decisão de revogação, com o motivo, e a ação ficam no histórico privado (`data/admin-private/`). O chatbot deixa de usar o conteúdo: no `npm run dev`, o arquivo deixa de ser servido; no build, deixa de ser emitido, e o `check-dist` recusa o arquivo se ele aparecer no `dist/`. O arquivo em `services/<serviço>/publico/` continua no disco, intacto, como histórico. A versão revogada não volta a ser publicada; para publicar de novo, crie uma nova versão e passe por revisão, autorização e publicação. Neste passo, a revogação também é registrada com o ator fixo "Servidor de demonstração". Em produção (build estático), a revogação só vale depois de um novo build e de uma nova publicação do site; páginas já abertas mantêm o conteúdo até serem recarregadas.
 
 **Atenção:** a "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e **não equivale à validação material pela área competente da SEMA**. Sem autenticação real. A LAC continua em validação e não publicada.
 

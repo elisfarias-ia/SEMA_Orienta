@@ -28,6 +28,7 @@
 //   GET  /__admin/servicos/<id>/publicacao/resumo        -> resumo da versão (número, data, quantidades, se pode autorizar/publicar); sem hash nem ids (5C)
 //   POST /__admin/servicos/<id>/autorizacao              -> autoriza a publicação (validado_materialmente -> autorizado_publicacao); revisão no corpo ou em X-Revisao (5C)
 //   POST /__admin/servicos/<id>/publicacao               -> publica (autorizado_publicacao -> publicado) e gera o conteúdo público; mesma revisão (5C)
+//   POST /__admin/servicos/<id>/revogacao                -> revoga a versão publicada (publicado -> revogado) com motivo obrigatório; o conteúdo deixa de ser servido (Sprint 7, 7B)
 //   GET    /__admin/servicos/<id>/fontes/<fonteId>        -> campos editáveis da fonte (5B3a)
 //   PATCH  /__admin/servicos/<id>/fontes/<fonteId>        -> edita link ou texto; reinicia a revisão e reabre as informações que a usam
 //   GET    /__admin/servicos/<id>/fontes/<fonteId>/impacto -> o que a exclusão afetaria (informações e conteúdo antigo)
@@ -63,7 +64,7 @@ import { verificarSaude } from './saude.js';
 import { criarGravadorEntradas } from './entradas-gravacao.js';
 import { criarServicoRevisao } from './revisao-servico.js';
 import { validarCorpoDaAcao } from './revisao.js';
-import { criarServicoPublicacao, validarCorpoDePublicacao } from './publicacao.js';
+import { criarServicoPublicacao, validarCorpoDePublicacao, validarCorpoDeRevogacao } from './publicacao.js';
 import { fonteIdValido, validarCorpoEdicaoFonte } from './edicao-fonte.js';
 import { criarEdicaoTema, validarCorpoEdicaoServico, validarCorpoEdicaoTema } from './edicao-tema-servico.js';
 import { validarCorpoImportacao } from './importacao-conteudo.js';
@@ -105,7 +106,7 @@ const PADRAO_ROTA_EDICAO_TEMA = /^\/__admin\/temas\/([a-z][a-z0-9-]*)\/edicao$/;
 const PADRAO_REVISAO_CABECALHO = /^[0-9a-f]{64}$/;
 const PADRAO_ROTA_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/revisao$/;
 const PADRAO_ROTA_RESUMO_PUBLICACAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/publicacao\/resumo$/;
-const PADRAO_ROTA_PUBLICAR = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(autorizacao|publicacao)$/;
+const PADRAO_ROTA_PUBLICAR = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(autorizacao|publicacao|revogacao)$/;
 const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/blocos\/reabrir|revisao\/concluir|nova-versao)$/;
 const ACAO_DA_ROTA = Object.freeze({
   'revisao/fontes': 'revisar_fonte',
@@ -123,6 +124,7 @@ const STATUS_DA_REVISAO = Object.freeze({
   ja_importado: 409, candidato_nao_encontrado: 404,
   estado_invalido: 409, conteudo_excluido_citado: 422, historico_incompativel: 422, sem_informacao_aceita: 422, conteudo_publico_invalido: 422, tema_indisponivel: 422,
   entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
+  nada_publicado: 409, motivo_invalido: 422,
 });
 const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
@@ -832,10 +834,16 @@ export function criarManipuladorAdmin({
           return responderResultado(resultado);
         }
         if (rotaPublicar !== null) {
-          const v = validarCorpoDePublicacao(corpo, req.headers['x-revisao']);
+          const acao = rotaPublicar[2];
+          const v = acao === 'revogacao' ? validarCorpoDeRevogacao(corpo, req.headers['x-revisao']) : validarCorpoDePublicacao(corpo, req.headers['x-revisao']);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
           const servico = rotaPublicar[1];
-          return responderResultado(await comTrava(() => respostaDaRevisao(rotaPublicar[2] === 'autorizacao' ? servicoPublicacao.autorizar(servico, v.dados) : servicoPublicacao.publicar(servico, v.dados))));
+          const executar = () => {
+            if (acao === 'autorizacao') return servicoPublicacao.autorizar(servico, v.dados);
+            if (acao === 'publicacao') return servicoPublicacao.publicar(servico, v.dados);
+            return servicoPublicacao.revogar(servico, v.dados);
+          };
+          return responderResultado(await comTrava(() => respostaDaRevisao(executar())));
         }
         if (rotaAcaoRevisao !== null) {
           const acao = ACAO_DA_ROTA[rotaAcaoRevisao[2]];
