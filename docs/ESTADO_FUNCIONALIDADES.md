@@ -63,7 +63,7 @@ Situação em 19/11/2026, conferida nos arquivos do repositório (`main` em `898
 | MCP local de consulta da base | Implementado | `.mcp.json`, `scripts/mcp/`; `tests/mcp-*.test.js` |
 | Hook de proteção do Claude Code (regras A0 a A7) | Implementado (Sprint 6, Passo 6A); A1, A3 e A5 conferidas ao vivo (Passo 6C) | `.claude/settings.json`, `scripts/hooks/protecao-claude.js`; `tests/hook-claude.test.js`; `docs/TESTES_MANUAIS.md` |
 | Pre-commit do Git (regras B0 a B5) | Implementado (Sprint 6, Passo 6B); vale em cada cópia depois de `npm run hooks:instalar`; B1 conferida ao vivo pela usuária (Passo 6C) | `.githooks/pre-commit`, `.githooks/publicacoes-autorizadas.json`, `scripts/hooks/pre-commit.js`, `scripts/hooks/regras.js`; `tests/hook-pre-commit.test.js`; `docs/TESTES_MANUAIS.md` |
-| Verificação no GitHub | Pendente (Sprint 6, Passo 6D) | — |
+| Verificação no GitHub em toda PR (regras B0 a B5 e verificação completa) | Implementado (Sprint 6, Passo 6D) | `.github/workflows/protecao-pr.yml`, `scripts/hooks/verificar-pr.js`, `scripts/hooks/pre-commit.js` (`analisarAlteracoes`); `tests/hook-verificar-pr.test.js` |
 | Publicação na Vercel | Planejado (Sprint 12) | — |
 
 ## Fora do plano atual

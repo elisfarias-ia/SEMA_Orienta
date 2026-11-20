@@ -250,7 +250,7 @@ O pre-commit do Git (`.githooks/pre-commit`, que chama `scripts/hooks/pre-commit
 2. Rode `npm run hooks:instalar` (equivale a `git config core.hooksPath .githooks`).
 3. Para conferir, rode `git config core.hooksPath`: a resposta deve ser `.githooks`.
 
-Sem esse passo, o Git não usa o hook nesta cópia. A verificação no GitHub (Passo 6D, planejado) vai repetir as regras em cada PR.
+Sem esse passo, o Git não usa o hook nesta cópia. Mesmo assim, a verificação no GitHub (Passo 6D, `.github/workflows/protecao-pr.yml`) repete as regras em toda PR: se alguma for violada, a verificação "Proteção da PR" falha e indica o arquivo, sem mostrar o valor encontrado.
 
 ### O que é barrado
 
@@ -303,4 +303,4 @@ Modelo de entrada para copiar e preencher:
 - A entrada só libera aquele serviço, aquela versão e aquele hash: qualquer outra publicação continua barrada.
 - A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que continua sendo da CLABI.
 
-**Limites:** `git commit --no-verify` pula o hook (o assistente é impedido pela regra A7, e o Passo 6D vai cobrir o restante). O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).
+**Limites:** `git commit --no-verify` pula o hook local (o assistente é impedido pela regra A7, e a verificação no GitHub repete as regras em toda PR). A verificação no GitHub só impede o merge se a regra de proteção do branch `main` exigir que ela passe; isso é uma configuração do repositório no GitHub, feita pela pessoa responsável. O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).

@@ -1,0 +1,52 @@
+# Verificação de proteção em toda PR (Sprint 6, Passo 6D; Issue #19).
+# Repete as regras B0 a B5 do pre-commit local (scripts/hooks/regras.js) sobre a diferença entre o main e a PR,
+# fechando a brecha de quem pula o hook local ou não o ativou, e roda a verificação completa do projeto.
+# Sem segredos e só com permissão de leitura; o evento pull_request não expõe segredos a PRs de forks.
+
+name: Proteção da PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  protecao:
+    name: Regras de proteção e verificação completa
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout com histórico completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências (npm ci)
+        run: npm ci
+
+      - name: Regras B0 a B5 (as mesmas do pre-commit)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/hooks/verificar-pr.js "$BASE_SHA" "$HEAD_SHA"
+
+      # O build vem antes dos testes para que os testes que conferem o dist/ também rodem aqui.
+      - name: Build de produção
+        run: npm run build
+
+      - name: Testes automatizados (npm test)
+        run: npm test
+
+      - name: Validar a base de serviços
+        run: npm run validate:services
+
+      - name: Conferir o dist/ (check-dist)
+        run: node scripts/check-dist.js

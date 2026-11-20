@@ -44,28 +44,24 @@ export function executarBuild(raiz) {
   return conferencia.status === 0;
 }
 
-// Arquivos preparados para o commit: [{ status, caminho }] (sem renomeações: viram exclusão + inclusão).
-export function arquivosPreparados(git) {
-  const saida = git(['diff', '--cached', '--name-status', '--no-renames', '-z']);
-  const partes = saida.split('\0').filter((p) => p !== '');
+// Lê a saída de "git diff --name-status --no-renames -z": [{ status, caminho }].
+export function lerListaDeArquivos(saida) {
+  const partes = String(saida).split('\0').filter((p) => p !== '');
   const arquivos = [];
   for (let i = 0; i + 1 < partes.length; i += 2) arquivos.push({ status: partes[i].charAt(0), caminho: partes[i + 1] });
   return arquivos;
 }
 
-// Analisa o commit. Devolve a lista de achados (vazia = commit liberado).
-export function analisarCommit({ git, executarBuild: build = () => true }) {
-  let arquivos;
-  try {
-    arquivos = arquivosPreparados(git);
-  } catch {
-    return [{ regra: 'B0', arquivo: '(área de preparação)' }];
-  }
-  const temHead = git(['rev-parse', '--verify', '--quiet', 'HEAD'], { permitirFalha: true }) !== null;
-  const lerPreparado = (caminho) => git(['show', `:${caminho}`], { permitirFalha: true });
-  const lerHead = (caminho) => (temHead ? git(['show', `HEAD:${caminho}`], { permitirFalha: true }) : null);
+// Arquivos preparados para o commit: [{ status, caminho }] (sem renomeações: viram exclusão + inclusão).
+export function arquivosPreparados(git) {
+  return lerListaDeArquivos(git(['diff', '--cached', '--name-status', '--no-renames', '-z']));
+}
 
-  const autorizacoes = validarAutorizacoes(lerPreparado(ARQUIVO_AUTORIZACOES));
+// Aplica as regras B0 a B5 a um conjunto de alterações. Usada pelo pre-commit (área de preparação) e pela
+// verificação da PR no GitHub (diferença entre o main e a PR), para que as duas sigam exatamente a mesma lógica.
+//   arquivos: [{ status, caminho }]; lerAntes/lerDepois(caminho): texto ou null; diffDoArquivo(caminho): saída do git diff -U0.
+export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquivo, executarBuild: build = () => true }) {
+  const autorizacoes = validarAutorizacoes(lerDepois(ARQUIVO_AUTORIZACOES));
   if (!autorizacoes.ok) return [{ regra: 'B0', arquivo: ARQUIVO_AUTORIZACOES }];
   const { publicacoes } = autorizacoes;
 
@@ -79,12 +75,12 @@ export function analisarCommit({ git, executarBuild: build = () => true }) {
     }
     const publico = verificarPublico(caminho, publicacoes);
     if (publico) achados.push(publico);
-    if (caminho === 'services/registry.json') achados.push(...verificarRegistro(lerHead(caminho), lerPreparado(caminho), publicacoes));
-    const manifesto = verificarManifesto(caminho, lerHead(caminho), lerPreparado(caminho), publicacoes);
+    if (caminho === 'services/registry.json') achados.push(...verificarRegistro(lerAntes(caminho), lerDepois(caminho), publicacoes));
+    const manifesto = verificarManifesto(caminho, lerAntes(caminho), lerDepois(caminho), publicacoes);
     if (manifesto) achados.push(manifesto);
     let diff;
     try {
-      diff = git(['diff', '--cached', '-U0', '--no-color', '--no-ext-diff', '--text', '--', caminho]);
+      diff = diffDoArquivo(caminho);
     } catch {
       achados.push({ regra: 'B0', arquivo: caminho });
       continue;
@@ -94,6 +90,24 @@ export function analisarCommit({ git, executarBuild: build = () => true }) {
   }
   if (precisaBuild && achados.length === 0 && !build()) achados.push({ regra: 'B5', arquivo: 'dist/' });
   return achados;
+}
+
+// Analisa o commit. Devolve a lista de achados (vazia = commit liberado).
+export function analisarCommit({ git, executarBuild: build = () => true }) {
+  let arquivos;
+  try {
+    arquivos = arquivosPreparados(git);
+  } catch {
+    return [{ regra: 'B0', arquivo: '(área de preparação)' }];
+  }
+  const temHead = git(['rev-parse', '--verify', '--quiet', 'HEAD'], { permitirFalha: true }) !== null;
+  return analisarAlteracoes({
+    arquivos,
+    lerAntes: (caminho) => (temHead ? git(['show', `HEAD:${caminho}`], { permitirFalha: true }) : null),
+    lerDepois: (caminho) => git(['show', `:${caminho}`], { permitirFalha: true }),
+    diffDoArquivo: (caminho) => git(['diff', '--cached', '-U0', '--no-color', '--no-ext-diff', '--text', '--', caminho]),
+    executarBuild: build,
+  });
 }
 
 export function executar({ raiz = process.cwd(), saida = process.stderr } = {}) {
