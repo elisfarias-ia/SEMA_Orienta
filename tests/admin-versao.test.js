@@ -98,8 +98,8 @@ test('V8. não é possível enviar para validação uma versão que já saiu do 
 
 // ---------- Nova versão ----------
 
-test('V9. nova versão: permitida a partir de ajustes, validado, autorizado e publicado; nasce em rascunho, numero+1, baseadaEm', () => {
-  assert.deepEqual([...ESTADOS_QUE_PERMITEM_NOVA_VERSAO], ['ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado']);
+test('V9. nova versão: permitida a partir de ajustes, validado, autorizado, publicado e revogado; nasce em rascunho, numero+1, baseadaEm', () => {
+  assert.deepEqual([...ESTADOS_QUE_PERMITEM_NOVA_VERSAO], ['ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']);
   for (const estado of ESTADOS_QUE_PERMITEM_NOVA_VERSAO) {
     const { v } = ate(estado);
     const r = criarNovaVersao(v, { id: 'versao-2', criadoEm: '2026-02-01' });

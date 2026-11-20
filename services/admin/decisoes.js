@@ -1,4 +1,4 @@
-// Decisões de validação material e autorização de publicação (Marco 7, Passo 7B).
+// Decisões de validação material e autorização de publicação (Marco 7, Passo 7B) e revogação (Sprint 7, Passo 7A).
 // Funções puras: ids e datas vêm de fora; nada é lido, gravado ou modificado (devolvem cópias novas).
 //
 // O histórico é uma lista em que só se ACRESCENTA: decisões anteriores nunca são editadas, apagadas nem reordenadas.
@@ -12,6 +12,8 @@ import { dataIsoValida, falha, idValido, structuredCloneSeguro, validarVersao } 
 export const DECISOES_MATERIAIS = Object.freeze(['ajustes_solicitados', 'validado_materialmente']);
 export const TIPO_DECISAO_MATERIAL = 'decisao_material';
 export const TIPO_AUTORIZACAO = 'autorizacao_publicacao';
+export const TIPO_REVOGACAO = 'revogacao';
+export const LIMITE_MOTIVO = 500;
 
 const PADRAO_HASH = /^[0-9a-f]{64}$/;
 const PADRAO_EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/;
@@ -57,7 +59,16 @@ export function validarRegistro(r) {
     if (erros.length) return erros;
     return validarComuns(r);
   }
-  return ['tipo deve ser decisao_material ou autorizacao_publicacao'];
+  if (r.tipo === TIPO_REVOGACAO) {
+    // Revogação (Sprint 7, Passo 7A): motivo obrigatório, curto e sem e-mail. Não exige autorização de publicação.
+    const erros = camposInesperados(r, [...CAMPOS_COMUNS, 'motivo']);
+    if (erros.length) return erros;
+    erros.push(...validarComuns(r));
+    if (!textoPreenchido(r.motivo)) erros.push('motivo obrigatório na revogação');
+    else if (r.motivo.length > LIMITE_MOTIVO || PADRAO_EMAIL.test(r.motivo)) erros.push(`motivo deve ter até ${LIMITE_MOTIVO} caracteres, sem e-mail`);
+    return erros;
+  }
+  return ['tipo deve ser decisao_material, autorizacao_publicacao ou revogacao'];
 }
 
 /** Confere o histórico inteiro: lista de registros válidos, ids únicos e datas sem retrocesso. */
@@ -155,4 +166,28 @@ export function publicarVersao(versao, historico) {
   const t = verificarTransicao(versao.estado, 'publicado');
   if (!t.permitida) return falha(t.motivo);
   return { ok: true, versao: { ...versao, estado: 'publicado' }, historico: historico.map(structuredCloneSeguro) };
+}
+
+/**
+ * 10. Revoga a versão publicada inteira (Sprint 7, Passo 7A): `publicado` -> `revogado`, com motivo obrigatório.
+ * Não exige autorização (reduz a exposição), mas confere versão, hash, id único e datas (não antes da publicação nem do
+ * histórico). A versão revogada guarda `publicadoEm` e ganha `revogadoEm` = data da decisão; ela nunca volta a publicado.
+ */
+export function revogarVersao(versao, historico, entrada) {
+  const problema = verificarEntrada(versao, historico);
+  if (problema) return problema;
+  if (versao.estado !== 'publicado') return falha('versao_nao_publicada');
+  if (!ehObjeto(entrada)) return falha('revogacao_invalida', ['entrada deve ser um objeto']);
+  const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_REVOGACAO };
+  const erros = validarRegistro(registro);
+  if (erros.length) return falha('revogacao_invalida', erros);
+  const divergencia = conferirRegistro(versao, historico, registro);
+  if (divergencia) return divergencia;
+  if (dataIsoValida(versao.publicadoEm) && registro.data < versao.publicadoEm) return falha('data_anterior_a_publicacao');
+  const t = verificarTransicao(versao.estado, 'revogado');
+  if (!t.permitida) return falha(t.motivo);
+  const revogada = { ...versao, estado: 'revogado', revogadoEm: registro.data };
+  const versaoErros = validarVersao(revogada);
+  if (versaoErros.length) return falha('versao_invalida', versaoErros);
+  return { ok: true, versao: revogada, historico: acrescentar(historico, registro), registro };
 }

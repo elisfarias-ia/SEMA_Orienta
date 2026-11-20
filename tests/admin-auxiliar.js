@@ -1,7 +1,7 @@
 // Auxiliares dos testes do fluxo administrativo (não é um arquivo de teste). Só dados fictícios.
 
 import { criarVersao, enviarParaValidacao } from '../services/admin/versao.js';
-import { registrarDecisaoMaterial, autorizarPublicacao, publicarVersao } from '../services/admin/decisoes.js';
+import { registrarDecisaoMaterial, autorizarPublicacao, publicarVersao, revogarVersao } from '../services/admin/decisoes.js';
 
 /** Congela o valor em profundidade: qualquer tentativa de modificá-lo lança erro. */
 export function congelar(valor) {
@@ -43,5 +43,10 @@ export function ate(estado) {
   h = congelar(r.historico);
   if (estado === 'autorizado_publicacao') return { v, h };
   r = publicarVersao(v, h);
+  if (estado !== 'revogado') return { v: congelar(r.versao), h: congelar(r.historico) };
+  // Revogada (Sprint 7): a publicação real grava publicadoEm no manifesto; a revogação exige essa data.
+  v = { ...r.versao, publicadoEm: '2026-01-14' };
+  h = r.historico;
+  r = revogarVersao(v, h, base(v, { id: 'revogacao-1', data: '2026-01-15', motivo: 'Motivo fictício de revogação.' }));
   return { v: congelar(r.versao), h: congelar(r.historico) };
 }

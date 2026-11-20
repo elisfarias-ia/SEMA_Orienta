@@ -44,7 +44,7 @@ Situação em 19/11/2026, conferida nos arquivos do repositório (`main` em `898
 | Importação do conteúdo existente | Implementado | `services/admin/importacao-conteudo.js`; `tests/importacao-conteudo.test.js` |
 | Revisão de fontes, aceitação de informações e conclusão | Implementado | `services/admin/revisao.js`, `revisao-servico.js`; `tests/revisao.test.js`, `tests/admin-revisao-*.test.js` |
 | Autorização e publicação em ações separadas | Implementado | `services/admin/publicacao.js`, `services/publicacao-publica.js`; `tests/publicacao.test.js`, `e2e-real/publicacao-real.spec.js` |
-| Revogação de conteúdo publicado | Planejado (diagnóstico na Sprint 7, prova na Sprint 9) | — |
+| Revogação de conteúdo publicado | Parcial: domínio pronto (Sprint 7, Passo 7A); rota, transação e interface planejadas (7B); prova na Sprint 9 | `services/admin/fluxo.js`, `services/admin/decisoes.js` (`revogarVersao`), `services/admin/versao.js`, `scripts/validate-services.js`; `tests/revogacao.test.js` |
 | Registro do responsável pela ação | Parcial: ator fixo "Servidor de demonstração", sem identidade | `services/admin/historico-revisao.js` (`ATOR_DEMONSTRACAO`), `services/admin/decisoes.js` |
 | Histórico das ações (fora do Git) | Parcial: só ações concluídas, sem tentativas negadas nem perfil | `services/admin/historico-revisao.js` |
 | Login simulado com perfis Cadastrante e Revisor (RBAC) | Planejado (Sprint 8) | — |

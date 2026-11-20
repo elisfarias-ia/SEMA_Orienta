@@ -191,7 +191,8 @@ test('C8. tabela pura de ações: revisão, autorização e publicação são a�
   assert.deepEqual(acoesPermitidas('em_validacao'), ['solicitar_ajustes', 'validar_materialmente']);
   assert.deepEqual(acoesPermitidas('validado_materialmente'), ['autorizar_publicacao', 'nova_versao']);
   assert.deepEqual(acoesPermitidas('autorizado_publicacao'), ['publicar', 'nova_versao']);
-  assert.deepEqual(acoesPermitidas('publicado'), ['nova_versao']);
+  assert.deepEqual(acoesPermitidas('publicado'), ['revogar', 'nova_versao']);
+  assert.deepEqual(acoesPermitidas('revogado'), ['nova_versao']);
   assert.deepEqual(acoesPermitidas('ajustes_solicitados'), ['nova_versao']);
   assert.deepEqual(acoesPermitidas('inventado'), []);
   assert.deepEqual(verificarAcao('publicar', 'rascunho'), { permitida: false, para: null, motivo: 'acao_nao_permitida_no_estado' });

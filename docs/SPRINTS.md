@@ -124,7 +124,7 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 - **Validação em duas etapas:** (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto), começando por um recorte pequeno da LAC. Só o conteúdo confirmado pela CLABI pode ser publicado de verdade.
 - **Perfis da administração local:** login simulado com dois perfis (RBAC), substituindo o "Servidor de demonstração". **Cadastrante** cadastra fontes e informações e envia para revisão. **Revisor** revisa, registra a validação material, autoriza, publica e revoga. Usuários fictícios de demonstração: Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI). Não há perfil Administrador; a lista de usuários é fixa. Cada ação relevante fica registrada em auditoria (usuário, perfil, setor, ação, resultado e horário), incluindo tentativas negadas.
 
-> **Apenas planejamento.** Salvo a Sprint 6, concluída, nenhuma destas Sprints foi iniciada, e os escopos poderão ser refinados no planejamento de cada uma. Cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
+> **Apenas planejamento.** Salvo a Sprint 6, concluída, e a Sprint 7, em andamento, nenhuma destas Sprints foi iniciada, e os escopos poderão ser refinados no planejamento de cada uma. Cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
 
 ## Sprint 6 — Hook de proteção (concluída, Issue #19)
 
@@ -135,9 +135,12 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 - **Passo 6D (verificação no GitHub):** concluído. O workflow `.github/workflows/protecao-pr.yml` roda em toda PR, só com permissão de leitura e sem segredos: aplica as regras B0 a B5 à diferença entre o main e a PR (`scripts/hooks/verificar-pr.js`, com a mesma função de análise do pre-commit, `analisarAlteracoes`) e depois `npm run build`, `npm test`, `npm run validate:services` e `node scripts/check-dist.js` (o build vem antes dos testes para que os testes que conferem o `dist/` também rodem no GitHub). Sem dependência nova; testes em `tests/hook-verificar-pr.test.js`. A primeira execução real no GitHub é a da própria PR do 6D.
 - **Critérios de aceite e Definition of Done:** na Issue #19.
 
-## Sprint 7 — Diagnóstico de revogação e do registro do responsável (planejada, não iniciada)
+## Sprint 7 — Revogação e registro do responsável (em andamento, Issue #24)
 
-- **Objetivo:** levantar como retirar de uso um conteúdo publicado e como o responsável por cada ação é registrado hoje (ator fixo "Servidor de demonstração"), propondo as mudanças antes de implementar.
+- **Objetivo:** permitir tirar de uso um conteúdo já publicado e preparar o registro do responsável por cada ação (perfil e setor), abrindo caminho para o login simulado (Sprint 8) e a prova do ciclo com revogação (Sprint 9).
+- **Decisões da usuária:** duas formas de retirada (revogação da versão inteira e retirada de bloco por nova versão); depois de revogar, nada volta a publicado sem nova autorização; o comportamento do `npm run dev` não muda nesta Sprint; revogação sem autorização registrada no pre-commit, mas com motivo obrigatório e checagem de coerência; histórico público com perfil e setor, nunca nome (nomes só em `data/admin-private/`).
+- **Passo 7A (domínio da revogação, funções puras):** implementado, aguardando aprovação. Estado `revogado` e ação `revogar` (só a partir de `publicado`) em `services/admin/fluxo.js`; `revogarVersao` e a decisão `revogacao` com motivo obrigatório em `services/admin/decisoes.js` (esquema `services/schemas/revogacao.schema.json`); `revogadoEm` em `services/admin/versao.js`; três checagens no validador da base (`scripts/validate-services.js`). Testes em `tests/revogacao.test.js`.
+- **Passos 7B (rota e transação), 7C (ator como parâmetro), 7D (pre-commit e GitHub) e 7E (documentação, evidências e conferência):** planejados. Critérios de aceite e Definition of Done na Issue #24.
 
 ## Sprint 8 — Login simulado com perfis e auditoria (planejada, não iniciada)
 
