@@ -225,6 +225,7 @@
         <div class="acoes-form">
           <button type="button" class="botao" id="botao-autorizar" data-acao="autorizar" data-indisponivel="false" hidden>Autorizar publicação</button>
           <button type="button" class="botao" id="botao-publicar" data-acao="publicar" data-indisponivel="false" hidden>Publicar</button>
+          <button type="button" class="botao botao--destrutivo" id="botao-revogar" data-acao="revogar" data-indisponivel="false" hidden>Revogar publicação</button>
         </div>
       </section>
     </main>
@@ -247,6 +248,22 @@
       <div class="dialogo__acoes">
         <button type="button" class="botao botao--secundario" id="publicacao-voltar">Voltar</button>
         <button type="button" class="botao" id="publicacao-confirmar">Confirmar publicação</button>
+      </div>
+    </dialog>
+
+    <dialog id="dialogo-revogacao" class="dialogo" aria-labelledby="revogacao-titulo" aria-describedby="revogacao-descricao">
+      <h2 id="revogacao-titulo">Revogar a publicação?</h2>
+      <p id="revogacao-descricao" class="ajuda"></p>
+      <dl id="revogacao-resumo" class="resumo"></dl>
+      <div class="campo">
+        <label for="revogacao-motivo">Motivo da revogação</label>
+        <textarea id="revogacao-motivo" rows="3" maxlength="500" required aria-required="true" aria-describedby="revogacao-motivo-ajuda revogacao-motivo-erro"></textarea>
+        <p id="revogacao-motivo-ajuda" class="ajuda"></p>
+        <p id="revogacao-motivo-erro" class="erro" hidden></p>
+      </div>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="revogacao-voltar">Voltar</button>
+        <button type="button" class="botao botao--destrutivo" id="revogacao-confirmar">Confirmar revogação</button>
       </div>
     </dialog>
 

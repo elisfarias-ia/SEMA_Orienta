@@ -53,9 +53,12 @@ test('PU1. resumirPublicacao: números, data em dd/mm/aaaa e etapa; formato inv�
 
 test('PU2. estados dos botões: só o da etapa aparece e tudo é desabilitado durante o envio', () => {
   const por = (extra) => botoesDePublicacao(resumirPublicacao(RESUMO_API(extra)));
-  assert.deepEqual(por({}), { autorizar: { visivel: true, habilitado: true }, publicar: { visivel: false, habilitado: false }, novaVersao: { visivel: false, habilitado: false } });
-  assert.deepEqual(por({ podeAutorizar: false, podePublicar: true }), { autorizar: { visivel: false, habilitado: false }, publicar: { visivel: true, habilitado: true }, novaVersao: { visivel: false, habilitado: false } });
-  assert.deepEqual(por({ podeAutorizar: false, publicado: true }), { autorizar: { visivel: false, habilitado: false }, publicar: { visivel: false, habilitado: false }, novaVersao: { visivel: true, habilitado: true } });
+  const fechado = { visivel: false, habilitado: false };
+  assert.deepEqual(por({}), { autorizar: { visivel: true, habilitado: true }, publicar: fechado, revogar: fechado, novaVersao: fechado });
+  assert.deepEqual(por({ podeAutorizar: false, podePublicar: true }), { autorizar: fechado, publicar: { visivel: true, habilitado: true }, revogar: fechado, novaVersao: fechado });
+  assert.deepEqual(por({ podeAutorizar: false, publicado: true }), { autorizar: fechado, publicar: fechado, revogar: fechado, novaVersao: { visivel: true, habilitado: true } });
+  // Revogar (Sprint 7, Passo 7B): só com a versão publicada e quando o servidor confirma que ela é a que está em uso.
+  assert.deepEqual(por({ podeAutorizar: false, publicado: true, podeRevogar: true }).revogar, { visivel: true, habilitado: true });
   assert.deepEqual(botoesDePublicacao(null).autorizar, { visivel: false, habilitado: false });
   assert.deepEqual(botoesDePublicacao(resumirPublicacao(RESUMO_API()), true).autorizar, { visivel: true, habilitado: false });
 });

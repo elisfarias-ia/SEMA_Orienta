@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
-import { autorizarPublicacao, publicarVersao, TIPO_AUTORIZACAO, TIPO_DECISAO_MATERIAL } from './decisoes.js';
+import { autorizarPublicacao, publicarVersao, revogarVersao, TIPO_AUTORIZACAO, TIPO_DECISAO_MATERIAL, TIPO_REVOGACAO } from './decisoes.js';
 import { fonteExcluida } from './edicao-fonte.js';
 import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
 import { avaliarPendencias, rotuloDaSituacao } from './revisao.js';
@@ -38,6 +38,21 @@ export function validarCorpoDePublicacao(corpo, revisaoDoCabecalho) {
   const revisao = corpo.revisao ?? revisaoDoCabecalho;
   if (typeof revisao !== 'string' || !PADRAO_REVISAO.test(revisao)) campos.push('revisao');
   return campos.length ? { ok: false, campos } : { ok: true, dados: { revisao } };
+}
+
+/**
+ * Corpo da revogação (Sprint 7, Passo 7B): só `revisao` (ou X-Revisao) e `motivo`. Aqui se confere apenas a FORMA do corpo e se
+ * apara o motivo (como a tela já faz); o conteúdo do motivo (obrigatório, tamanho, sem e-mail) é validado uma única vez, por
+ * revogarVersao (decisoes.js). Motivo que não é texto segue como veio, para ser recusado lá.
+ */
+export function validarCorpoDeRevogacao(corpo, revisaoDoCabecalho) {
+  if (!ehObjeto(corpo)) return { ok: false, campos: ['corpo'] };
+  const campos = [];
+  if (Object.keys(corpo).some((k) => k !== 'revisao' && k !== 'motivo')) campos.push('extras');
+  const revisao = corpo.revisao ?? revisaoDoCabecalho;
+  if (typeof revisao !== 'string' || !PADRAO_REVISAO.test(revisao)) campos.push('revisao');
+  const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim() : corpo.motivo;
+  return campos.length ? { ok: false, campos } : { ok: true, dados: { revisao, motivo } };
 }
 
 /** Percorre os textos de um JSON procurando algum dos ids (para achar citação de fonte excluída). */
@@ -120,7 +135,11 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
           podeAutorizar: manifesto.estado === 'validado_materialmente' && integro,
           podePublicar: manifesto.estado === 'autorizado_publicacao' && integro,
           publicado: manifesto.estado === 'publicado',
-          dataPublicacao: manifesto.estado === 'publicado' && typeof manifesto.publicadoEm === 'string' ? manifesto.publicadoEm : null,
+          dataPublicacao: (manifesto.estado === 'publicado' || manifesto.estado === 'revogado') && typeof manifesto.publicadoEm === 'string' ? manifesto.publicadoEm : null,
+          // Revogação (Sprint 7): só a versão atual que é a publicada pode ser revogada pela tela.
+          podeRevogar: manifesto.estado === 'publicado' && c.entrada.versaoPublicadaId === manifesto.id && manifesto.hashConteudo === c.hash,
+          revogado: manifesto.estado === 'revogado',
+          dataRevogacao: manifesto.estado === 'revogado' && typeof manifesto.revogadoEm === 'string' ? manifesto.revogadoEm : null,
         },
       };
     } catch {
@@ -243,5 +262,87 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
     }
   }
 
-  return { resumo, autorizar, publicar };
+  /**
+   * publicado -> revogado (Sprint 7, Passo 7B), numa única transação: manifesto (estado e revogadoEm), registro (publicado: false,
+   * versaoPublicadaId: null) e, na conferência final, a decisão de revogação e a ação no histórico privado. Se qualquer etapa falhar,
+   * tudo é desfeito. O arquivo público continua no disco como histórico imutável, mas deixa de ser servido e de entrar no build.
+   * O motivo é validado só por revogarVersao (decisoes.js). O ator ainda é o fixo de demonstração (o parâmetro vem no Passo 7C).
+   */
+  function revogar(servicoId, { revisao, motivo }) {
+    try {
+      if (arm.ok === false) return falha('raiz_invalida');
+      const registro = arm.lerJson('services/registry.json');
+      if (!registro.ok || !ehObjeto(registro.dados) || !Array.isArray(registro.dados.servicos)) return falha('registro_indisponivel');
+      const entrada = registro.dados.servicos.find((s) => ehObjeto(s) && s.id === servicoId);
+      if (!entrada) return falha('servico_nao_encontrado');
+      if (typeof entrada.versaoPublicadaId !== 'string' || entrada.versaoPublicadaId === '') return falha('nada_publicado');
+      const publicadaEmDisco = lerArquivosDaVersao({ raiz, servicoId, versaoId: entrada.versaoPublicadaId, sistema });
+      if (!publicadaEmDisco.ok) return publicadaEmDisco;
+      const { manifesto, pasta } = publicadaEmDisco;
+      if (manifesto.estado !== 'publicado') return falha('estado_invalido');
+      const h = calcularHashDaVersao(publicadaEmDisco.arquivos);
+      if (!h.ok) return falha('conteudo_invalido');
+      if (h.hash !== revisao) return falha('revisao_divergente');
+      if (manifesto.hashConteudo !== h.hash) return falha('hash_divergente');
+      // Sem nada publicado, o registro volta a acompanhar o service.json da versão atual (regra do validador da base).
+      const atual = entrada.versaoAtualId === entrada.versaoPublicadaId ? publicadaEmDisco : lerArquivosDaVersao({ raiz, servicoId, versaoId: entrada.versaoAtualId, sistema });
+      if (!atual.ok) return atual;
+      const caminhoPublico = caminhoDoConteudoPublico(servicoId, h.hash);
+      if (caminhoPublico === null) return falha('conteudo_invalido');
+      const decisoes = historico.listarDecisoes(servicoId);
+      if (!decisoes.ok) return decisoes;
+      if (verificarFinal(raiz).length > 0) return falha('base_invalida');
+
+      const data = dataLocal(agora());
+      const idRevogacao = `revogacao-${manifesto.id}-${h.hash.slice(0, 16)}`;
+      const existente = decisoes.registros.find((x) => x.id === idRevogacao);
+      // Se uma tentativa anterior foi desfeita depois de gravar a revogação (mesma versão e hash), ela é reaproveitada.
+      if (existente && !(existente.tipo === TIPO_REVOGACAO && existente.versaoId === manifesto.id && existente.hashConteudo === h.hash
+        && existente.responsavel === ATOR_DEMONSTRACAO.responsavel && existente.unidade === ATOR_DEMONSTRACAO.unidade)) {
+        return falha('historico_invalido');
+      }
+      const jaRegistrada = existente !== undefined;
+      const rev = revogarVersao(manifesto, decisoes.registros.filter((x) => x.id !== idRevogacao), {
+        id: idRevogacao, versaoId: manifesto.id, hashConteudo: h.hash, responsavel: ATOR_DEMONSTRACAO.responsavel, unidade: ATOR_DEMONSTRACAO.unidade, data, observacao: null, motivo,
+      });
+      if (!rev.ok) return falha(rev.erro === 'revogacao_invalida' ? 'motivo_invalido' : 'decisao_recusada');
+
+      const servicoAtual = atual.arquivos.service;
+      const entradaNova = {
+        ...entrada,
+        publicado: false,
+        versaoPublicadaId: null,
+        statusValidacao: ehObjeto(servicoAtual) && typeof servicoAtual.statusValidacao === 'string' ? servicoAtual.statusValidacao : entrada.statusValidacao,
+      };
+      const passos = [
+        { caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: rev.versao, novo: false, validar: (d) => validarVersao(d) },
+        // O registro vai por último: é ele que deixa de apontar para a versão revogada.
+        { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro.dados, servicos: registro.dados.servicos.map((s) => (s === entrada ? entradaNova : s)) }, novo: false, validar: () => [] },
+      ];
+      let motivoFalha = null;
+      const r = executarTransacao({
+        raiz,
+        sistema,
+        passos,
+        verificar: () => {
+          const erros = verificarFinal(raiz);
+          if (erros.length > 0) return erros;
+          if (hashEmDisco(servicoId, manifesto.id) !== h.hash) return ['hash_divergente'];
+          if (lerConteudoPublicado(raiz, servicoId, { sistema }) !== null) return ['conteudo_ainda_servido'];
+          if (!sistema.existsSync(`${raiz}/${caminhoPublico}`)) return ['arquivo_publico_ausente'];
+          if ((!jaRegistrada && !historico.registrarDecisao(servicoId, rev.registro).ok)
+            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: h.hash, acao: 'revogar' }).ok) {
+            motivoFalha = 'historico_indisponivel';
+            return ['historico'];
+          }
+          return [];
+        },
+      });
+      return r.ok ? { ok: true, estado: rev.versao.estado } : mapearFalha(r, motivoFalha);
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  return { resumo, autorizar, publicar, revogar };
 }
