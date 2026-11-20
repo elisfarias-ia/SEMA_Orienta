@@ -130,9 +130,9 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 
 - **Objetivo:** proteger o repositório durante o desenvolvimento assistido (retoma o Passo 2D, não implementado na Sprint 2), conforme a recomendação do professor: impedir publicação sem validação e detectar inclusão indevida de conteúdo administrativo no build.
 - **Passo 6A (hook do Claude Code):** concluído e integrado pela PR #20. `.claude/settings.json` e `scripts/hooks/protecao-claude.js`, com as regras A1 a A7 e a liberação por prazo curto (`docs/ADMINISTRACAO.md`); testes em `tests/hook-claude.test.js`.
-- **Passo 6B (pre-commit do Git):** implementado, aguardando aprovação. `.githooks/pre-commit`, `scripts/hooks/pre-commit.js` e `scripts/hooks/regras.js`, com as regras B0 a B5, liberação por `.githooks/publicacoes-autorizadas.json`, lista documentada de domínios de e-mail permitidos (com o domínio fictício `orgaoexemplo.gov.br`) e `npm run hooks:instalar` (`docs/ADMINISTRACAO.md`); testes em `tests/hook-pre-commit.test.js`, inclusive em repositórios Git temporários.
-- **Passo 6C (conferência manual, evidências e documentação):** planejado.
-- **Passo 6D (verificação no GitHub):** planejado. Workflow em `.github/workflows/` com as regras do pre-commit em cada PR, sem dependência nova.
+- **Passo 6B (pre-commit do Git):** concluído e integrado pela PR #21. `.githooks/pre-commit`, `scripts/hooks/pre-commit.js` e `scripts/hooks/regras.js`, com as regras B0 a B5, liberação por `.githooks/publicacoes-autorizadas.json`, lista documentada de domínios de e-mail permitidos (com o domínio fictício `orgaoexemplo.gov.br`) e `npm run hooks:instalar` (`docs/ADMINISTRACAO.md`); testes em `tests/hook-pre-commit.test.js`, inclusive em repositórios Git temporários.
+- **Passo 6C (conferência manual, evidências e documentação):** concluído. Evidências ao vivo em `docs/TESTES_MANUAIS.md`: B1 conferida pela usuária; A1, A3 e A5 conferidas pelo assistente numa sessão real do Claude Code. As demais regras estão cobertas só pelos testes automatizados.
+- **Passo 6D (verificação no GitHub):** pendente. Workflow em `.github/workflows/` com as regras do pre-commit em cada PR, sem dependência nova.
 - **Critérios de aceite e Definition of Done:** na Issue #19.
 
 ## Sprint 7 — Diagnóstico de revogação e do registro do responsável (planejada, não iniciada)

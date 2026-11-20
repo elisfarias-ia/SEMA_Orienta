@@ -61,9 +61,9 @@ Situação em 19/11/2026, conferida nos arquivos do repositório (`main` em `898
 | Testes de ponta a ponta (somente leitura e com cópia da base) | Implementado | `e2e/`, `playwright.config.js`, `e2e-real/`, `playwright.real.config.js` |
 | Skills e subagentes do projeto | Implementado | `.claude/skills/`, `.claude/agents/` |
 | MCP local de consulta da base | Implementado | `.mcp.json`, `scripts/mcp/`; `tests/mcp-*.test.js` |
-| Hook de proteção do Claude Code (regras A1 a A7) | Implementado (Sprint 6, Passo 6A) | `.claude/settings.json`, `scripts/hooks/protecao-claude.js`; `tests/hook-claude.test.js` |
-| Pre-commit do Git (regras B0 a B5) | Implementado (Sprint 6, Passo 6B); vale em cada cópia depois de `npm run hooks:instalar` | `.githooks/pre-commit`, `.githooks/publicacoes-autorizadas.json`, `scripts/hooks/pre-commit.js`, `scripts/hooks/regras.js`; `tests/hook-pre-commit.test.js` |
-| Verificação no GitHub | Planejado (Sprint 6, Passo 6D) | — |
+| Hook de proteção do Claude Code (regras A0 a A7) | Implementado (Sprint 6, Passo 6A); A1, A3 e A5 conferidas ao vivo (Passo 6C) | `.claude/settings.json`, `scripts/hooks/protecao-claude.js`; `tests/hook-claude.test.js`; `docs/TESTES_MANUAIS.md` |
+| Pre-commit do Git (regras B0 a B5) | Implementado (Sprint 6, Passo 6B); vale em cada cópia depois de `npm run hooks:instalar`; B1 conferida ao vivo pela usuária (Passo 6C) | `.githooks/pre-commit`, `.githooks/publicacoes-autorizadas.json`, `scripts/hooks/pre-commit.js`, `scripts/hooks/regras.js`; `tests/hook-pre-commit.test.js`; `docs/TESTES_MANUAIS.md` |
+| Verificação no GitHub | Pendente (Sprint 6, Passo 6D) | — |
 | Publicação na Vercel | Planejado (Sprint 12) | — |
 
 ## Fora do plano atual
