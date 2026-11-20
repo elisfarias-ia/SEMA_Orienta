@@ -182,7 +182,8 @@ test('V7. workflow: dispara em pull_request, só leitura, histórico completo, r
   assert.match(yml, /fetch-depth: 0/);
   assert.match(yml, /persist-credentials: false/);
   assert.doesNotMatch(yml, /secrets\./);
-  const ordem = ['npm ci', 'node scripts/hooks/verificar-pr.js "$BASE_SHA" "$HEAD_SHA"', 'npm test', 'npm run validate:services', 'npm run build', 'node scripts/check-dist.js'];
+  // O build vem antes dos testes, para que os testes que conferem o dist/ também rodem no GitHub.
+  const ordem = ['npm ci', 'node scripts/hooks/verificar-pr.js "$BASE_SHA" "$HEAD_SHA"', 'npm run build', 'npm test', 'npm run validate:services', 'node scripts/check-dist.js'];
   let posicao = -1;
   for (const passo of ordem) {
     const atual = yml.indexOf(`run: ${passo}`);

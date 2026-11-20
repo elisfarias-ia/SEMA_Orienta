@@ -38,14 +38,15 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/hooks/verificar-pr.js "$BASE_SHA" "$HEAD_SHA"
 
+      # O build vem antes dos testes para que os testes que conferem o dist/ também rodem aqui.
+      - name: Build de produção
+        run: npm run build
+
       - name: Testes automatizados (npm test)
         run: npm test
 
       - name: Validar a base de serviços
         run: npm run validate:services
-
-      - name: Build de produção
-        run: npm run build
 
       - name: Conferir o dist/ (check-dist)
         run: node scripts/check-dist.js
