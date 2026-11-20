@@ -1,6 +1,7 @@
 // Sprint 7, Passo 7C: ator como parâmetro { usuarioId, perfil, setor }, conferido contra a lista fixa; histórico com resultado
 // "ok" ou "negado"; decisões no formato novo, com o antigo aceito na leitura; manifesto só com perfil e setor (sem usuarioId,
-// nome nem e-mail). As gravações rodam em cópias temporárias fora do repositório; a base real não é tocada.
+// nome nem e-mail). Sprint 8, Passo 8A: usuários fictícios selecionáveis (Maria e Carlos) e atores aceitos (demonstração,
+// Maria e Carlos, sem nome). As gravações rodam em cópias temporárias fora do repositório; a base real não é tocada.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ATOR_LEGADO, ATOR_PADRAO, PERFIS, USUARIOS_AUTORIZADOS, registroDoAtor, resolverAtor, responsavelPublico, validarAtor, validarResponsavelPublico,
+  ATORES_ACEITOS, ATOR_DEMONSTRACAO, ATOR_LEGADO, ATOR_PADRAO, PERFIS, SETOR_CLABI, USUARIOS_SELECIONAVEIS, atorDoUsuario, registroDoAtor, resolverAtor,
+  responsavelPublico, validarAtor, validarAtorSelecionavel, validarResponsavelPublico,
 } from '../services/admin/atores.js';
 import { validarRegistro } from '../services/admin/decisoes.js';
 import { criarHistoricoRevisao, validarAcaoRevisao, validarAcaoTema } from '../services/admin/historico-revisao.js';
@@ -22,8 +24,11 @@ import { ate } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
-// Usuário fictício FORA da lista (a lista desta Sprint só tem o ator de demonstração).
+// Usuário fictício FORA da lista de atores aceitos.
 const DE_FORA = Object.freeze({ usuarioId: 'usuario-ficticio', perfil: 'revisor', setor: 'Setor fictício' });
+// Usuários fictícios de demonstração do login simulado, no formato do ator (sem nome).
+const MARIA = Object.freeze({ usuarioId: 'maria-silva', perfil: 'cadastrante', setor: 'CLABI' });
+const CARLOS = Object.freeze({ usuarioId: 'carlos-silva', perfil: 'revisor', setor: 'CLABI' });
 const PUBLICO = responsavelPublico(ATOR_PADRAO);
 
 function retrato(raiz, pastas = ['services', 'data']) {
@@ -43,16 +48,45 @@ const RETRATO_REAL_ANTES = retrato(RAIZ);
 
 // ---------- atores.js ----------
 
-test('AT1. lista fixa: só o ator de demonstração; perfis previstos; ator fora da lista ou com outro formato é recusado', () => {
-  assert.deepEqual(USUARIOS_AUTORIZADOS, [ATOR_PADRAO]);
-  assert.deepEqual(ATOR_PADRAO, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' });
+test('AT1. listas fixas: selecionáveis só Maria e Carlos; aceitos = demonstração, Maria e Carlos (sem nome); tudo congelado', () => {
+  assert.equal(SETOR_CLABI, 'CLABI');
+  assert.deepEqual(USUARIOS_SELECIONAVEIS, [
+    { usuarioId: 'maria-silva', nome: 'Maria Silva', perfil: 'cadastrante', setor: 'CLABI' },
+    { usuarioId: 'carlos-silva', nome: 'Carlos Silva', perfil: 'revisor', setor: 'CLABI' },
+  ]);
+  assert.deepEqual(ATORES_ACEITOS, [ATOR_DEMONSTRACAO, MARIA, CARLOS]);
+  assert.equal(ATOR_PADRAO, ATOR_DEMONSTRACAO);
+  assert.deepEqual(ATOR_DEMONSTRACAO, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' });
   assert.deepEqual([...PERFIS], ['demonstracao', 'cadastrante', 'revisor']);
-  assert.ok(Object.isFrozen(USUARIOS_AUTORIZADOS) && Object.isFrozen(ATOR_PADRAO));
-  assert.deepEqual(validarAtor(ATOR_PADRAO), []);
-  assert.deepEqual(validarAtor({ ...ATOR_PADRAO }), []);
+  for (const lista of [USUARIOS_SELECIONAVEIS, ATORES_ACEITOS]) {
+    assert.ok(Object.isFrozen(lista));
+    for (const item of lista) assert.ok(Object.isFrozen(item), JSON.stringify(item));
+  }
+  assert.ok(Object.isFrozen(ATOR_DEMONSTRACAO));
+  for (const ator of ATORES_ACEITOS) assert.equal('nome' in ator, false);
+  for (const ator of [ATOR_PADRAO, { ...ATOR_PADRAO }, MARIA, { ...CARLOS }]) assert.deepEqual(validarAtor(ator), [], JSON.stringify(ator));
   for (const ator of [DE_FORA, { ...ATOR_PADRAO, perfil: 'revisor' }, { ...ATOR_PADRAO, setor: 'Outro' }, { ...ATOR_PADRAO, usuarioId: 'outro' },
-    { ...ATOR_PADRAO, nome: 'Fulano' }, { usuarioId: ATOR_PADRAO.usuarioId, perfil: ATOR_PADRAO.perfil }, 'servidor-demonstracao', null, [], {}]) {
+    { ...ATOR_PADRAO, nome: 'Fulano' }, { usuarioId: ATOR_PADRAO.usuarioId, perfil: ATOR_PADRAO.perfil }, 'servidor-demonstracao', null, [], {},
+    USUARIOS_SELECIONAVEIS[0], { ...MARIA, nome: 'Maria Silva' }, { ...MARIA, perfil: 'revisor' }, { ...CARLOS, perfil: 'cadastrante' },
+    { ...MARIA, setor: ATOR_PADRAO.setor }, { ...CARLOS, usuarioId: 'maria-silva' }]) {
     assert.notDeepEqual(validarAtor(ator), [], JSON.stringify(ator));
+  }
+});
+
+test('AT1b. validarAtorSelecionavel e atorDoUsuario: só Maria e Carlos, sempre sem nome', () => {
+  assert.deepEqual(validarAtorSelecionavel(MARIA), []);
+  assert.deepEqual(validarAtorSelecionavel({ ...CARLOS }), []);
+  for (const ator of [ATOR_DEMONSTRACAO, DE_FORA, USUARIOS_SELECIONAVEIS[1], { ...MARIA, perfil: 'revisor' }, null, {}, 'maria-silva']) {
+    assert.notDeepEqual(validarAtorSelecionavel(ator), [], JSON.stringify(ator));
+  }
+  const maria = atorDoUsuario('maria-silva');
+  assert.deepEqual(maria, { ok: true, ator: { ...MARIA } });
+  assert.equal('nome' in maria.ator, false);
+  assert.deepEqual(atorDoUsuario('carlos-silva'), { ok: true, ator: { ...CARLOS } });
+  maria.ator.perfil = 'revisor';
+  assert.deepEqual(atorDoUsuario('maria-silva').ator, { ...MARIA }, 'devolve cópia');
+  for (const id of ['servidor-demonstracao', 'usuario-ficticio', 'Maria Silva', 'MARIA-SILVA', '', '__proto__', 'constructor', null, undefined, 1, {}]) {
+    assert.deepEqual(atorDoUsuario(id), { ok: false, erro: 'usuario_invalido' }, String(id));
   }
 });
 
@@ -61,15 +95,24 @@ test('AT2. resolverAtor: sem ator vale o de demonstração; ator inválido é re
   assert.deepEqual(padrao, { ok: true, ator: { ...ATOR_PADRAO } });
   assert.notEqual(padrao.ator, ATOR_PADRAO);
   assert.deepEqual(resolverAtor(ATOR_PADRAO).ator, { ...ATOR_PADRAO });
-  for (const ator of [null, DE_FORA, {}, 'x']) assert.deepEqual(resolverAtor(ator), { ok: false, erro: 'ator_invalido' });
+  assert.deepEqual(resolverAtor(MARIA), { ok: true, ator: { ...MARIA } });
+  assert.deepEqual(resolverAtor(CARLOS), { ok: true, ator: { ...CARLOS } });
+  for (const ator of [null, DE_FORA, {}, 'x', USUARIOS_SELECIONAVEIS[0], { ...CARLOS, perfil: 'cadastrante' }]) {
+    assert.deepEqual(resolverAtor(ator), { ok: false, erro: 'ator_invalido' });
+  }
 });
 
-test('AT3. responsável público: só perfil e setor de um usuário autorizado; nunca usuarioId, nome ou e-mail', () => {
+test('AT3. responsável público: só perfil e setor de um ator aceito; nunca usuarioId, nome ou e-mail', () => {
   assert.deepEqual(PUBLICO, { perfil: 'demonstracao', setor: 'Ambiente local de demonstração' });
-  assert.deepEqual(validarResponsavelPublico(PUBLICO), []);
+  assert.deepEqual(responsavelPublico(MARIA), { perfil: 'cadastrante', setor: 'CLABI' });
+  for (const r of [PUBLICO, { perfil: 'cadastrante', setor: 'CLABI' }, { perfil: 'revisor', setor: 'CLABI' }]) {
+    assert.deepEqual(validarResponsavelPublico(r), [], JSON.stringify(r));
+  }
   const arroba = '@';
   for (const r of [{ ...PUBLICO, usuarioId: 'servidor-demonstracao' }, { ...PUBLICO, nome: 'Fulano' }, { ...PUBLICO, email: `a${arroba}b.gov.br` },
-    { perfil: 'revisor', setor: PUBLICO.setor }, { perfil: PUBLICO.perfil, setor: 'Outro setor' }, { perfil: PUBLICO.perfil }, null]) {
+    { perfil: 'revisor', setor: PUBLICO.setor }, { perfil: PUBLICO.perfil, setor: 'Outro setor' }, { perfil: PUBLICO.perfil }, null,
+    { perfil: 'demonstracao', setor: 'CLABI' }, { perfil: 'cadastrante', setor: PUBLICO.setor }, { perfil: 'revisor', setor: 'CLABI', nome: 'Carlos Silva' },
+    { perfil: 'cadastrante', setor: 'clabi' }]) {
     assert.notDeepEqual(validarResponsavelPublico(r), [], JSON.stringify(r));
   }
 });
@@ -94,6 +137,9 @@ test('AT5. histórico: aceita ator da lista e o texto antigo; resultado ok ou ne
   assert.deepEqual(validarAcaoRevisao(acao()), []);
   assert.deepEqual(validarAcaoRevisao(acao({ resultado: 'negado' })), []);
   assert.deepEqual(validarAcaoRevisao(acao({ ator: ATOR_LEGADO.responsavel })), [], 'registro antigo continua válido');
+  assert.deepEqual(validarAcaoRevisao(acao({ ator: { ...MARIA } })), []);
+  assert.deepEqual(validarAcaoRevisao(acao({ ator: { ...CARLOS }, acao: 'publicar' })), []);
+  assert.notDeepEqual(validarAcaoRevisao(acao({ ator: { ...MARIA, nome: 'Maria Silva' } })), []);
   for (const extra of [{ ator: DE_FORA }, { ator: 'Outro ator' }, { ator: null }, { resultado: 'erro' }, { resultado: 'OK' }]) {
     assert.notDeepEqual(validarAcaoRevisao(acao(extra)), [], JSON.stringify(extra));
   }
@@ -126,6 +172,9 @@ test('AT7. decisões: formato novo (ator) e antigo (responsavel e unidade) aceit
   const base = { id: 'decisao-1', versaoId: v.id, hashConteudo: v.hashConteudo, data: '2026-01-12', observacao: null, tipo: 'decisao_material', decisao: 'validado_materialmente' };
   assert.deepEqual(validarRegistro({ ...base, ator: { ...ATOR_PADRAO } }), []);
   assert.deepEqual(validarRegistro({ ...base, ...ATOR_LEGADO }), [], 'registro antigo continua válido');
+  assert.deepEqual(validarRegistro({ ...base, ator: { ...CARLOS } }), []);
+  assert.deepEqual(validarRegistro({ ...base, ator: { ...MARIA } }), []);
+  assert.notDeepEqual(validarRegistro({ ...base, ator: { ...CARLOS, perfil: 'cadastrante' } }), []);
   assert.notDeepEqual(validarRegistro({ ...base, ator: DE_FORA }), []);
   assert.notDeepEqual(validarRegistro({ ...base, ator: { ...ATOR_PADRAO }, responsavel: 'x', unidade: 'y' }), []);
   assert.notDeepEqual(validarRegistro({ ...base }), []);
@@ -141,6 +190,9 @@ test('AT8. manifesto: responsaveis só com perfil e setor, nas etapas compatíve
   const completo = { validacao: PUBLICO, autorizacao: PUBLICO, publicacao: PUBLICO, revogacao: PUBLICO };
   assert.deepEqual(validarVersao({ ...v, responsaveis: completo }), []);
   assert.deepEqual(validarVersao(v), [], 'versão sem responsaveis continua válida');
+  const CLABI_REVISOR = responsavelPublico(CARLOS);
+  assert.deepEqual(validarVersao({ ...v, responsaveis: { validacao: CLABI_REVISOR, autorizacao: CLABI_REVISOR, publicacao: CLABI_REVISOR, revogacao: PUBLICO } }), []);
+  assert.deepEqual(validarVersao({ ...v, responsaveis: { validacao: responsavelPublico(MARIA), autorizacao: PUBLICO, publicacao: PUBLICO, revogacao: PUBLICO } }), []);
   const publicada = ate('publicado').v;
   assert.deepEqual(validarVersao({ ...publicada, responsaveis: { validacao: PUBLICO, autorizacao: PUBLICO, publicacao: PUBLICO } }), []);
   assert.ok(validarVersao({ ...publicada, responsaveis: { revogacao: PUBLICO } }).includes('responsaveis.revogacao não é permitido neste estado'));
@@ -248,6 +300,14 @@ test('AT10. ator inválido é recusado (ator_invalido) em todas as gravações, 
     for (const r of resultados) assert.deepEqual(r, { ok: false, erro: 'ator_invalido' });
     assert.deepEqual(retrato(raiz), antes);
   });
+});
+
+test('AT12. guarda: os usuários fictícios não aparecem nos dados da base real (só leitura)', () => {
+  const dados = dadosDaBase(RAIZ);
+  assert.ok(dados.length > 0);
+  for (const [arquivo, texto] of dados) {
+    for (const termo of ['Maria Silva', 'Carlos Silva', 'maria-silva', 'carlos-silva']) assert.equal(texto.includes(termo), false, `${termo} em ${path.relative(RAIZ, arquivo)}`);
+  }
 });
 
 test('AT11. a base real não tem responsaveis nem usuarioId, e não foi alterada', () => {
