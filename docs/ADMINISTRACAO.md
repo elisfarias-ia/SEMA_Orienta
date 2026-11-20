@@ -204,3 +204,38 @@ As três ações são separadas. A publicação grava `services/<serviço>/publi
 **Atenção:** a "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e **não equivale à validação material pela área competente da SEMA**. Sem autenticação real. A LAC continua em validação e não publicada.
 
 Auditoria final da Sprint 5: aprovada, sem bloqueantes nem importantes.
+
+## Proteção do assistente de código (Sprint 6, Passo 6A)
+
+O Claude Code consulta o hook `scripts/hooks/protecao-claude.js` (configurado em `.claude/settings.json`) antes de cada gravação, edição ou comando do assistente. Ele não vale para as suas ações, para os testes nem para o `npm run dev`.
+
+| Regra | O que bloqueia | Pode ser liberada? |
+|---|---|---|
+| A1 | Gravar ou editar dados da base: `services/registry.json`, `services/assuntos.json`, as pastas de cada serviço (como `services/lac/`) e `data/`. O código em `services/admin/`, `services/schemas/` e `services/*.js` continua livre. | Sim, por prazo curto |
+| A2 | Comandos que apaguem, movam, sobrescrevam ou criem arquivos nesses mesmos caminhos (`git restore` continua livre). | Sim, por prazo curto |
+| A3 | `git push` forçado. | Não |
+| A4 | `git add` de `data/`, `dist/`, `node_modules/`, `.env`, vídeos `.webm`; `git add -f`, `git add .`, `-A` e `--all`. | Não |
+| A5 | Alterar o próprio hook, `.claude/settings.json`, `.claude/settings.local.json` ou o arquivo de liberação. | Não |
+| A6 | Só avisa, ao fim de cada resposta, se há mudança não commitada nos dados da base ou se `data/` existe. | Não bloqueia |
+| A7 | `git commit --no-verify` ou `-n` e desativar hooks com `core.hooksPath`. | Não |
+| A0 | Pedido que o hook não consegue interpretar (JSON inválido, sem ferramenta, caminho ou comando): bloqueado por padrão, com a mensagem "Bloqueado: não foi possível validar esta ação. Tente novamente ou peça liberação." | Não |
+
+### Como liberar A1 e A2 por prazo curto
+
+Quando uma gravação na base for realmente autorizada (por exemplo, na Sprint 11, com a CLABI), crie **você mesma** o arquivo `.claude/liberacao-protecao.json` na pasta do projeto. O Git ignora esse arquivo, e o assistente não consegue criá-lo nem alterá-lo. Modelo para copiar e preencher:
+
+```json
+{
+  "escopo": ["services/lac/", "services/registry.json"],
+  "motivo": "Descreva o que foi autorizado e por quem (por exemplo, a Issue ou o documento da CLABI)",
+  "validoAte": "2026-11-19T18:00:00-04:00"
+}
+```
+
+- **escopo:** só os caminhos de dados que podem ser alterados. Uma pasta termina com `/`. Não vale `services/` inteira nem caminhos de código.
+- **motivo:** obrigatório.
+- **validoAte:** data e hora no formato acima, com fuso. No máximo **2 horas** depois do momento em que o assistente agir; depois disso, a proteção volta sozinha.
+- Se o arquivo estiver incompleto, vencido ou com prazo maior que 2 horas, ele é ignorado e tudo continua bloqueado.
+- Ao terminar, apague o arquivo.
+
+**Limites:** a leitura dos comandos é aproximada, e um comando escrito de forma incomum pode escapar. O hook não impede a gravação feita pela administração local no `npm run dev` (o aviso A6 sinaliza) nem as suas próprias ações.

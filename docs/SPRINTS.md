@@ -124,11 +124,16 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 - **Validação em duas etapas:** (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto), começando por um recorte pequeno da LAC. Só o conteúdo confirmado pela CLABI pode ser publicado de verdade.
 - **Perfis da administração local:** login simulado com dois perfis (RBAC), substituindo o "Servidor de demonstração". **Cadastrante** cadastra fontes e informações e envia para revisão. **Revisor** revisa, registra a validação material, autoriza, publica e revoga. Usuários fictícios de demonstração: Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI). Não há perfil Administrador; a lista de usuários é fixa. Cada ação relevante fica registrada em auditoria (usuário, perfil, setor, ação, resultado e horário), incluindo tentativas negadas.
 
-> **Apenas planejamento.** Nenhuma destas Sprints foi iniciada, e os escopos poderão ser refinados no planejamento de cada uma. Cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
+> **Apenas planejamento.** Salvo a Sprint 6, em andamento, nenhuma destas Sprints foi iniciada, e os escopos poderão ser refinados no planejamento de cada uma. Cada Sprint terá Issue, branch, diagnóstico e aprovação próprios.
 
-## Sprint 6 — Hook de proteção (planejada, não iniciada)
+## Sprint 6 — Hook de proteção (em andamento, Issue #19)
 
-- **Objetivo:** proteger o repositório durante o desenvolvimento assistido (retoma o Passo 2D, não implementado na Sprint 2).
+- **Objetivo:** proteger o repositório durante o desenvolvimento assistido (retoma o Passo 2D, não implementado na Sprint 2), conforme a recomendação do professor: impedir publicação sem validação e detectar inclusão indevida de conteúdo administrativo no build.
+- **Passo 6A (hook do Claude Code):** implementado, aguardando aprovação. `.claude/settings.json` e `scripts/hooks/protecao-claude.js`, com as regras A1 a A7 e a liberação por prazo curto (`docs/ADMINISTRACAO.md`); testes em `tests/hook-claude.test.js`.
+- **Passo 6B (pre-commit do Git):** planejado. Regras B1 a B5, liberação por `.githooks/publicacoes-autorizadas.json`, lista documentada de domínios de e-mail permitidos (com o domínio fictício `orgaoexemplo.gov.br`) e `npm run hooks:instalar`.
+- **Passo 6C (conferência manual, evidências e documentação):** planejado.
+- **Passo 6D (verificação no GitHub):** planejado. Workflow em `.github/workflows/` com as regras do pre-commit em cada PR, sem dependência nova.
+- **Critérios de aceite e Definition of Done:** na Issue #19.
 
 ## Sprint 7 — Diagnóstico de revogação e do registro do responsável (planejada, não iniciada)
 
