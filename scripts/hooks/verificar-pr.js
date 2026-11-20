@@ -36,6 +36,8 @@ export function analisarPr({ git, base, alvo, executarBuild: build = () => true 
     lerAntes: (caminho) => git(['show', `${pontoDePartida}:${caminho}`], { permitirFalha: true }),
     lerDepois: (caminho) => git(['show', `${alvo}:${caminho}`], { permitirFalha: true }),
     diffDoArquivo: (caminho) => git(['diff', '-U0', '--no-color', '--no-ext-diff', '--text', pontoDePartida, alvo, '--', caminho]),
+    // Sprint 7, Passo 7D: arquivos que existem no último commit da PR (para conferir a remoção de conteúdo público).
+    listarDepois: (prefixo) => git(['ls-tree', '-r', '-z', '--name-only', alvo, '--', prefixo]).split('\0').filter((c) => c !== ''),
     executarBuild: build,
   });
 }

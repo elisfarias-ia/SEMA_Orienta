@@ -235,6 +235,13 @@ Funções puras, sem rota, transação nem interface (essas são do Passo 7B):
 - **Chat e build:** nenhum código novo foi preciso. O plugin `services/conteudo-publico-build.js` já decide pelo registro: depois da revogação, no dev o arquivo deixa de ser servido e a página deixa de indicá-lo; no build, nada é emitido; e o `scripts/check-dist.js` recusa qualquer arquivo público fora do autorizado. No `npm run dev`, sem conteúdo publicado, o chat volta ao conteúdo de teste local (comportamento mantido por decisão da usuária).
 - **Interface** (`admin/conteudo/`, `admin/admin-logic.js`): botão "Revogar publicação" só com a versão publicada que está em uso (`podeRevogar` no resumo), diálogo com confirmação e motivo obrigatório; situação "Publicação revogada" e "Criar nova versão para editar" depois da revogação.
 
+### Revogação no pre-commit e na verificação da PR (Sprint 7, Passo 7D)
+
+As duas camadas usam a mesma análise (`analisarAlteracoes`, em `scripts/hooks/pre-commit.js`) e as mesmas regras puras (`scripts/hooks/regras.js`):
+
+- **B2R:** a mudança para `revogado` não exige autorização registrada, mas precisa ser coerente (`verificarRevogacaoDoManifesto`): só se revoga versão publicada; `publicadoEm` e `revogadoEm` válidos, com `revogadoEm` não anterior a `publicadoEm`; `revogadoEm` não aparece em outro estado. Uma versão revogada nunca volta a outro estado, nem com autorização. Sempre que o commit (ou a PR) toca o registro ou um manifesto, o registro como fica depois da mudança não pode apontar para versão revogada (`verificarRegistroContraRevogadas`).
+- **B1R:** a remoção de `services/<serviço>/publico/conteudo-<hash16>.json` só é aceita quando alguma versão do serviço, como fica depois da mudança, está revogada e tem esse hash (`verificarRemocaoPublica`). Para isso, a análise recebe `listarDepois`: no pre-commit, `git ls-files` da área de preparação; na PR, `git ls-tree` do último commit. Sem essa função, a remoção é recusada; se a listagem falhar, B0.
+
 ### Ator como parâmetro e responsáveis públicos (Sprint 7, Passo 7C)
 
 - **Ator** (`services/admin/atores.js`): `{ usuarioId, perfil, setor }`, que precisa ser exatamente um dos usuários da lista fixa `USUARIOS_AUTORIZADOS`. Nesta Sprint a lista só tem o ator de demonstração (`servidor-demonstracao`, perfil `demonstracao`, setor "Ambiente local de demonstração"); os perfis previstos são `demonstracao`, `cadastrante` e `revisor`, e a Sprint 8 acrescenta os usuários fictícios do login simulado. Sem ator informado, vale o de demonstração. O ator não comprova identidade.

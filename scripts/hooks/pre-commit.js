@@ -21,6 +21,8 @@ import {
   verificarManifesto,
   verificarPublico,
   verificarRegistro,
+  verificarRegistroContraRevogadas,
+  verificarRemocaoPublica,
 } from './regras.js';
 
 const TAMANHO_MAXIMO = 64 * 1024 * 1024;
@@ -59,16 +61,35 @@ export function arquivosPreparados(git) {
 
 // Aplica as regras B0 a B5 a um conjunto de alterações. Usada pelo pre-commit (área de preparação) e pela
 // verificação da PR no GitHub (diferença entre o main e a PR), para que as duas sigam exatamente a mesma lógica.
-//   arquivos: [{ status, caminho }]; lerAntes/lerDepois(caminho): texto ou null; diffDoArquivo(caminho): saída do git diff -U0.
-export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquivo, executarBuild: build = () => true }) {
+//   arquivos: [{ status, caminho }]; lerAntes/lerDepois(caminho): texto ou null; diffDoArquivo(caminho): saída do git diff -U0;
+//   listarDepois(prefixo): caminhos que existem depois da mudança sob o prefixo (Sprint 7, Passo 7D; sem ela, remoção de arquivo
+//   público é recusada).
+export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquivo, listarDepois = () => [], executarBuild: build = () => true }) {
   const autorizacoes = validarAutorizacoes(lerDepois(ARQUIVO_AUTORIZACOES));
   if (!autorizacoes.ok) return [{ regra: 'B0', arquivo: ARQUIVO_AUTORIZACOES }];
   const { publicacoes } = autorizacoes;
 
   const achados = [];
   let precisaBuild = false;
+  let conferirRegistro = false;
   for (const { status, caminho } of arquivos) {
-    if (status === 'D') continue;
+    if (caminho === 'services/registry.json' || /^services\/[^/]+\/versoes\/[^/]+\/versao\.json$/.test(caminho)) conferirRegistro = true;
+    if (status === 'D') {
+      // Remoção de arquivo público (B1R): só com a versão correspondente revogada. Demais remoções seguem livres.
+      const publico = /^services\/([^/]+)\/publico\/[^/]+$/.exec(caminho);
+      if (publico) {
+        let manifestos;
+        try {
+          manifestos = listarDepois(`services/${publico[1]}/versoes/`).filter((c) => c.endsWith('/versao.json')).map((c) => lerDepois(c));
+        } catch {
+          achados.push({ regra: 'B0', arquivo: caminho });
+          continue;
+        }
+        const remocao = verificarRemocaoPublica(caminho, manifestos);
+        if (remocao) achados.push(remocao);
+      }
+      continue;
+    }
     if (ehArquivoProibido(caminho)) {
       achados.push({ regra: 'B3', arquivo: caminho });
       continue;
@@ -88,6 +109,8 @@ export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquiv
     achados.push(...verificarLinhas(caminho, linhasAdicionadas(diff)));
     if (afetaBuild(caminho)) precisaBuild = true;
   }
+  // Coerência da revogação (B2R): o registro, como fica depois da mudança, não aponta para versão revogada.
+  if (conferirRegistro) achados.push(...verificarRegistroContraRevogadas(lerDepois('services/registry.json'), lerDepois));
   if (precisaBuild && achados.length === 0 && !build()) achados.push({ regra: 'B5', arquivo: 'dist/' });
   return achados;
 }
@@ -106,6 +129,7 @@ export function analisarCommit({ git, executarBuild: build = () => true }) {
     lerAntes: (caminho) => (temHead ? git(['show', `HEAD:${caminho}`], { permitirFalha: true }) : null),
     lerDepois: (caminho) => git(['show', `:${caminho}`], { permitirFalha: true }),
     diffDoArquivo: (caminho) => git(['diff', '--cached', '-U0', '--no-color', '--no-ext-diff', '--text', '--', caminho]),
+    listarDepois: (prefixo) => git(['ls-files', '-z', '--', prefixo]).split('\0').filter((c) => c !== ''),
     executarBuild: build,
   });
 }

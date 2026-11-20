@@ -3,8 +3,10 @@
 // Nenhuma função aqui lê arquivos, executa o Git ou acessa a rede: tudo é recebido por parâmetro.
 // As mensagens nunca repetem o valor encontrado (segredo, e-mail, telefone ou CPF).
 //
-//   B1  arquivo novo ou alterado em services/<serviço>/publico/ sem publicação autorizada registrada;
-//   B2  mudança para publicação ou validação no registry.json e nos versao.json sem autorização registrada;
+//   B1  arquivo novo ou alterado em services/<serviço>/publico/ sem publicação autorizada registrada; remoção de arquivo público
+//       só quando a versão correspondente está revogada (B1R; Sprint 7, Passo 7D);
+//   B2  mudança para publicação ou validação no registry.json e nos versao.json sem autorização registrada; a revogação não exige
+//       autorização, mas precisa ser coerente, e uma versão revogada nunca volta a publicado (B2R; Sprint 7, Passo 7D);
 //   B3  arquivo que nunca pode ser versionado (data/, dist/, node_modules/, test-results/, .env, .webm, configurações locais);
 //   B4  possível segredo ou dado pessoal nas linhas adicionadas;
 //   B5  build com conteúdo administrativo ou de teste (a execução do build fica em pre-commit.js).
@@ -27,6 +29,9 @@ export const MENSAGENS = Object.freeze({
   B0: 'Commit bloqueado: não foi possível validar o commit. Tente novamente; se persistir, revise o que está sendo commitado.',
   B1: 'Commit bloqueado (B1): conteúdo público (services/<serviço>/publico/) só entra com publicação autorizada registrada em .githooks/publicacoes-autorizadas.json.',
   B2: 'Commit bloqueado (B2): mudança de validação ou publicação sem autorização registrada (registry.json ou versao.json).',
+  // Revogação (Sprint 7, Passo 7D): não exige autorização, mas precisa ser coerente e é definitiva.
+  B1R: 'Commit bloqueado (B1): conteúdo público só pode ser removido quando a versão correspondente está revogada.',
+  B2R: 'Commit bloqueado (B2): revogação incoerente. Uma versão revogada precisa de revogadoEm (não anterior a publicadoEm), o registro não pode apontar para ela e ela não volta a ser publicada (crie uma nova versão).',
   B3: 'Commit bloqueado (B3): este arquivo não pode ser versionado.',
   B4: 'Commit bloqueado (B4): possível segredo ou dado pessoal. O valor não é mostrado; revise a linha indicada.',
   B5: 'Commit bloqueado (B5): o build conteria conteúdo administrativo ou de teste, ou não pôde ser gerado. Rode "npm run build" e "node scripts/check-dist.js" para ver o detalhe.',
@@ -132,11 +137,78 @@ export function verificarManifesto(caminho, textoAntes, textoDepois, publicacoes
   const a = antes.dados || {};
   const d = depois.dados;
   if (!d || typeof d !== 'object') return { regra: 'B0', arquivo: normalizar(caminho) };
+  // Revogação (Sprint 7, Passo 7D): definitiva e coerente; não exige autorização, porque reduz a exposição.
+  const revogacao = verificarRevogacaoDoManifesto(a, d);
+  if (revogacao) return { regra: 'B2R', arquivo: normalizar(caminho), detalhe: revogacao };
   const mudou = (ESTADOS_PROTEGIDOS.has(d.estado) && d.estado !== a.estado)
     || (d.publicadoEm !== null && d.publicadoEm !== undefined && d.publicadoEm !== a.publicadoEm);
   if (!mudou) return null;
   const autorizado = publicacoes.some((p) => p.servicoId === m[1] && p.versaoId === d.id && p.hashConteudo === d.hashConteudo);
   return autorizado ? null : { regra: 'B2', arquivo: normalizar(caminho) };
+}
+
+const dataValida = (v) => typeof v === 'string' && DATA.test(v);
+
+/**
+ * Coerência da revogação num manifesto (antes -> depois). Devolve o motivo (texto curto, sem valores) ou null.
+ * - versão que era revogada não deixa de ser (nunca volta a publicado, nem com autorização: é preciso uma nova versão);
+ * - só se revoga o que estava publicado;
+ * - a revogada tem publicadoEm e revogadoEm válidos, com revogadoEm não anterior a publicadoEm;
+ * - revogadoEm não aparece em outro estado.
+ */
+export function verificarRevogacaoDoManifesto(antes, depois) {
+  const a = antes || {};
+  const d = depois || {};
+  if (a.estado === 'revogado' && d.estado !== 'revogado') return 'versão revogada não volta a ser usada';
+  if (d.estado !== 'revogado') return 'revogadoEm' in d ? 'revogadoEm fora de versão revogada' : null;
+  if (a.estado !== 'revogado' && a.estado !== 'publicado') return 'só se revoga versão publicada';
+  if (!dataValida(d.revogadoEm)) return 'versão revogada sem revogadoEm válido';
+  if (!dataValida(d.publicadoEm)) return 'versão revogada sem publicadoEm válido';
+  if (d.revogadoEm < d.publicadoEm) return 'revogadoEm anterior a publicadoEm';
+  return null;
+}
+
+/** Id da versão (`<serviço>-v<n>`) -> caminho do manifesto, ou null. */
+export function caminhoDoManifesto(servicoId, versaoId) {
+  const m = typeof versaoId === 'string' ? /-v([1-9][0-9]*)$/.exec(versaoId) : null;
+  return m && versaoId === `${servicoId}-v${m[1]}` ? `services/${servicoId}/versoes/v${m[1]}/versao.json` : null;
+}
+
+/**
+ * B2R no registro: nenhum serviço pode apontar (versaoPublicadaId ou publicado: true) para uma versão em estado revogado.
+ * `lerManifesto(caminho)` devolve o texto do manifesto (como fica depois da mudança) ou null.
+ */
+export function verificarRegistroContraRevogadas(textoRegistro, lerManifesto) {
+  const registro = lerJson(textoRegistro);
+  if (!registro.ok) return [{ regra: 'B0', arquivo: 'services/registry.json' }];
+  if (registro.dados === null || !Array.isArray(registro.dados.servicos)) return [];
+  const achados = [];
+  for (const s of registro.dados.servicos) {
+    if (!s || typeof s !== 'object' || typeof s.versaoPublicadaId !== 'string') continue;
+    const caminho = caminhoDoManifesto(s.id, s.versaoPublicadaId);
+    if (caminho === null) continue;
+    const manifesto = lerJson(lerManifesto(caminho));
+    if (!manifesto.ok) return [{ regra: 'B0', arquivo: caminho }];
+    if (manifesto.dados && manifesto.dados.estado === 'revogado') {
+      achados.push({ regra: 'B2R', arquivo: 'services/registry.json', detalhe: `serviço ${s.id} aponta para versão revogada` });
+    }
+  }
+  return achados;
+}
+
+/**
+ * B1R: remover services/<serviço>/publico/conteudo-<hash16>.json só é aceito se alguma versão do serviço, como fica depois da
+ * mudança, estiver revogada e tiver esse hash. `manifestosDepois`: textos dos versao.json do serviço.
+ */
+export function verificarRemocaoPublica(caminho, manifestosDepois) {
+  const m = PADRAO_PUBLICO.exec(normalizar(caminho));
+  if (!m) return null;
+  const hash16 = /^conteudo-([0-9a-f]{16}).json$/.exec(m[2]);
+  const revogada = hash16 !== null && manifestosDepois.some((texto) => {
+    const lido = lerJson(texto);
+    return lido.ok && lido.dados && lido.dados.estado === 'revogado' && typeof lido.dados.hashConteudo === 'string' && lido.dados.hashConteudo.startsWith(hash16[1]);
+  });
+  return revogada ? null : { regra: 'B1R', arquivo: normalizar(caminho) };
 }
 
 // ---------- B4 ----------

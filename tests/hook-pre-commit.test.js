@@ -160,6 +160,8 @@ function gitFalso({ arquivos, conteudo = {}, head = {}, diffs = {} }) {
       return valor;
     }
     if (cmd === 'diff') return diffs[resto[resto.length - 1]] || '';
+    // Sprint 7, Passo 7D: arquivos na área de preparação (só os caminhos de `conteudo` sob o prefixo pedido).
+    if (cmd === 'ls-files') return Object.keys(conteudo).filter((c) => c.startsWith(resto[resto.length - 1])).map((c) => `${c}\0`).join('');
     throw new Error(`comando inesperado: ${args.join(' ')}`);
   };
 }
@@ -176,8 +178,11 @@ test('P9. analisarCommit: B5 só quando o commit afeta o build e o resto passou;
   assert.equal(chamadas, 0);
   const autorizacaoQuebrada = gitFalso({ arquivos: [['M', 'docs/a.md']], conteudo: { '.githooks/publicacoes-autorizadas.json': '{' } });
   assert.equal(analisarCommit({ git: autorizacaoQuebrada })[0].regra, 'B0');
-  const excluido = gitFalso({ arquivos: [['D', PUBLICO], ['D', 'data/x.jsonl']] });
-  assert.deepEqual(analisarCommit({ git: excluido }), []);
+  // Remoções em geral continuam livres; a de arquivo público só com a versão revogada (Sprint 7, Passo 7D, regra B1R).
+  assert.deepEqual(analisarCommit({ git: gitFalso({ arquivos: [['D', 'data/x.jsonl'], ['D', 'docs/velho.md']] }) }), []);
+  assert.deepEqual(analisarCommit({ git: gitFalso({ arquivos: [['D', PUBLICO]] }) }), [{ regra: 'B1R', arquivo: PUBLICO }]);
+  const revogada = JSON.stringify({ id: 'lac-v1', estado: 'revogado', hashConteudo: HASH, publicadoEm: '2026-11-20', revogadoEm: '2026-11-21' });
+  assert.deepEqual(analisarCommit({ git: gitFalso({ arquivos: [['D', PUBLICO]], conteudo: { 'services/lac/versoes/v1/versao.json': revogada } }) }), []);
   const falha = () => { throw new Error('git indisponível'); };
   assert.equal(analisarCommit({ git: falha })[0].regra, 'B0');
 });
