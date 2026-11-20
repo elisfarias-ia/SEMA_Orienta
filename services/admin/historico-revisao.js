@@ -4,15 +4,17 @@
 //   data/admin-private/revisao/<servicoId>.jsonl    ações da revisão (revisar fonte, aceitar e rejeitar bloco, concluir, nova versão)
 //   data/admin-private/decisoes/<servicoId>.jsonl   decisões materiais (registros de decisoes.js)
 //
-// Cada ação guarda SOMENTE: serviço, versão, hash, ação, data e hora, resultado e o ator fixo de demonstração. Nunca conteúdo,
-// texto original, token, caminho local, e-mail nem nome pessoal. O ator "Servidor de demonstração" NÃO comprova identidade
-// nem representa validação jurídica. Erros são códigos.
+// Cada ação guarda SOMENTE: serviço, versão, hash, ação, data e hora, resultado ("ok" ou "negado") e o ator
+// { usuarioId, perfil, setor } da lista fixa de atores.js (Sprint 7, Passo 7C). Nunca conteúdo, texto original, token, caminho
+// local nem e-mail. Registros antigos, com o ator como texto ("Servidor de demonstração"), continuam válidos na leitura.
+// O ator NÃO comprova identidade nem representa validação jurídica. Erros são códigos.
 
 import fs from 'node:fs';
 import { criarArmazenamento } from './armazenamento.js';
+import { ATOR_LEGADO, resolverAtor, validarAtor } from './atores.js';
 import { validarHistorico, validarRegistro } from './decisoes.js';
 
-export const ATOR_DEMONSTRACAO = Object.freeze({ responsavel: 'Servidor de demonstração', unidade: 'Ambiente local de demonstração' });
+export const RESULTADOS = Object.freeze(['ok', 'negado']);
 export const ACOES_REGISTRADAS = Object.freeze(['revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'importar_conteudo', 'concluir_revisao', 'autorizar_publicacao', 'publicar', 'revogar', 'nova_versao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
@@ -23,6 +25,8 @@ const PADRAO_ID = /^[a-z][a-z0-9-]*$/;
 const PADRAO_HASH = /^[0-9a-f]{64}$/;
 const PADRAO_DATA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+/** Ator do registro: o formato novo (da lista fixa) ou o texto antigo do ator de demonstração. */
+const atorAceito = (ator) => (typeof ator === 'string' ? ator === ATOR_LEGADO.responsavel : validarAtor(ator).length === 0);
 
 /** Confere um registro de ação (lista de erros; vazia = válido). Não repete valores nas mensagens. */
 export function validarAcaoRevisao(r) {
@@ -38,8 +42,8 @@ export function validarAcaoRevisao(r) {
   if (r.hashConteudo !== null && (typeof r.hashConteudo !== 'string' || !PADRAO_HASH.test(r.hashConteudo))) erros.push('hashConteudo inválido');
   if (!ACOES_REGISTRADAS.includes(r.acao)) erros.push('acao inválida');
   if (typeof r.dataHora !== 'string' || !PADRAO_DATA_HORA.test(r.dataHora) || Number.isNaN(Date.parse(r.dataHora))) erros.push('dataHora inválida');
-  if (r.resultado !== 'ok') erros.push('resultado inválido');
-  if (r.ator !== ATOR_DEMONSTRACAO.responsavel) erros.push('ator inválido');
+  if (!RESULTADOS.includes(r.resultado)) erros.push('resultado inválido');
+  if (!atorAceito(r.ator)) erros.push('ator inválido');
   // Só metadados mínimos do item (identificador interno e tipo); nunca título, URL, texto ou descrição.
   if (r.itemId !== null && (typeof r.itemId !== 'string' || !PADRAO_ID.test(r.itemId))) erros.push('itemId inválido');
   if (r.itemTipo !== null && !TIPOS_DE_ITEM.includes(r.itemTipo)) erros.push('itemTipo inválido');
@@ -61,8 +65,8 @@ export function validarAcaoTema(r) {
   if (r.tipo !== TIPO_ACAO_TEMA) erros.push('tipo inválido');
   if (r.acao !== 'editar_tema') erros.push('acao inválida');
   if (typeof r.dataHora !== 'string' || !PADRAO_DATA_HORA.test(r.dataHora) || Number.isNaN(Date.parse(r.dataHora))) erros.push('dataHora inválida');
-  if (r.resultado !== 'ok') erros.push('resultado inválido');
-  if (r.ator !== ATOR_DEMONSTRACAO.responsavel) erros.push('ator inválido');
+  if (!RESULTADOS.includes(r.resultado)) erros.push('resultado inválido');
+  if (!atorAceito(r.ator)) erros.push('ator inválido');
   if (typeof r.itemId !== 'string' || !PADRAO_ID.test(r.itemId)) erros.push('itemId inválido');
   if (r.itemTipo !== 'tema') erros.push('itemTipo inválido');
   return erros;
@@ -83,8 +87,14 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
     return r.ok ? { ok: true, registros: r.registros } : falha('historico_indisponivel');
   }
 
-  /** Acrescenta uma ação concluída com sucesso. `entrada`: { versaoId, hashConteudo|null, acao }. */
-  function registrarAcao(servicoId, { versaoId, hashConteudo = null, acao, itemId = null, itemTipo = null }) {
+  /**
+   * Acrescenta uma ação. `entrada`: { versaoId, hashConteudo|null, acao, itemId?, itemTipo?, ator?, resultado? }.
+   * Sem ator, vale o de demonstração; `resultado` é "ok" (padrão) ou "negado" (tentativa recusada).
+   */
+  function registrarAcao(servicoId, { versaoId, hashConteudo = null, acao, itemId = null, itemTipo = null, ator, resultado = 'ok' }) {
+    const quem = resolverAtor(ator);
+    if (!quem.ok) return falha('ator_invalido');
+    if (!RESULTADOS.includes(resultado)) return falha('resultado_invalido');
     const existentes = listarAcoes(servicoId);
     if (!existentes.ok) return existentes;
     const registro = {
@@ -95,8 +105,8 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
       hashConteudo,
       acao,
       dataHora: agora().toISOString(),
-      resultado: 'ok',
-      ator: ATOR_DEMONSTRACAO.responsavel,
+      resultado,
+      ator: quem.ator,
       itemId,
       itemTipo,
     };
@@ -120,8 +130,11 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
   }
 
   const caminhoTemas = `${PASTA_PRIVADA}/temas/historico.jsonl`;
-  /** Acrescenta a edição de um tema (só o id interno e o tipo; nunca o nome). */
-  function registrarAcaoDeTema(temaId) {
+  /** Acrescenta a edição de um tema (só o id interno e o tipo; nunca o nome). Sem ator, vale o de demonstração. */
+  function registrarAcaoDeTema(temaId, { ator, resultado = 'ok' } = {}) {
+    const quem = resolverAtor(ator);
+    if (!quem.ok) return falha('ator_invalido');
+    if (!RESULTADOS.includes(resultado)) return falha('resultado_invalido');
     if (arm.ok === false || !idValido(temaId)) return falha('historico_indisponivel');
     const existentes = arm.listarJsonl(caminhoTemas);
     if (!existentes.ok) return falha('historico_indisponivel');
@@ -130,8 +143,8 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
       tipo: TIPO_ACAO_TEMA,
       acao: 'editar_tema',
       dataHora: agora().toISOString(),
-      resultado: 'ok',
-      ator: ATOR_DEMONSTRACAO.responsavel,
+      resultado,
+      ator: quem.ator,
       itemId: temaId,
       itemTipo: 'tema',
     };

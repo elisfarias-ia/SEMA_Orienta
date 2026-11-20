@@ -16,7 +16,8 @@ import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
 import { autorizarPublicacao, publicarVersao, revogarVersao, TIPO_AUTORIZACAO, TIPO_DECISAO_MATERIAL, TIPO_REVOGACAO } from './decisoes.js';
 import { fonteExcluida } from './edicao-fonte.js';
-import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
+import { registroDoAtor, resolverAtor, responsavelPublico } from './atores.js';
+import { criarHistoricoRevisao } from './historico-revisao.js';
 import { avaliarPendencias, rotuloDaSituacao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
 import { validarVersao } from './versao.js';
@@ -151,8 +152,10 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
     && (tipo !== TIPO_DECISAO_MATERIAL || x.decisao === 'validado_materialmente'));
 
   /** validado_materialmente -> autorizado_publicacao. Não publica nem cria conteúdo público. */
-  function autorizar(servicoId, { revisao }) {
+  function autorizar(servicoId, { revisao, ator }) {
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -171,26 +174,27 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
       const existente = decisoes.registros.find((x) => x.id === idAutorizacao);
       // Se uma tentativa anterior foi desfeita depois de gravar a autorização (mesma versão e hash), ela é reaproveitada.
       if (existente && !(existente.tipo === TIPO_AUTORIZACAO && existente.versaoId === manifesto.id && existente.hashConteudo === c.hash
-        && existente.responsavel === ATOR_DEMONSTRACAO.responsavel && existente.unidade === ATOR_DEMONSTRACAO.unidade)) {
+        && registroDoAtor(existente, quem.ator))) {
         return falha('historico_invalido');
       }
       const jaRegistrada = existente !== undefined;
       const aut = autorizarPublicacao(manifesto, decisoes.registros.filter((x) => x.id !== idAutorizacao), {
-        id: idAutorizacao, versaoId: manifesto.id, hashConteudo: c.hash, responsavel: ATOR_DEMONSTRACAO.responsavel, unidade: ATOR_DEMONSTRACAO.unidade, data, observacao: null,
+        id: idAutorizacao, versaoId: manifesto.id, hashConteudo: c.hash, ator: quem.ator, data, observacao: null,
       });
       if (!aut.ok) return falha('decisao_recusada');
+      const manifestoAutorizado = { ...aut.versao, responsaveis: { ...(aut.versao.responsaveis ?? {}), autorizacao: responsavelPublico(quem.ator) } };
 
       let motivo = null;
       const r = executarTransacao({
         raiz,
         sistema,
-        passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: aut.versao, novo: false, validar: (d) => validarVersao(d) }],
+        passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoAutorizado, novo: false, validar: (d) => validarVersao(d) }],
         verificar: () => {
           const erros = verificarFinal(raiz);
           if (erros.length > 0) return erros;
           if (hashEmDisco(servicoId, manifesto.id) !== c.hash) return ['hash_divergente'];
           if ((!jaRegistrada && !historico.registrarDecisao(servicoId, aut.registro).ok)
-            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'autorizar_publicacao' }).ok) {
+            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'autorizar_publicacao', ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }
@@ -207,8 +211,10 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
    * autorizado_publicacao -> publicado, numa única transação: arquivo público (novo), manifesto e registro. Se qualquer etapa falhar
    * (inclusive a conferência final da base e o histórico), tudo é desfeito.
    */
-  function publicar(servicoId, { revisao }) {
+  function publicar(servicoId, { revisao, ator }) {
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -230,7 +236,11 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
       if (verificarFinal(raiz).length > 0) return falha('base_invalida');
 
       // Data da publicação (mesmo relógio injetável das outras ações); o manifesto não entra no hash canônico.
-      const manifestoPublicado = { ...publicada.versao, publicadoEm: dataLocal(agora()) };
+      const manifestoPublicado = {
+        ...publicada.versao,
+        publicadoEm: dataLocal(agora()),
+        responsaveis: { ...(publicada.versao.responsaveis ?? {}), publicacao: responsavelPublico(quem.ator) },
+      };
       const entradaNova = { ...c.entrada, statusValidacao: 'validado', publicado: true, versaoPublicadaId: manifesto.id };
       const passos = [
         { caminho: caminhoPublico, tipo: 'json', conteudo: gerado.conteudo, novo: true, validar: (d) => validarConteudoPublico(d) },
@@ -249,7 +259,7 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
           if (hashEmDisco(servicoId, manifesto.id) !== c.hash) return ['hash_divergente'];
           const lido = lerConteudoPublicado(raiz, servicoId, { sistema });
           if (lido === null || lido.integridade !== gerado.conteudo.integridade) return ['conteudo_publico'];
-          if (!historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'publicar' }).ok) {
+          if (!historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'publicar', ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }
@@ -266,10 +276,12 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
    * publicado -> revogado (Sprint 7, Passo 7B), numa única transação: manifesto (estado e revogadoEm), registro (publicado: false,
    * versaoPublicadaId: null) e, na conferência final, a decisão de revogação e a ação no histórico privado. Se qualquer etapa falhar,
    * tudo é desfeito. O arquivo público continua no disco como histórico imutável, mas deixa de ser servido e de entrar no build.
-   * O motivo é validado só por revogarVersao (decisoes.js). O ator ainda é o fixo de demonstração (o parâmetro vem no Passo 7C).
+   * O motivo é validado só por revogarVersao (decisoes.js). O ator vem da lista fixa de atores.js; sem ator, vale o de demonstração.
    */
-  function revogar(servicoId, { revisao, motivo }) {
+  function revogar(servicoId, { revisao, motivo, ator }) {
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       if (arm.ok === false) return falha('raiz_invalida');
       const registro = arm.lerJson('services/registry.json');
       if (!registro.ok || !ehObjeto(registro.dados) || !Array.isArray(registro.dados.servicos)) return falha('registro_indisponivel');
@@ -298,14 +310,15 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
       const existente = decisoes.registros.find((x) => x.id === idRevogacao);
       // Se uma tentativa anterior foi desfeita depois de gravar a revogação (mesma versão e hash), ela é reaproveitada.
       if (existente && !(existente.tipo === TIPO_REVOGACAO && existente.versaoId === manifesto.id && existente.hashConteudo === h.hash
-        && existente.responsavel === ATOR_DEMONSTRACAO.responsavel && existente.unidade === ATOR_DEMONSTRACAO.unidade)) {
+        && registroDoAtor(existente, quem.ator))) {
         return falha('historico_invalido');
       }
       const jaRegistrada = existente !== undefined;
       const rev = revogarVersao(manifesto, decisoes.registros.filter((x) => x.id !== idRevogacao), {
-        id: idRevogacao, versaoId: manifesto.id, hashConteudo: h.hash, responsavel: ATOR_DEMONSTRACAO.responsavel, unidade: ATOR_DEMONSTRACAO.unidade, data, observacao: null, motivo,
+        id: idRevogacao, versaoId: manifesto.id, hashConteudo: h.hash, ator: quem.ator, data, observacao: null, motivo,
       });
       if (!rev.ok) return falha(rev.erro === 'revogacao_invalida' ? 'motivo_invalido' : 'decisao_recusada');
+      const manifestoRevogado = { ...rev.versao, responsaveis: { ...(rev.versao.responsaveis ?? {}), revogacao: responsavelPublico(quem.ator) } };
 
       const servicoAtual = atual.arquivos.service;
       const entradaNova = {
@@ -315,7 +328,7 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
         statusValidacao: ehObjeto(servicoAtual) && typeof servicoAtual.statusValidacao === 'string' ? servicoAtual.statusValidacao : entrada.statusValidacao,
       };
       const passos = [
-        { caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: rev.versao, novo: false, validar: (d) => validarVersao(d) },
+        { caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoRevogado, novo: false, validar: (d) => validarVersao(d) },
         // O registro vai por último: é ele que deixa de apontar para a versão revogada.
         { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro.dados, servicos: registro.dados.servicos.map((s) => (s === entrada ? entradaNova : s)) }, novo: false, validar: () => [] },
       ];
@@ -331,7 +344,7 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
           if (lerConteudoPublicado(raiz, servicoId, { sistema }) !== null) return ['conteudo_ainda_servido'];
           if (!sistema.existsSync(`${raiz}/${caminhoPublico}`)) return ['arquivo_publico_ausente'];
           if ((!jaRegistrada && !historico.registrarDecisao(servicoId, rev.registro).ok)
-            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: h.hash, acao: 'revogar' }).ok) {
+            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: h.hash, acao: 'revogar', ator: quem.ator }).ok) {
             motivoFalha = 'historico_indisponivel';
             return ['historico'];
           }

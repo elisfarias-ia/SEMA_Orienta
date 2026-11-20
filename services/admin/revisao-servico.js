@@ -12,7 +12,8 @@ import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
 import { congelarVersao } from './congelamento.js';
 import { registrarDecisaoMaterial } from './decisoes.js';
-import { ATOR_DEMONSTRACAO, criarHistoricoRevisao } from './historico-revisao.js';
+import { registroDoAtor, resolverAtor, responsavelPublico } from './atores.js';
+import { criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
 import { dadosParaEdicao, editarFonte, excluirFonte, impactoDaExclusao } from './edicao-fonte.js';
 import { importarCandidato, listarCandidatos } from './importacao-conteudo.js';
@@ -72,9 +73,12 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
   }
 
   /** Gravação comum das ações de revisão (fonte, aceitar e rejeitar bloco): só a versão atual em rascunho, com revisão otimista. */
-  function gravar({ servicoId, revisao, acao, preparar }) {
+  function gravar({ servicoId, revisao, acao, preparar, ator }) {
     // preparar pode devolver `item: { itemId, itemTipo }` para o histórico (só metadados mínimos).
+    // `ator`: da lista fixa de atores.js; sem ator, vale o de demonstração (Sprint 7, Passo 7C).
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       const c = carregar(servicoId);
       if (!c.ok) return c;
       if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
@@ -93,7 +97,7 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
           if (erros.length > 0) return erros;
           hashDepois = hashEmDisco(servicoId, versaoId);
           if (hashDepois === null) return ['leitura'];
-          if (!historico.registrarAcao(servicoId, { versaoId, hashConteudo: hashDepois, acao, ...(p.item ?? {}) }).ok) {
+          if (!historico.registrarAcao(servicoId, { versaoId, hashConteudo: hashDepois, acao, ...(p.item ?? {}), ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }
@@ -108,9 +112,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
 
   const caminho = (atual, chave) => caminhosDaVersao(atual.pasta)[chave];
 
-  function revisarFonteDoServico(servicoId, { fonteId, revisao }) {
+  function revisarFonteDoServico(servicoId, { fonteId, revisao, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'revisar_fonte',
+      servicoId, revisao, ator, acao: 'revisar_fonte',
       preparar: (atual, data) => {
         const r = revisarFonte(atual.arquivos, fonteId, data, servicoId);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'fontes'), tipo: 'json', conteudo: r.fontes, novo: false, validar: livre }] } : r;
@@ -118,9 +122,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
-  function aceitarBlocoDoServico(servicoId, { blocoId, revisao }) {
+  function aceitarBlocoDoServico(servicoId, { blocoId, revisao, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'aceitar_bloco',
+      servicoId, revisao, ator, acao: 'aceitar_bloco',
       preparar: (atual, data) => {
         const r = aceitarBloco(atual.arquivos, blocoId, data);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
@@ -144,9 +148,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
   }
 
   /** Edita uma fonte (link ou texto): reinicia a revisão da fonte e reabre as informações aceitas que a usam. */
-  function editarFonteDoServico(servicoId, { fonteId, revisao, campos }) {
+  function editarFonteDoServico(servicoId, { fonteId, revisao, campos, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'editar_fonte',
+      servicoId, revisao, ator, acao: 'editar_fonte',
       preparar: (atual, data) => {
         const r = editarFonte(atual.arquivos, fonteId, campos, data, servicoId);
         if (!r.ok) return r;
@@ -181,9 +185,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
    * Exclusão lógica em cascata, numa única transação: marca a fonte, retira as referências ativas da versão atual (informações,
    * campos do serviço, documentos e perguntas antigos) e reabre as informações aceitas que mudarem. Não é recusada por referências.
    */
-  function excluirFonteDoServico(servicoId, { fonteId, revisao }) {
+  function excluirFonteDoServico(servicoId, { fonteId, revisao, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'excluir_fonte',
+      servicoId, revisao, ator, acao: 'excluir_fonte',
       preparar: (atual, data) => {
         const r = excluirFonte(atual.arquivos, fonteId, data);
         if (!r.ok) return r;
@@ -215,9 +219,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
    * Altera o nome e/ou o tema do serviço (versão atual em elaboração): service.json, registro (se o tema mudar) e, de forma conservadora,
    * as informações aceitas voltam a "Em elaboração". Exige `confirmado` quando o tema muda ou há informações aceitas.
    */
-  function editarServicoDoServico(servicoId, { revisao, nome, temaId, confirmado = false }) {
+  function editarServicoDoServico(servicoId, { revisao, nome, temaId, confirmado = false, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'editar_servico',
+      servicoId, revisao, ator, acao: 'editar_servico',
       preparar: (atual, data) => {
         const assuntos = arm.lerJson('services/assuntos.json');
         const registro = arm.lerJson('services/registry.json');
@@ -254,9 +258,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
    * Importa UM item do conteúdo existente como informação em elaboração (nunca aceita, revisa nem publica). Grava só o conteúdo do
    * assistente da versão atual, em transação única, com revisão otimista, trava comum (feita pela rota) e histórico só com metadados.
    */
-  function importarConteudoDoServico(servicoId, { revisao, ref, entrada }) {
+  function importarConteudoDoServico(servicoId, { revisao, ref, entrada, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'importar_conteudo',
+      servicoId, revisao, ator, acao: 'importar_conteudo',
       preparar: (atual, data) => {
         const existentes = new Set(atual.arquivos.conteudoAssistente.blocos.map((b) => b && b.id));
         let id = null;
@@ -276,9 +280,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
-  function reabrirBlocoDoServico(servicoId, { blocoId, revisao }) {
+  function reabrirBlocoDoServico(servicoId, { blocoId, revisao, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'reabrir_bloco',
+      servicoId, revisao, ator, acao: 'reabrir_bloco',
       preparar: (atual, data) => {
         const r = reabrirBloco(atual.arquivos, blocoId, data);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
@@ -286,9 +290,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
-  function rejeitarBlocoDoServico(servicoId, { blocoId, revisao }) {
+  function rejeitarBlocoDoServico(servicoId, { blocoId, revisao, ator }) {
     return gravar({
-      servicoId, revisao, acao: 'rejeitar_bloco',
+      servicoId, revisao, ator, acao: 'rejeitar_bloco',
       preparar: (atual) => {
         const r = rejeitarBloco(atual.manifesto, atual.arquivos, blocoId);
         return r.ok ? { ok: true, passos: [{ caminho: caminho(atual, 'conteudoAssistente'), tipo: 'json', conteudo: r.conteudoAssistente, novo: false, validar: livre }] } : r;
@@ -300,8 +304,10 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
    * Conclui a revisão numa única transação: confere a base, monta o conteúdo canônico, calcula o hash, registra a decisão
    * material, congela a versão (hash gravado) e leva-a a validado_materialmente ("Pronto para publicar"). Não autoriza nem publica.
    */
-  function concluirRevisao(servicoId, { revisao }) {
+  function concluirRevisao(servicoId, { revisao, ator }) {
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -321,8 +327,7 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
       const idDecisao = `decisao-${manifesto.id}-${c.hash.slice(0, 16)}`;
       const existente = decisoes.registros.find((x) => x.id === idDecisao);
       if (existente && !(existente.tipo === 'decisao_material' && existente.versaoId === manifesto.id && existente.hashConteudo === c.hash
-        && existente.decisao === 'validado_materialmente' && existente.responsavel === ATOR_DEMONSTRACAO.responsavel
-        && existente.unidade === ATOR_DEMONSTRACAO.unidade)) {
+        && existente.decisao === 'validado_materialmente' && registroDoAtor(existente, quem.ator))) {
         return falha('historico_invalido');
       }
       const jaRegistrada = existente !== undefined;
@@ -330,25 +335,26 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
         id: idDecisao,
         versaoId: manifesto.id,
         hashConteudo: c.hash,
-        responsavel: ATOR_DEMONSTRACAO.responsavel,
-        unidade: ATOR_DEMONSTRACAO.unidade,
+        ator: quem.ator,
         data,
         decisao: 'validado_materialmente',
         observacao: null,
       });
       if (!decisao.ok) return falha('decisao_recusada');
+      // O manifesto (que vai para o Git) guarda só perfil e setor de quem validou; a auditoria completa fica em data/admin-private/.
+      const manifestoValidado = { ...decisao.versao, responsaveis: { ...(decisao.versao.responsaveis ?? {}), validacao: responsavelPublico(quem.ator) } };
 
       let motivo = null;
       const r = executarTransacao({
         raiz,
         sistema,
-        passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: decisao.versao, novo: false, validar: (d) => validarVersao(d) }],
+        passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoValidado, novo: false, validar: (d) => validarVersao(d) }],
         verificar: () => {
           const erros = verificarFinal(raiz);
           if (erros.length > 0) return erros;
           if (hashEmDisco(servicoId, manifesto.id) !== c.hash) return ['hash_divergente'];
           if ((!jaRegistrada && !historico.registrarDecisao(servicoId, decisao.registro).ok)
-            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'concluir_revisao' }).ok) {
+            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'concluir_revisao', ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }
@@ -362,8 +368,10 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
   }
 
   /** Nova versão a partir da atual congelada (5A). A versão publicada anterior e a atual ficam intactas. */
-  function criarNovaVersao(servicoId) {
+  function criarNovaVersao(servicoId, { ator } = {}) {
     try {
+      const quem = resolverAtor(ator);
+      if (!quem.ok) return falha('ator_invalido');
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const origem = c.atual.manifesto;
@@ -376,7 +384,7 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
         verificarFinal: (r2) => {
           const erros = verificarFinal(r2);
           if (erros.length > 0) return erros;
-          if (!historico.registrarAcao(servicoId, { versaoId: origem.id, hashConteudo: origem.hashConteudo ?? null, acao: 'nova_versao' }).ok) {
+          if (!historico.registrarAcao(servicoId, { versaoId: origem.id, hashConteudo: origem.hashConteudo ?? null, acao: 'nova_versao', ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }

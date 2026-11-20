@@ -6,6 +6,7 @@
 // de registro, sem valor de comprovação de identidade. Nenhuma decisão real foi registrada; decisões com identificação
 // pessoal ficam fora do Git.
 
+import { validarAtor } from './atores.js';
 import { verificarTransicao } from './fluxo.js';
 import { dataIsoValida, falha, idValido, structuredCloneSeguro, validarVersao } from './versao.js';
 
@@ -20,16 +21,24 @@ const PADRAO_EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/;
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const textoPreenchido = (v) => typeof v === 'string' && v.trim() !== '';
 
-const CAMPOS_COMUNS = ['id', 'versaoId', 'hashConteudo', 'responsavel', 'unidade', 'data', 'observacao', 'tipo'];
+// Quem decidiu (Sprint 7, Passo 7C): novas gravações usam `ator` { usuarioId, perfil, setor }, da lista fixa de atores.js.
+// O formato anterior (`responsavel` e `unidade`, identificadores curtos) continua aceito, para os registros antigos.
+const CAMPOS_BASE = ['id', 'versaoId', 'hashConteudo', 'data', 'observacao', 'tipo'];
+const camposDoAtor = (r) => ('ator' in r ? ['ator'] : ['responsavel', 'unidade']);
+const camposComuns = (r) => [...CAMPOS_BASE, ...camposDoAtor(r)];
 
 function validarComuns(r) {
   const erros = [];
   if (!idValido(r.id)) erros.push('id inválido');
   if (!idValido(r.versaoId)) erros.push('versaoId inválido');
   if (typeof r.hashConteudo !== 'string' || !PADRAO_HASH.test(r.hashConteudo)) erros.push('hashConteudo (SHA-256) inválido');
-  for (const campo of ['responsavel', 'unidade']) {
-    if (!textoPreenchido(r[campo])) erros.push(`${campo} obrigatório`);
-    else if (r[campo].length > 80 || PADRAO_EMAIL.test(r[campo])) erros.push(`${campo} deve ser um identificador curto, sem e-mail`);
+  if ('ator' in r) {
+    erros.push(...validarAtor(r.ator));
+  } else {
+    for (const campo of ['responsavel', 'unidade']) {
+      if (!textoPreenchido(r[campo])) erros.push(`${campo} obrigatório`);
+      else if (r[campo].length > 80 || PADRAO_EMAIL.test(r[campo])) erros.push(`${campo} deve ser um identificador curto, sem e-mail`);
+    }
   }
   if (!dataIsoValida(r.data)) erros.push('data deve ser uma data válida AAAA-MM-DD');
   if (r.observacao !== null && typeof r.observacao !== 'string') erros.push('observacao deve ser texto ou null');
@@ -47,7 +56,7 @@ function camposInesperados(r, esperados) {
 export function validarRegistro(r) {
   if (!ehObjeto(r)) return ['registro deve ser um objeto'];
   if (r.tipo === TIPO_DECISAO_MATERIAL) {
-    const erros = camposInesperados(r, [...CAMPOS_COMUNS, 'decisao']);
+    const erros = camposInesperados(r, [...camposComuns(r), 'decisao']);
     if (erros.length) return erros;
     erros.push(...validarComuns(r));
     if (!DECISOES_MATERIAIS.includes(r.decisao)) erros.push('decisao deve ser ajustes_solicitados ou validado_materialmente');
@@ -55,13 +64,13 @@ export function validarRegistro(r) {
     return erros;
   }
   if (r.tipo === TIPO_AUTORIZACAO) {
-    const erros = camposInesperados(r, CAMPOS_COMUNS);
+    const erros = camposInesperados(r, camposComuns(r));
     if (erros.length) return erros;
     return validarComuns(r);
   }
   if (r.tipo === TIPO_REVOGACAO) {
     // Revogação (Sprint 7, Passo 7A): motivo obrigatório, curto e sem e-mail. Não exige autorização de publicação.
-    const erros = camposInesperados(r, [...CAMPOS_COMUNS, 'motivo']);
+    const erros = camposInesperados(r, [...camposComuns(r), 'motivo']);
     if (erros.length) return erros;
     erros.push(...validarComuns(r));
     if (!textoPreenchido(r.motivo)) erros.push('motivo obrigatório na revogação');

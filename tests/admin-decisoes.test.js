@@ -283,9 +283,15 @@ test('D24. os esquemas da decisão material e da autorização correspondem ao m
   assert.equal(autorizacao.properties.tipo.const, 'autorizacao_publicacao');
   const { v } = ate('em_validacao');
   const r = validar(v, []);
-  assert.deepEqual([...material.required].sort(), Object.keys(r.registro).sort());
+  // Sprint 7 (Passo 7C): o ator tem dois formatos (oneOf): o novo, ator { usuarioId, perfil, setor }, e o anterior, responsavel e unidade.
+  const legado = (esquema) => esquema.oneOf.find((o) => o.required.includes('responsavel')).required;
+  assert.deepEqual([...material.required, ...legado(material)].sort(), Object.keys(r.registro).sort());
   const au = autorizar(ate('validado_materialmente').v, ate('validado_materialmente').h);
-  assert.deepEqual([...autorizacao.required].sort(), Object.keys(au.registro).sort());
+  assert.deepEqual([...autorizacao.required, ...legado(autorizacao)].sort(), Object.keys(au.registro).sort());
+  for (const esquema of [material, autorizacao]) {
+    assert.deepEqual(esquema.oneOf.map((o) => o.required), [['ator'], ['responsavel', 'unidade']]);
+    assert.deepEqual(esquema.properties.ator.required, ['usuarioId', 'perfil', 'setor']);
+  }
   assert.equal(material.additionalProperties, false);
   assert.equal(autorizacao.additionalProperties, false);
   assert.match(material.description, /fora do Git/);
