@@ -211,7 +211,9 @@ As três ações são separadas. A publicação grava `services/<serviço>/publi
 - **Histórico privado** (`data/admin-private/`, fora do Git): a auditoria completa, com usuário, perfil, setor, ação, resultado (`ok` ou `negado`) e horário.
 - **Manifesto da versão** (`versao.json`, que vai para o Git): só o perfil e o setor de quem validou, autorizou, publicou ou revogou, no campo `responsaveis`. Nunca o identificador do usuário, o nome ou o e-mail.
 
-Registros gravados antes deste passo, com o ator como texto, continuam válidos. A Sprint 8 acrescenta à lista os usuários fictícios do login simulado (Cadastrante e Revisor).
+Registros gravados antes deste passo, com o ator como texto, continuam válidos.
+
+**Usuários fictícios do login simulado (Sprint 8, Passo 8A).** A lista de atores aceitos passa a incluir, além do de demonstração, os usuários fictícios Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI), que não são pessoas reais nem comprovam identidade. Eles ainda não podem ser escolhidos pela tela (a tela de login simulado vem no 8B), e o ator de demonstração continua o padrão de todas as ações até o 8C. A matriz de permissões por perfil (`services/admin/permissoes.js`) já existe, mas ainda não restringe nenhuma rota.
 
 Auditoria final da Sprint 5: aprovada, sem bloqueantes nem importantes.
 

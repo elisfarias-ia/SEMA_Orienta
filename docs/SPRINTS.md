@@ -146,11 +146,12 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 - **Passo 7E (documentação, evidências e conferência):** concluído. A conferência do botão e do diálogo de revogação, pendente desde o 7B, foi feita pelo teste de ponta a ponta `e2e-real/revogacao-real.spec.js`, executado de verdade no navegador, com cópia temporária da base e dados fictícios; evidência e o que ainda exigiria conferência manual em `docs/TESTES_MANUAIS.md`.
 - **Fechamento:** os Passos 7A a 7E estão concluídos. Critérios de aceite e Definition of Done na Issue #24. Ficam para a Sprint 8: login simulado com os perfis Cadastrante e Revisor, registro das tentativas negadas pelas rotas e a separação de "concluir revisão" em enviar para revisão e validar materialmente.
 
-## Sprint 8 — Login simulado com perfis e auditoria (planejada, não iniciada)
+## Sprint 8 — Login simulado com perfis e auditoria (em andamento, Issue #30)
 
 - **Objetivo:** substituir o "Servidor de demonstração" por login simulado com os perfis Cadastrante e Revisor, com lista fixa de usuários fictícios (Maria Silva e Carlos Silva, CLABI), sem perfil Administrador.
 - **Auditoria:** usuário, perfil, setor, ação, resultado e horário de cada ação relevante, incluindo tentativas negadas.
 - **Limite:** o login simulado não é autenticação real; o login com a conta Google institucional fica para a preparação institucional.
+- **Passo 8A (usuários e matriz de permissões, funções puras):** implementado, aguardando aprovação. Em `services/admin/atores.js`, os usuários selecionáveis (`USUARIOS_SELECIONAVEIS`: Maria Silva, Cadastrante, e Carlos Silva, Revisor, ambos fictícios, da CLABI) e os atores aceitos (`ATORES_ACEITOS`: o de demonstração, Maria e Carlos, sem nome), com `validarAtorSelecionavel` e `atorDoUsuario`; o ator de demonstração continua o padrão até o 8C. Em `services/admin/permissoes.js`, a matriz `PERMISSOES` (cada ação com exatamente um perfil; o de demonstração sem nenhuma), `podeExecutar` e `acoesDoPerfil`, ainda não usadas pelas rotas. Nenhuma rota, tela ou dado da base muda. Testes em `tests/permissoes.test.js` e `tests/atores.test.js`.
 
 ## Sprint 9 — Prova técnica do ciclo editorial (planejada, não iniciada)
 
