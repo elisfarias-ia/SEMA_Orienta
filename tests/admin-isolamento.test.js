@@ -48,8 +48,9 @@ test('I4. não há dependências nem scripts além de vite, Playwright, dos test
   const pacote = lerJson('package.json');
   assert.deepEqual(Object.keys(pacote.devDependencies).sort(), ['@playwright/test', 'vite']);
   assert.equal(pacote.dependencies, undefined);
-  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'mcp', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'test:e2e:real', 'validate:services']);
+  assert.deepEqual(Object.keys(pacote.scripts).sort(), ['build', 'dev', 'hooks:instalar', 'mcp', 'preview', 'test', 'test:e2e', 'test:e2e:headed', 'test:e2e:real', 'validate:services']);
   assert.equal(pacote.scripts.dev, 'vite');
+  assert.equal(pacote.scripts['hooks:instalar'], 'git config core.hooksPath .githooks');
   assert.equal(pacote.scripts.mcp, 'node scripts/mcp/iniciar.js');
   assert.deepEqual(fs.readdirSync(path.join(RAIZ, 'admin')).sort(), ['admin-logic.js', 'admin.js', 'conteudo', 'index.html', 'saude', 'styles.css']);
   assert.equal(fs.existsSync(path.join(RAIZ, 'data')), false);

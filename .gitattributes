@@ -1,0 +1,2 @@
+# Scripts dos hooks do Git precisam de quebra de linha LF em qualquer sistema (Sprint 6, Passo 6B).
+.githooks/* text eol=lf

@@ -13,7 +13,8 @@
     "mcp": "node scripts/mcp/iniciar.js",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:real": "playwright test -c playwright.real.config.js"
+    "test:e2e:real": "playwright test -c playwright.real.config.js",
+    "hooks:instalar": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",
