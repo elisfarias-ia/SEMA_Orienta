@@ -301,3 +301,39 @@ Conferência manual feita pela usuária, em ambiente temporário (cópia de `ser
 | Perguntas genéricas | Podem retornar a resposta de limitação, pois a busca atual é textual e determinística (sem IA) |
 
 Nenhum dado real foi alterado e nada da LAC real foi publicado.
+
+### Execução — hooks de proteção (Sprint 6, Passo 6C; Issue #19)
+
+Conferência ao vivo dos hooks integrados à `main` pelas PRs #20 (hook do Claude Code, Passo 6A) e #21 (pre-commit do Git, Passo 6B). As demais regras e as liberações são cobertas pelos testes automatizados (`tests/hook-claude.test.js` e `tests/hook-pre-commit.test.js`), e não por esta conferência.
+
+**Conferido pela usuária**
+
+| Regra | Data | O que foi tentado | Resultado |
+|---|---|---|---|
+| B1 (pre-commit) | 20/11/2026 | Com o hook ativado (`npm run hooks:instalar`), criar `services/lac/publico/conteudo-0000000000000000.json` com `{}`, adicioná-lo e tentar o commit "teste: deve ser barrado". | **Bloqueado**, com a mensagem esperada, segundo a usuária. Depois ela desfez o teste (`git reset` e remoção de `services/lac/publico/`), e o `git status` voltou ao normal. |
+
+Mensagem conferida pela usuária no print, que mostra esta mensagem (reproduzida aqui a partir do código-fonte, não transcrita do print; formato de `scripts/hooks/regras.js` e `scripts/hooks/pre-commit.js`):
+
+```text
+Commit bloqueado (B1): conteúdo público (services/<serviço>/publico/) só entra com publicação autorizada registrada em .githooks/publicacoes-autorizadas.json.
+  -> services/lac/publico/conteudo-0000000000000000.json
+
+Nada foi commitado. Detalhes e liberação autorizada: docs/ADMINISTRACAO.md.
+```
+
+**Conferido pelo assistente de código** (sessão real do Claude Code, com o hook ativo; as mensagens abaixo foram copiadas do erro devolvido pelo Claude Code)
+
+| Regra | Data | O que foi tentado | Mensagem exata recebida |
+|---|---|---|---|
+| A5 | 19/11/2026 | Durante o ajuste do Passo 6A (bloqueio por padrão do pedido malformado), editar `scripts/hooks/protecao-claude.js` com a ferramenta de edição (quatro tentativas). | `Bloqueado (A5): o assistente não pode alterar o próprio hook de proteção, as configurações do Claude Code nem o arquivo de liberação.` |
+| A1 | 20/11/2026 | Criar `services/lac/teste-hook-a1.json` com o conteúdo `{}`, usando a ferramenta normal de gravação de arquivos. | `Bloqueado (A1): o assistente não grava diretamente nos dados da base (services/registry.json, services/assuntos.json, pastas dos serviços ou data/). Use uma cópia temporária fora do projeto ou peça à usuária uma liberação por prazo curto.` |
+| A3 | 20/11/2026 | Executar `git push origin HEAD:teste-hook-a3 --force`. | `Bloqueado (A3): push forçado é proibido neste projeto.` |
+
+**Nenhum dado foi alterado**
+
+- **A5:** o script não foi alterado pelo assistente. A correção foi validada fora do projeto e copiada pela usuária, que conferiu a cópia byte a byte antes dos testes.
+- **A1:** depois do bloqueio, `services/lac/` continuou só com `versoes/`, o arquivo `teste-hook-a1.json` não existe e o `git status` não mostrou mudanças. Não havia arquivo de liberação (`.claude/liberacao-protecao.json`).
+- **A3:** o comando foi barrado antes de executar, sem contato com o GitHub. A conferência de leitura (`git ls-remote --heads origin teste-hook-a3`) não encontrou o branch.
+- **B1:** nada foi commitado, segundo a usuária, e o arquivo de teste foi removido.
+
+Também foi conferido que o hook do Claude Code resolve `$CLAUDE_PROJECT_DIR` corretamente numa sessão real. As regras A2, A4, A6, A7 e A0, a liberação por prazo curto e as regras B0 e B2 a B5 não foram conferidas ao vivo: estão cobertas só pelos testes automatizados. A regra B5 rodou de verdade no commit do Passo 6B (`e15a2fe`), em cerca de 3,6 s, mas só no caso em que o build passa.
