@@ -11,17 +11,20 @@ export const ESTADOS_VERSAO = Object.freeze([
   'validado_materialmente',
   'autorizado_publicacao',
   'publicado',
+  'revogado',
 ]);
 
-// Transições permitidas. `ajustes_solicitados` e `publicado` não têm saída: depois de ajustes pede-se uma NOVA versão
-// (que nasce em rascunho), e uma versão publicada só é substituída por outra versão.
+// Transições permitidas. `ajustes_solicitados` e `revogado` não têm saída: depois de ajustes pede-se uma NOVA versão
+// (que nasce em rascunho). Uma versão publicada só sai de uso substituída por outra versão ou revogada (Sprint 7, Passo 7A);
+// uma versão revogada NUNCA volta a publicado: só uma nova versão, com nova autorização, pode ser publicada.
 export const TRANSICOES = Object.freeze({
   rascunho: Object.freeze(['em_validacao']),
   em_validacao: Object.freeze(['ajustes_solicitados', 'validado_materialmente']),
   ajustes_solicitados: Object.freeze([]),
   validado_materialmente: Object.freeze(['autorizado_publicacao']),
   autorizado_publicacao: Object.freeze(['publicado']),
-  publicado: Object.freeze([]),
+  publicado: Object.freeze(['revogado']),
+  revogado: Object.freeze([]),
 });
 
 export const estadoVersaoValido = (estado) => ESTADOS_VERSAO.includes(estado);
@@ -57,7 +60,9 @@ export const ACOES_DA_VERSAO = Object.freeze({
   validar_materialmente: Object.freeze({ de: Object.freeze(['em_validacao']), para: 'validado_materialmente' }),
   autorizar_publicacao: Object.freeze({ de: Object.freeze(['validado_materialmente']), para: 'autorizado_publicacao' }),
   publicar: Object.freeze({ de: Object.freeze(['autorizado_publicacao']), para: 'publicado' }),
-  nova_versao: Object.freeze({ de: Object.freeze(['ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado']), para: 'rascunho' }),
+  // Revogar tira de uso a versão publicada inteira (Sprint 7). Exige motivo (decisoes.js); nada volta a publicado sozinho.
+  revogar: Object.freeze({ de: Object.freeze(['publicado']), para: 'revogado' }),
+  nova_versao: Object.freeze({ de: Object.freeze(['ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']), para: 'rascunho' }),
 });
 
 /** Ações permitidas no estado dado (lista vazia se o estado for desconhecido). */

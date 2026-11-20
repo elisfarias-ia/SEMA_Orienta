@@ -19,6 +19,7 @@ export const ESTADOS_QUE_PERMITEM_NOVA_VERSAO = Object.freeze([
   'validado_materialmente',
   'autorizado_publicacao',
   'publicado',
+  'revogado',
 ]);
 
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -57,8 +58,8 @@ export function validarVersao(v) {
   if (!ehObjeto(v)) return ['versão deve ser um objeto'];
   const erros = [];
   const esperados = ['arquivos', 'baseadaEm', 'criadoEm', 'enviadaEm', 'estado', 'hashConteudo', 'id', 'numero', 'servicoId'];
-  // `publicadoEm` é opcional: só existe na versão publicada (data da publicação; fora do hash, que não cobre o manifesto).
-  for (const k of Object.keys(v)) if (!esperados.includes(k) && k !== 'publicadoEm') erros.push(`campo não previsto: ${k}`);
+  // `publicadoEm` e `revogadoEm` são opcionais: só existem na versão publicada ou revogada (datas fora do hash, que não cobre o manifesto).
+  for (const k of Object.keys(v)) if (!esperados.includes(k) && k !== 'publicadoEm' && k !== 'revogadoEm') erros.push(`campo não previsto: ${k}`);
   for (const k of esperados) if (!(k in v)) erros.push(`campo obrigatório ausente: ${k}`);
   if (erros.length) return erros;
 
@@ -81,9 +82,19 @@ export function validarVersao(v) {
     else if (dataIsoValida(v.criadoEm) && v.enviadaEm < v.criadoEm) erros.push('enviadaEm não pode ser anterior a criadoEm');
   }
   if ('publicadoEm' in v) {
-    if (v.estado !== 'publicado') erros.push('publicadoEm só é permitido em versão publicada');
+    if (v.estado !== 'publicado' && v.estado !== 'revogado') erros.push('publicadoEm só é permitido em versão publicada ou revogada');
     else if (!dataIsoValida(v.publicadoEm)) erros.push('publicadoEm deve ser uma data válida AAAA-MM-DD');
     else if (dataIsoValida(v.enviadaEm) && v.publicadoEm < v.enviadaEm) erros.push('publicadoEm não pode ser anterior a enviadaEm');
+  }
+  // Revogação (Sprint 7, Passo 7A): a versão revogada foi publicada antes e guarda as duas datas. `revogadoEm` em qualquer outro
+  // estado significa uma versão revogada que voltou a ser usada, o que nunca é permitido.
+  if (v.estado === 'revogado') {
+    if (!('publicadoEm' in v)) erros.push('versão revogada exige publicadoEm (só se revoga o que foi publicado)');
+    if (!('revogadoEm' in v)) erros.push('versão revogada exige revogadoEm');
+    else if (!dataIsoValida(v.revogadoEm)) erros.push('revogadoEm deve ser uma data válida AAAA-MM-DD');
+    else if (dataIsoValida(v.publicadoEm) && v.revogadoEm < v.publicadoEm) erros.push('revogadoEm não pode ser anterior a publicadoEm');
+  } else if ('revogadoEm' in v) {
+    erros.push('revogadoEm só é permitido em versão revogada: uma versão revogada não volta a ser usada');
   }
   return erros;
 }

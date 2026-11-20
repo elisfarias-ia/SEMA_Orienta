@@ -217,3 +217,13 @@ Rotas `GET` e `POST` em `/__admin/servicos/<id>/importacao`. Os candidatos são 
 ### Autorização e publicação (Sprint 5, Passo 5C)
 
 Concluir a revisão, autorizar a publicação e publicar são ações separadas. Rotas: `POST .../autorizacao`, `GET .../publicacao/resumo` e `POST .../publicacao`. A publicação é uma transação única com rollback: o manifesto ganha `publicadoEm` e o registro, `versaoPublicadaId`. O conteúdo público é gravado em `services/<serviço>/publico/conteudo-<hash16>.json`, imutável e de esquema fechado (`services/publicacao-publica.js`; `lerConteudoPublicado` falha de forma segura). O chatbot (`src/assistant.js`, `src/main.js`) e o build (`services/conteudo-publico-build.js`, plugin Vite, saída em `dist/conteudo-publico/`) usam somente o publicado. O `scripts/check-dist.js` é estrito (151 termos). Sem publicação, o chat mantém o comportamento de teste local (conteúdo de teste só no dev, com faixa). Texto cadastrado não mostra fonte; link mostra só a URL. Nenhuma publicação real foi criada.
+
+### Revogação: domínio (Sprint 7, Passo 7A)
+
+Funções puras, sem rota, transação nem interface (essas são do Passo 7B):
+
+- **Fluxo** (`services/admin/fluxo.js`): novo estado `revogado` e ação `revogar`, permitida só a partir de `publicado`. `revogado` não tem transição de saída: uma versão revogada nunca volta a `publicado`. A única ação a partir dela é `nova_versao`, que nasce em rascunho e passa de novo por revisão, validação, autorização e publicação.
+- **Decisão** (`services/admin/decisoes.js`, `revogarVersao`; esquema `services/schemas/revogacao.schema.json`): registro do tipo `revogacao` com `motivo` obrigatório (até 500 caracteres, sem e-mail). Não exige autorização de publicação, mas confere versão, hash, id único e datas (não antes da publicação nem do último registro). A versão vai a `revogado` e ganha `revogadoEm` igual à data da decisão.
+- **Versão** (`services/admin/versao.js`): a versão revogada exige `publicadoEm` e `revogadoEm` válidos, com `revogadoEm` não anterior a `publicadoEm`; `revogadoEm` em qualquer outro estado é erro.
+- **Validador da base** (`scripts/validate-services.js`), três checagens: manifesto revogado tem `revogadoEm`; o registro não aponta para versão revogada (`versaoPublicadaId`); versão revogada não volta a `publicado` (manifesto em outro estado com `revogadoEm`). O arquivo público de uma versão revogada continua em `services/<serviço>/publico/` como histórico imutável, mas não é servido: `lerConteudoPublicado` exige estado `publicado` e o registro não aponta para ela.
+- **Retirada de um bloco:** continua pelo caminho existente de nova versão sem o bloco, com o ciclo completo.
