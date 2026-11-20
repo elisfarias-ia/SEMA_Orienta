@@ -271,7 +271,6 @@ test('5. excluir fonte sem uso: impacto e confirmação próprios, DELETE sem co
   await expect(fonteDa(page, 'Link Descartavel')).toHaveCount(0);
   await expect(fonteDa(page, 'Link Mantido')).toBeFocused();
   await irGestao(page).click();
-  await page.getByRole('button', { name: ACESSAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: d.nome })).toBeVisible();
   await botao(page, 'Link').click();
   await page.locator('#link-titulo').fill('Link Descartavel De Novo');
@@ -451,7 +450,6 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   await expect(botao(page, 'Concluir revisão')).toBeVisible();
   // de volta ao painel: sem pendências, sem "Resolver pendências"
   await irGestao(page).click();
-  await page.getByRole('button', { name: ACESSAR }).click();
   await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para concluir.');
   await expect(page.getByRole('link', { name: 'Resolver pendências' })).toBeHidden();
 });
