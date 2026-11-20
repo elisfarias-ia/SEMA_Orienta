@@ -818,6 +818,26 @@ $('botao-editar-servico').addEventListener('click', (evento) => abrirEdicaoServi
 
 for (const aviso of document.querySelectorAll('.aviso-dados')) aviso.textContent = AVISO_DADOS_PESSOAIS;
 $('botao-entrar').addEventListener('click', entrar);
+
+// Menu: o link da página atual não recarrega a tela (isso encerraria o acesso); só volta à lista de serviços.
+for (const link of document.querySelectorAll('.navegacao__link--atual')) {
+  link.addEventListener('click', (evento) => {
+    evento.preventDefault();
+    if (!$('gestao').hidden) voltarParaLista();
+  });
+}
+
+// Quem chega pelo menu de outra página da administração já acessou: entra sem pedir de novo (como as outras páginas).
+{
+  let veioDoMenu = false;
+  try {
+    const origem = document.referrer === '' ? null : new URL(document.referrer);
+    veioDoMenu = origem !== null && origem.origin === window.location.origin && origem.pathname.startsWith('/admin/') && origem.pathname !== window.location.pathname;
+  } catch {
+    veioDoMenu = false;
+  }
+  if (veioDoMenu) entrar();
+}
 $('botao-sair').addEventListener('click', sair);
 $('botao-novo-servico').addEventListener('click', abrirNovoServico);
 $('novo-cancelar').addEventListener('click', cancelarNovoServico);

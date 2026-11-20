@@ -463,7 +463,6 @@ test('13. a revisão abre compacta, o painel e a página dizem o mesmo e Voltar 
   await expect(page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' })).toHaveAttribute('href', `../?servico=${idDoServico}`);
   await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/\\?servico=${idDoServico}$`));
-  await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: d.nome })).toBeVisible();
   await expect(page.locator('#painel-resumo')).toHaveText(resumo);
   await expect(page.locator('#painel-situacao-texto')).toContainText('Situação: Em elaboração');

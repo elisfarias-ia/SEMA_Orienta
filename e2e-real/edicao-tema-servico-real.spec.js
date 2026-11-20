@@ -80,7 +80,6 @@ async function criarBlocoAceito(page, titulo, fonte) {
 
 async function voltarParaGestao(page) {
   await page.getByRole('navigation', { name: 'Seções da administração' }).getByRole('link', { name: 'Gestão de conteúdo' }).click();
-  await page.getByRole('button', { name: ACESSAR }).click();
 }
 
 test('1. editar o nome do serviço: formulário só com nome e tema, só o que mudou é enviado, título atualizado e foco devolvido', async ({ page }) => {
