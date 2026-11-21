@@ -213,6 +213,7 @@ Revisão feita depois da adoção do fluxo com subagentes, só de leitura, sobre
 - [ ] **Menor (M3)** — na revogação, o hook não impede trocar o `hashConteudo` no mesmo commit, o que deixaria a B1R aceitar remover o arquivo público de outra versão (o validador barraria a incoerência).
 - [ ] **Menor (M4)** — na rota de revogação, a revisão do corpo prevalece sobre a do cabeçalho `X-Revisao` sem conferir se coincidem.
 - [ ] **Menor (M5)** — as ações do workflow estão fixadas por versão (`@v4`), não por SHA; o cache do npm é compartilhado entre PRs (risco baixo, sem segredos).
+- [ ] **Opcional — formatos de dado pessoal que ainda passam no motivo da revogação (Issue #31, item 3)**: CPF com espaços ou pontuação parcial; telefone sem DDD e telefone com +55 todo junto; e-mail escrito por extenso ("arroba") ou com @ de largura total; dígitos de largura total ou caracteres invisíveis no meio; RG; token, password, secret ou chave sem ":" ou "="; "senha" seguida de valor sem dígito. Direção, se um dia for preciso: normalizar o texto (NFKC, retirar caracteres invisíveis) e ampliar os padrões, com um teste para cada caso.
 - [ ] **Menor (M6, não testado, anterior às Sprints 6 e 7)** — o servidor de desenvolvimento do Vite talvez sirva `/services/<serviço>/publico/conteudo-*.json` diretamente, inclusive o arquivo revogado (só local; o chat não o usa). Conferir e, se for o caso, bloquear `/services/` no `npm run dev`.
 
 **Verificação do ambiente do assistente de código (não é achado de segurança do sistema)**

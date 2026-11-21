@@ -953,7 +953,7 @@ $('botao-publicar').addEventListener('click', (evento) => {
 $('botao-nova-versao').addEventListener('click', () => executarRevisao('nova-versao', {}, 'Nova versão criada. Ela está em elaboração e nada foi publicado.'));
 
 // Revogar a publicação: confirmação com motivo obrigatório. Sem motivo, nada é enviado e o diálogo continua aberto.
-// O conteúdo do motivo (tamanho, sem e-mail) é conferido pelo servidor; aqui só se impede o envio em branco.
+// O conteúdo do motivo (tamanho, sem e-mail, telefone, CPF ou credencial) é conferido pelo servidor; aqui só se impede o envio em branco.
 const campoMotivo = $('revogacao-motivo');
 const erroMotivo = $('revogacao-motivo-erro');
 function mostrarErroDoMotivo(mensagem) {

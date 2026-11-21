@@ -93,6 +93,41 @@ test('R3. motivo obrigatório: ausente, vazio, só espaços, longo demais ou com
   assert.equal(revogarVersao(v, h, { ...revogacao(v), extra: 1 }).erro, 'revogacao_invalida');
 });
 
+// Dados pessoais e credenciais montados por concatenação, para que nenhum literal fique nos arquivos de teste.
+const SENSIVEIS = Object.freeze({
+  'CPF formatado': `Pedido do titular ${['123', '456', '789'].join('.')}-${'09'}`,
+  'CPF só dígitos': `Pedido do titular ${'123456'}${'78909'}`,
+  'telefone celular com DDD': `Ligar para ${['(65)', '9' + '8765'].join(' ')}-${'4321'}`,
+  credencial: `Acesso ${'sen' + 'ha'}: ${'abc' + '123'}`,
+  'Bearer com token curto': `Chave ${'Bear' + 'er'} ${'abcdef' + '123456'}`,
+  'e-mail': `Pedido de fulano${'@'}${['exemplo', 'com'].join('.')}`,
+});
+
+test('R3b. motivo com CPF, telefone, credencial ou e-mail é recusado sem ecoar o texto; motivo limpo é aceito', () => {
+  const { v, h } = publicada();
+  const hAntes = structuredClone(h);
+  for (const [nome, motivo] of Object.entries(SENSIVEIS)) {
+    const r = revogarVersao(v, h, revogacao(v, { motivo }));
+    assert.equal(r.ok, false, nome);
+    assert.equal(r.erro, 'revogacao_invalida', nome);
+    assert.equal(JSON.stringify(r).includes(motivo), false, nome);
+  }
+  // nada foi gravado nem modificado nas entradas
+  assert.equal(v.estado, 'publicado');
+  assert.equal('revogadoEm' in v, false);
+  assert.deepEqual(h, hAntes);
+  assert.equal(revogarVersao(v, h, revogacao(v, { motivo: 'Conteúdo desatualizado após mudança de norma' })).ok, true);
+});
+
+test('R3c. proteção contra regressão: histórico já gravado com motivo parecido com telefone continua válido na leitura (não testa a recusa nova)', () => {
+  const { v, h } = publicada();
+  const r = revogarVersao(v, h, revogacao(v));
+  assert.equal(r.ok, true);
+  const antigo = r.historico.map((reg) => (reg.tipo === TIPO_REVOGACAO ? { ...reg, motivo: SENSIVEIS['telefone celular com DDD'] } : reg));
+  assert.deepEqual(validarRegistro(antigo.at(-1)), []);
+  assert.deepEqual(validarHistorico(antigo), []);
+});
+
 test('R4. só se revoga o que está publicado: demais estados e a própria versão revogada são recusados', () => {
   for (const estado of ['em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao']) {
     const { v, h } = ate(estado);

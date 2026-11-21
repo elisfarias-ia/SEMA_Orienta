@@ -29,6 +29,8 @@ const CONTROLE = /[\u0000-\u001f\u007f]/;
 // Parte local limitada a 64 caracteres (limite de e-mail): evita custo quadrático em textos longos sem arroba.
 export const PADRAO_EMAIL = /[\w.+-]{1,64}@[\w-]+(\.[\w-]+)+/;
 export const PADRAO_TELEFONE = /(\(\d{2}\)|\b\d{2})\s?\d{4,5}[-\s]?\d{4}\b/;
+/** CPF formatado (três grupos de 3 dígitos separados por ponto e 2 dígitos após hífen), mesmo padrão da regra do hook de commit. CPF só com dígitos já cai em PADRAO_TELEFONE. */
+export const PADRAO_CPF = /(?<!\d)\d{3}\.\d{3}\.\d{3}-\d{2}(?!\d)/;
 
 const ehObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
