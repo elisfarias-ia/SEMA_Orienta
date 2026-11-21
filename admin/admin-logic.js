@@ -6,6 +6,7 @@
 // exibido, gravado ou registrado. As mensagens de erro vêm de uma tabela fixa em português, nunca da resposta bruta.
 
 import { contemEmailNaoPermitido } from '../services/admin/contatos-permitidos.js';
+import { ACOES as ACOES_DA_MATRIZ, PERMISSOES } from '../services/admin/permissoes.js';
 
 export const LIMITES = Object.freeze({ id: 60, nome: 120, descricao: 1000, sigla: 20, termos: 20, termo: 120 });
 export const ROTAS = Object.freeze({
@@ -506,6 +507,7 @@ export function mensagemDeErro(status, corpo, contexto = 'geral') {
   const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
   const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
   if (status === 401) return 'A sessão administrativa é inválida ou expirou. Recarregue a página para iniciar uma nova sessão.';
+  if (status === 403 && erro === 'perfil_sem_permissao') return MENSAGEM_PERFIL_SEM_PERMISSAO;
   if (status === 403) return 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.';
   if (contexto === 'conhecimento') {
     if (status === 404) return 'Esta informação ou este serviço não foi encontrado. A lista foi recarregada.';
@@ -571,11 +573,30 @@ function usuarioDaSessao(u) {
 }
 
 /**
+ * Ações do perfil devolvidas pela sessão (Passo 8C): lista de textos conhecidos da matriz (permissoes.js), sem repetição.
+ * Devolve uma cópia ou null se o formato não for o esperado.
+ */
+function acoesDaSessao(v) {
+  if (!Array.isArray(v) || v.length > ACOES_DA_MATRIZ.length) return null;
+  if (!v.every((a) => ehTexto(a) && ACOES_DA_MATRIZ.includes(a)) || new Set(v).size !== v.length) return null;
+  return [...v];
+}
+
+/**
  * Confere a resposta da sessão em formato fechado. Aceita a leitura (GET: usuario, usuarios e, só com usuário, token) e a
  * entrada (POST: token e usuario). Devolve { usuario, usuarios, token } (usuarios = null na entrada) ou null.
+ * Passo 8C: com usuário, a resposta pode trazer `acoes` (as ações do perfil); quando vem, ela é conferida e devolvida também.
+ * Sem `acoes` (resposta anterior ao 8C ou simulação), a tela não restringe controles: o servidor continua sendo a barreira.
  */
 export function normalizarSessao(corpo) {
   if (!ehObjeto(corpo)) return null;
+  if (Object.hasOwn(corpo, 'acoes')) {
+    const acoes = acoesDaSessao(corpo.acoes);
+    if (acoes === null || corpo.usuario === null || corpo.usuario === undefined) return null;
+    const { acoes: _ignorada, ...resto } = corpo;
+    const base = normalizarSessao(resto);
+    return base === null || base.usuario === null ? null : { ...base, acoes };
+  }
   const chaves = Object.keys(corpo).sort().join(',');
   const temToken = Object.hasOwn(corpo, 'token');
   if (temToken && (!ehTexto(corpo.token) || !PADRAO_TOKEN_SESSAO.test(corpo.token))) return null;
@@ -606,7 +627,7 @@ function operacoesDeSessao({ chamar, lerToken, definirToken, rota, mensagens }) 
     const s = r.ok ? normalizarSessao(r.corpo) : null;
     if (s === null || s.usuarios === null) return { ok: false, mensagem: mensagens.falha };
     definirToken(s.token);
-    return { ok: true, usuario: s.usuario, usuarios: s.usuarios };
+    return { ok: true, usuario: s.usuario, usuarios: s.usuarios, ...(s.acoes ? { acoes: s.acoes } : {}) };
   }
   return {
     recuperarSessao,
@@ -627,7 +648,7 @@ function operacoesDeSessao({ chamar, lerToken, definirToken, rota, mensagens }) 
       const s = r.ok ? normalizarSessao(r.corpo) : null;
       if (s === null || s.usuarios !== null) return { ok: false, mensagem: mensagens.falha };
       definirToken(s.token);
-      return { ok: true, usuario: s.usuario };
+      return { ok: true, usuario: s.usuario, ...(s.acoes ? { acoes: s.acoes } : {}) };
     },
     /** Sai: envia DELETE com o token atual e só depois zera o token local (mesmo se o servidor recusar). */
     async sair() {
@@ -639,6 +660,105 @@ function operacoesDeSessao({ chamar, lerToken, definirToken, rota, mensagens }) 
       return { ok: true };
     },
   };
+}
+
+// ---------- Permissões aplicadas na tela (Sprint 8, Passo 8C) ----------
+// A tela só AJUDA: o servidor confere o perfil antes de gravar. Controles que o perfil não pode usar continuam focáveis, com
+// aria-disabled="true", clique bloqueado e uma descrição (aria-describedby) que diz qual perfil faz a ação.
+
+export const MENSAGEM_PERFIL_SEM_PERMISSAO = 'Esta ação não está disponível para o seu perfil.';
+
+/** Ação da matriz exigida por cada controle da tela (`data-permissao`). Concluir a revisão = validar materialmente até o 8D. */
+export const ACAO_DO_CONTROLE = Object.freeze({
+  // Conteúdo para respostas (data-acao dos botões).
+  'revisar-fonte': 'revisar_fonte',
+  'editar-fonte': 'editar_fonte',
+  'excluir-fonte': 'excluir_fonte',
+  editar: 'editar_informacao',
+  aceitar: 'aceitar_bloco',
+  descartar: 'rejeitar_bloco',
+  reabrir: 'reabrir_bloco',
+  importar: 'importar_conteudo',
+  concluir: 'validar_materialmente',
+  'nova-versao': 'nova_versao',
+  autorizar: 'autorizar_publicacao',
+  publicar: 'publicar',
+  revogar: 'revogar',
+});
+
+/** O perfil pode usar o controle da ação? Sem lista de ações (null), a tela não restringe. */
+export function acaoPermitida(acoes, acao) {
+  if (acoes === null || acoes === undefined) return true;
+  return Array.isArray(acoes) && ehTexto(acao) && acoes.includes(acao);
+}
+
+/** Frase do bloqueio: "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante." (sem nome de pessoa). */
+export function descricaoDoBloqueio(acao, perfilAtual) {
+  const dono = ehTexto(acao) && Object.hasOwn(PERMISSOES, acao) ? PERMISSOES[acao][0] : null;
+  const atual = rotuloDoPerfil(perfilAtual);
+  if (dono === null) return `${MENSAGEM_PERFIL_SEM_PERMISSAO} Você entrou como ${atual}.`;
+  return `Esta ação é feita pelo perfil ${rotuloDoPerfil(dono)}. Você entrou como ${atual}.`;
+}
+
+/** null se o controle pode ser usado; senão a descrição do bloqueio. */
+export function bloqueioDoControle(acoes, perfil, acao) {
+  return acaoPermitida(acoes, acao) ? null : descricaoDoBloqueio(acao, perfil);
+}
+
+/** Id fixo da ajuda de cada ação da matriz (uma por ação, sem colisão); ação desconhecida usa um id próprio. */
+const idDaAjuda = (acao) => (ehTexto(acao) && Object.hasOwn(PERMISSOES, acao) ? `ajuda-perfil-${acao.replaceAll('_', '-')}` : 'ajuda-perfil-desconhecida');
+export const ID_DO_CONTEINER_DE_AJUDAS = 'ajudas-perfil';
+
+/**
+ * Aplica as permissões a todos os controles com `data-permissao` em `documento` (DOM real ou simulado nos testes). Só usa
+ * atributos, textContent e createElement. Controles liberados voltam ao estado original (aria-describedby preservado).
+ * As descrições ficam no contêiner `#ajudas-perfil`, dentro do conteúdo principal de cada página (fora dele, no fim do body).
+ */
+export function aplicarPermissoesDoPerfil(documento, { acoes = null, perfil = null } = {}) {
+  if (documento === null || typeof documento !== 'object' || typeof documento.querySelectorAll !== 'function') return;
+  for (const el of documento.querySelectorAll('[data-permissao]')) {
+    const original = el.dataset.descricaoOriginal ?? el.getAttribute('aria-describedby') ?? '';
+    const bloqueio = bloqueioDoControle(acoes, perfil, el.dataset.permissao);
+    if (bloqueio === null) {
+      if (el.dataset.bloqueioPerfil === 'true') {
+        el.removeAttribute('aria-disabled');
+        if (original === '') el.removeAttribute('aria-describedby');
+        else el.setAttribute('aria-describedby', original);
+        delete el.dataset.bloqueioPerfil;
+        delete el.dataset.descricaoOriginal;
+      }
+      continue;
+    }
+    const id = idDaAjuda(el.dataset.permissao);
+    let ajuda = documento.getElementById(id);
+    if (ajuda === null) {
+      ajuda = documento.createElement('span');
+      ajuda.id = id;
+      ajuda.className = 'oculto-visual';
+      (documento.getElementById(ID_DO_CONTEINER_DE_AJUDAS) ?? documento.body).append(ajuda);
+    }
+    ajuda.textContent = bloqueio;
+    el.dataset.descricaoOriginal = original;
+    el.dataset.bloqueioPerfil = 'true';
+    el.dataset.descricaoBloqueio = bloqueio;
+    el.setAttribute('aria-disabled', 'true');
+    el.setAttribute('aria-describedby', original === '' ? id : `${original} ${id}`);
+  }
+}
+
+/**
+ * Bloqueia o clique (e o envio por teclado, que também gera clique) nos controles bloqueados por perfil, antes de qualquer outro
+ * tratador (fase de captura). `aoBloquear(descricao)` mostra o motivo na tela.
+ */
+export function instalarBloqueioDePerfil(documento, aoBloquear) {
+  if (documento === null || typeof documento !== 'object' || typeof documento.addEventListener !== 'function') return;
+  documento.addEventListener('click', (evento) => {
+    const alvo = evento.target !== null && typeof evento.target?.closest === 'function' ? evento.target.closest('[data-bloqueio-perfil="true"]') : null;
+    if (alvo === null) return;
+    evento.preventDefault();
+    evento.stopImmediatePropagation();
+    if (typeof aoBloquear === 'function') aoBloquear(alvo.dataset.descricaoBloqueio ?? MENSAGEM_PERFIL_SEM_PERMISSAO);
+  }, true);
 }
 
 // ---------- Cliente do endpoint administrativo ----------
@@ -1114,6 +1234,7 @@ export function mensagemDaGestao(status, corpo, contexto = 'geral') {
   const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
   const campo = ehObjeto(corpo) && ehTexto(corpo.campo) ? corpo.campo : null;
   if (status === 401) return { mensagem: MENSAGENS_GESTAO.expirada };
+  if (status === 403 && erro === 'perfil_sem_permissao') return { mensagem: MENSAGEM_PERFIL_SEM_PERMISSAO };
   if (status === 403) return { mensagem: MENSAGENS_GESTAO.acessoLocal };
   if (status === 404) return { mensagem: MENSAGENS_GESTAO.naoEncontrado, recarregar: true };
   if (status === 409) {
@@ -1435,6 +1556,7 @@ export function explicarFontesPendentes(bloco, fontes) {
 export function mensagemDaRevisao(status, corpo) {
   const erro = ehObjeto(corpo) && ehTexto(corpo.erro) ? corpo.erro : null;
   if (status === 401) return { mensagem: 'A sessão administrativa é inválida ou expirou. Recarregue a página para iniciar uma nova sessão.' };
+  if (status === 403 && erro === 'perfil_sem_permissao') return { mensagem: MENSAGEM_PERFIL_SEM_PERMISSAO };
   if (status === 403) return { mensagem: 'Acesso recusado. A administração só funciona neste computador, pelo endereço local.' };
   if (status === 404) return { mensagem: 'Não encontramos este item. Os dados foram atualizados.', recarregar: true };
   if (status === 409) {

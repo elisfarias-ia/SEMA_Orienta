@@ -427,7 +427,12 @@ test('AD16. requisições simultâneas não alteram estado persistente: mesmo to
 });
 
 test('AD17. limites: resposta grande demais e arquivo grande demais viram erro genérico', async () => {
-  const { m, token } = await comToken({ limiteResposta: 200 });
+  // Passo 8C: a resposta da sessão ganhou `acoes` (cerca de 520 bytes com Maria) e também passa do limite de 200 bytes: ela vira
+  // 500 genérico, mas a sessão já foi aberta; com o gerador de token fixo, o token é conhecido e as demais rotas são conferidas.
+  const token = 'd'.repeat(64);
+  const m = novo({ limiteResposta: 200, gerarToken: () => token });
+  const entrada = await entrarComo(m);
+  assert.deepEqual([entrada.status, entrada.corpo], [500, { erro: 'indisponivel' }]);
   for (const url of [ROTA_CATALOGO, ROTA_LAC]) {
     const r = await chamar(m, { url, token });
     assert.equal(r.status, 500, url);
@@ -524,5 +529,6 @@ test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: se
   assert.match(sessao, /crypto\.timingSafeEqual/);
   assert.doesNotMatch(codigo, /console\./);
   const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './edicao-fonte.js', './edicao-tema-servico.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './importacao-conteudo.js', './publicacao.js', './reutilizacao.js', './revisao-servico.js', './revisao.js', './saude.js', './sessao.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
+  // Passo 8C: + acoes-das-rotas.js (ações por rota), atores.js (segunda barreira), historico-revisao.js (auditoria) e permissoes.js (matriz).
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './acoes-das-rotas.js', './armazenamento.js', './atores.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './edicao-fonte.js', './edicao-tema-servico.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './historico-revisao.js', './importacao-conteudo.js', './permissoes.js', './publicacao.js', './reutilizacao.js', './revisao-servico.js', './revisao.js', './saude.js', './sessao.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });

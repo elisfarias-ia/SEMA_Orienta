@@ -59,6 +59,15 @@ body {
   height: 0;
   overflow: hidden;
 }
+/* Passo 8C: contêiner das descrições dos controles indisponíveis para o perfil. Fica fora do fluxo (não abre espaço na grade) e
+   dentro da área visível; com 1 px de largura, as descrições dentro dele nunca passam da borda da tela. */
+.ajudas-perfil {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .oculto-visual {
   position: absolute;
   width: auto;

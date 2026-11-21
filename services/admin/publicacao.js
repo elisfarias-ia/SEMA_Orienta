@@ -16,7 +16,7 @@ import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
 import { autorizarPublicacao, publicarVersao, revogarVersao, TIPO_AUTORIZACAO, TIPO_DECISAO_MATERIAL, TIPO_REVOGACAO } from './decisoes.js';
 import { fonteExcluida } from './edicao-fonte.js';
-import { registroDoAtor, resolverAtor, responsavelPublico } from './atores.js';
+import { registroDoAtor, resolverAtorDeGravacao, responsavelPublico } from './atores.js';
 import { criarHistoricoRevisao } from './historico-revisao.js';
 import { avaliarPendencias, rotuloDaSituacao } from './revisao.js';
 import { executarTransacao } from './transacao.js';
@@ -152,10 +152,11 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
     && (tipo !== TIPO_DECISAO_MATERIAL || x.decisao === 'validado_materialmente'));
 
   /** validado_materialmente -> autorizado_publicacao. Não publica nem cria conteúdo público. */
-  function autorizar(servicoId, { revisao, ator }) {
+  function autorizar(servicoId, { revisao, ator } = {}) {
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      // Segunda barreira (Passo 8C): só o ator real com perfil que pode autorizar (Revisor).
+      const quem = resolverAtorDeGravacao(ator, 'autorizar_publicacao');
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -211,10 +212,10 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
    * autorizado_publicacao -> publicado, numa única transação: arquivo público (novo), manifesto e registro. Se qualquer etapa falhar
    * (inclusive a conferência final da base e o histórico), tudo é desfeito.
    */
-  function publicar(servicoId, { revisao, ator }) {
+  function publicar(servicoId, { revisao, ator } = {}) {
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      const quem = resolverAtorDeGravacao(ator, 'publicar');
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -276,12 +277,12 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
    * publicado -> revogado (Sprint 7, Passo 7B), numa única transação: manifesto (estado e revogadoEm), registro (publicado: false,
    * versaoPublicadaId: null) e, na conferência final, a decisão de revogação e a ação no histórico privado. Se qualquer etapa falhar,
    * tudo é desfeito. O arquivo público continua no disco como histórico imutável, mas deixa de ser servido e de entrar no build.
-   * O motivo (sem e-mail, telefone, CPF ou credencial) é validado só por revogarVersao (decisoes.js). O ator vem da lista fixa de atores.js; sem ator, vale o de demonstração.
+   * O motivo (sem e-mail, telefone, CPF ou credencial) é validado só por revogarVersao (decisoes.js). O ator é obrigatório: um usuário selecionável com perfil que pode revogar (Passo 8C).
    */
-  function revogar(servicoId, { revisao, motivo, ator }) {
+  function revogar(servicoId, { revisao, motivo, ator } = {}) {
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      const quem = resolverAtorDeGravacao(ator, 'revogar');
+      if (!quem.ok) return falha(quem.erro);
       if (arm.ok === false) return falha('raiz_invalida');
       const registro = arm.lerJson('services/registry.json');
       if (!registro.ok || !ehObjeto(registro.dados) || !Array.isArray(registro.dados.servicos)) return falha('registro_indisponivel');

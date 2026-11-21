@@ -96,9 +96,13 @@ test('GE1. assunto existente + serviço existente: 201, só o fontes.json da LAC
       assert.equal(f.publicado, false);
       assert.equal(f.dataConsulta, '2026-11-15');
     }
-    const mudou = diferencas(antes, retrato(raiz));
+    // Passo 8C: a auditoria privada (data/admin-private/, fora do Git) é conferida à parte.
+    const mudou = diferencas(antes, retrato(raiz)).filter((l) => !/^[DF] data(\/| |$)/.test(l));
     assert.equal(mudou.length, 1);
     assert.match(mudou[0], /^F services\/lac\/versoes\/v1\/fontes\.json /);
+    const auditadas = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'revisao', 'lac.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.deepEqual(auditadas.map((x) => [x.acao, x.itemId, x.ator.usuarioId]), [['cadastrar_fonte', 'fonte-guiada-ficticia', 'maria-silva'], ['cadastrar_fonte', 'fonte-guiada-ficticia-2', 'maria-silva']]);
+    assert.equal(fs.existsSync(path.join(raiz, 'data', 'admin-private', 'cadastros')), false, 'tema e serviço já existiam: sem acao_cadastro');
     assert.deepEqual(validarServicos(raiz).erros, []);
   });
 });

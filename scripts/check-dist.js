@@ -32,6 +32,8 @@ export const NOMES_ADMINISTRATIVOS = [
   // Usuários fictícios, matriz de permissões e login simulado (Sprint 8, Passos 8A e 8B): nomes, ids, módulos e textos da tela.
   'Maria Silva', 'Carlos Silva', 'maria-silva', 'carlos-silva', 'USUARIOS_SELECIONAVEIS', 'atores.js', 'permissoes.js', 'sessao.js',
   'Trocar usuário', 'normalizarSessao',
+  // Permissões aplicadas (Sprint 8, Passo 8C): módulo das ações por rota, códigos dos registros e da recusa, e a ajuda da tela.
+  'acoes-das-rotas', 'perfil_sem_permissao', 'acao_negada', 'ajuda-perfil', 'aplicarPermissoesDoPerfil',
 ];
 
 // Servidor MCP local (scripts/mcp/): caminho, nome do servidor, ferramentas e pontos de entrada nunca podem estar no build.

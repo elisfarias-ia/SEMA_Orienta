@@ -15,6 +15,7 @@ import { conferirHashDaVersaoEmDisco, lerArquivosDaVersao } from '../services/ad
 import { aceitarBloco, validarCorpoDaAcao } from '../services/admin/revisao.js';
 import { validarHistorico } from '../services/admin/decisoes.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { CARLOS, MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 16, 12, 0, 0);
@@ -77,7 +78,7 @@ const revisaoAtual = (rev) => rev.consultar('lac').situacao.revisao;
 test('R1. consulta: pendências em linguagem de código, itens só com título, sem texto original, versão "Em elaboração"', async () => {
   await comCopia(async ({ raiz }) => {
     prepararLac(raiz);
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO }, { ator: MARIA });
     assert.equal(g.ok, true);
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const c = rev.consultar('lac');
@@ -104,7 +105,7 @@ test('R2. revisar fonte: marca validada com dataConsulta, não publica nem alter
     doc.fontes.find((f) => f.id === 'manual-lac-siga-2020').dataConsulta = null;
     gravarJ(raiz, arq('fontes.json'), doc);
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
-    const r = rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) });
+    const r = rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) });
     assert.equal(r.ok, true, JSON.stringify(r));
     const f = lerJ(raiz, ...arq('fontes.json')).fontes.find((x) => x.id === 'manual-lac-siga-2020');
     assert.deepEqual([f.statusValidacao, f.dataConsulta, f.publicado, f.origemOficial], ['validado', '2026-11-17', false, f0.origemOficial]);
@@ -112,10 +113,10 @@ test('R2. revisar fonte: marca validada com dataConsulta, não publica nem alter
     // a nova revisão devolvida é a do conteúdo atual
     assert.equal(r.revisao, revisaoAtual(rev));
     const h = criarHistoricoRevisao({ raiz }).listarAcoes('lac');
-    assert.deepEqual(h.registros.map((x) => [x.acao, x.versaoId, x.resultado, x.ator]), [['revisar_fonte', 'lac-v1', 'ok', { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }]]);
+    assert.deepEqual(h.registros.map((x) => [x.acao, x.versaoId, x.resultado, x.ator]), [['revisar_fonte', 'lac-v1', 'ok', { ...MARIA }]]);
     assert.equal(h.registros[0].hashConteudo, r.revisao);
     // revisar de novo a mesma fonte é recusado
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).erro, 'fonte_ja_revisada');
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).erro, 'fonte_ja_revisada');
   });
 });
 
@@ -125,10 +126,10 @@ test('R3. revisar fonte: inexistente, revogada, revisão divergente e versão co
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const antes = retrato(raiz);
     const r = revisaoAtual(rev);
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'nao-existe', revisao: r }).erro, 'fonte_nao_encontrada');
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'decreto-695-2020', revisao: r }).erro, 'fonte_revogada');
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
-    assert.equal(rev.revisarFonte('outro', { fonteId: 'x', revisao: r }).erro, 'servico_nao_encontrado');
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'nao-existe', revisao: r }).erro, 'fonte_nao_encontrada');
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'decreto-695-2020', revisao: r }).erro, 'fonte_revogada');
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
+    assert.equal(rev.revisarFonte('outro', { ator: MARIA, fonteId: 'x', revisao: r }).erro, 'servico_nao_encontrado');
     assert.deepEqual(retrato(raiz), antes);
     assert.equal(retrato(raiz, 'data').length, 0, 'nada no histórico quando a ação é recusada');
   });
@@ -139,16 +140,16 @@ test('R4. aceitar bloco: exige fontes revisadas; aceita, mantém publicado false
     prepararLac(raiz);
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
     const entradasAntes = fs.existsSync(path.join(raiz, ...arq('entradas.json')));
-    const pendente = rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) });
+    const pendente = rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) });
     assert.deepEqual([pendente.ok, pendente.erro, pendente.fontes], [false, 'fonte_pendente', ['manual-lac-siga-2020']]);
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
-    const ok = rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) });
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
+    const ok = rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) });
     assert.equal(ok.ok, true, JSON.stringify(ok));
     const b = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((x) => x.id === 'bc-um');
     assert.deepEqual([b.statusValidacao, b.revisaoAtualidade, b.publicado, b.atualizadoEm], ['validado', 'concluida', false, '2026-11-17']);
     assert.equal(fs.existsSync(path.join(raiz, ...arq('entradas.json'))), entradasAntes);
     assert.deepEqual(validarServicos(raiz).erros, []);
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_ja_aceito');
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_ja_aceito');
     assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco']);
   });
 });
@@ -159,8 +160,8 @@ test('R5. aceitar bloco: inexistente, de teste, sem fonte e fonte revogada são 
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const teste = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((b) => b.ambiente === 'teste_local');
     const r = () => revisaoAtual(rev);
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-nao-existe', revisao: r() }).erro, 'bloco_nao_encontrado');
-    assert.equal(rev.aceitarBloco('lac', { blocoId: teste.id, revisao: r() }).erro, 'bloco_nao_aceitavel');
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-nao-existe', revisao: r() }).erro, 'bloco_nao_encontrado');
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: teste.id, revisao: r() }).erro, 'bloco_nao_aceitavel');
     // Bloco ligado a fonte revogada nem chega a existir numa base válida; a regra é conferida pela função pura.
     const lida = lerArquivosDaVersao({ raiz, servicoId: 'lac', versaoId: 'lac-v1' });
     lida.arquivos.conteudoAssistente.blocos.push(bloco('bc-revog', ['decreto-695-2020']));
@@ -169,7 +170,7 @@ test('R5. aceitar bloco: inexistente, de teste, sem fonte e fonte revogada são 
     lida.arquivos.conteudoAssistente.blocos.push(bloco('bc-sem', []));
     assert.equal(aceitarBloco(lida.arquivos, 'bc-sem', '2026-11-17').erro, 'bloco_sem_fonte');
     // bloco de teste não pode ser rejeitado nem entra nas pendências
-    assert.equal(rev.rejeitarBloco('lac', { blocoId: teste.id, revisao: r() }).erro, 'bloco_nao_removivel');
+    assert.equal(rev.rejeitarBloco('lac', { ator: MARIA, blocoId: teste.id, revisao: r() }).erro, 'bloco_nao_removivel');
     assert.ok(!rev.consultar('lac').situacao.blocos.some((b) => b.id === teste.id));
   });
 });
@@ -177,18 +178,19 @@ test('R5. aceitar bloco: inexistente, de teste, sem fonte e fonte revogada são 
 test('R6. rejeitar bloco: remove só o bloco em rascunho; a fonte e a entrada original ficam; registra no histórico', async () => {
   await comCopia(async ({ raiz }) => {
     prepararLac(raiz);
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO }, { ator: MARIA });
     assert.equal(g.ok, true);
     const fontesAntes = lerJ(raiz, ...arq('fontes.json')).fontes.map((f) => f.id);
     const entradasAntes = fs.readFileSync(path.join(raiz, ...arq('entradas.json')));
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
-    const r = rev.rejeitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) });
+    const r = rev.rejeitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) });
     assert.equal(r.ok, true, JSON.stringify(r));
     assert.ok(!lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.some((b) => b.id === 'bc-um'));
     assert.deepEqual(lerJ(raiz, ...arq('fontes.json')).fontes.map((f) => f.id), fontesAntes);
     assert.equal(Buffer.compare(fs.readFileSync(path.join(raiz, ...arq('entradas.json'))), entradasAntes), 0);
-    assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['rejeitar_bloco']);
-    assert.equal(rev.rejeitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_encontrado');
+    // Passo 8C: o cadastro do texto (feito no preparo do teste) também fica no histórico.
+    assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['cadastrar_texto', 'rejeitar_bloco']);
+    assert.equal(rev.rejeitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_encontrado');
   });
 });
 
@@ -196,8 +198,8 @@ test('R6. rejeitar bloco: remove só o bloco em rascunho; a fonte e a entrada or
 function prontoParaConcluir(raiz) {
   prepararLac(raiz);
   const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
-  assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
-  assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
+  assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
+  assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
   return rev;
 }
 
@@ -206,7 +208,7 @@ test('R7. concluir: congela, grava o hash, registra a decisão e leva a "Pronto 
     const rev = prontoParaConcluir(raiz);
     const s = rev.consultar('lac').situacao;
     assert.deepEqual([s.podeConcluir, s.pendencias], [true, []]);
-    const r = rev.concluirRevisao('lac', { revisao: s.revisao });
+    const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: s.revisao });
     assert.deepEqual([r.ok, r.versaoId, r.estado, r.hash], [true, 'lac-v1', 'validado_materialmente', s.revisao]);
     const m = lerJ(raiz, ...arq('versao.json'));
     assert.deepEqual([m.estado, m.hashConteudo, m.enviadaEm], ['validado_materialmente', s.revisao, '2026-11-17']);
@@ -220,15 +222,15 @@ test('R7. concluir: congela, grava o hash, registra a decisão e leva a "Pronto 
     const dec = criarHistoricoRevisao({ raiz }).listarDecisoes('lac').registros;
     assert.equal(dec.length, 1);
     // Sprint 7 (Passo 7C): a decisão grava o ator novo (fora do Git); o manifesto guarda só perfil e setor de quem validou.
-    assert.deepEqual([dec[0].tipo, dec[0].decisao, dec[0].versaoId, dec[0].hashConteudo, dec[0].ator, 'responsavel' in dec[0]], ['decisao_material', 'validado_materialmente', 'lac-v1', s.revisao, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }, false]);
+    assert.deepEqual([dec[0].tipo, dec[0].decisao, dec[0].versaoId, dec[0].hashConteudo, dec[0].ator, 'responsavel' in dec[0]], ['decisao_material', 'validado_materialmente', 'lac-v1', s.revisao, { ...CARLOS }, false]);
     assert.deepEqual(validarHistorico(dec), []);
     assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao).slice(-1), ['concluir_revisao']);
     // depois de concluída: nada é editável nem revisável; concluir de novo é recusado
     const novoHash = s.revisao;
-    assert.equal(rev.concluirRevisao('lac', { revisao: novoHash }).erro, 'versao_congelada');
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'tr-176-lac', revisao: novoHash }).erro, 'versao_congelada');
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
-    assert.equal(rev.rejeitarBloco('lac', { blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: novoHash }).erro, 'versao_congelada');
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'tr-176-lac', revisao: novoHash }).erro, 'versao_congelada');
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
+    assert.equal(rev.rejeitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: novoHash }).erro, 'versao_congelada');
     const sit = rev.consultar('lac').situacao;
     assert.deepEqual([sit.editavel, sit.podeConcluir, sit.rotulo], [false, false, 'Pronto para publicar']);
   });
@@ -239,16 +241,16 @@ test('R8. concluir é recusado com pendências: sem bloco aceito, bloco pendente
     prepararLac(raiz, [bloco('bc-um', ['manual-lac-siga-2020']), bloco('bc-dois', ['faq-lac-2022'])], ['manual-lac-siga-2020']);
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const antes = retrato(raiz);
-    const tentar = () => rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) });
+    const tentar = () => rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) });
     let r = tentar();
     assert.deepEqual([r.erro, r.pendencias.map((p) => p.codigo).sort()], ['revisao_incompleta', ['bloco_pendente', 'bloco_pendente', 'fonte_pendente', 'sem_bloco_aceito']]);
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
     r = tentar(); // bc-dois (faq já validada) ainda está pendente
     assert.deepEqual([r.erro, r.pendencias.map((p) => p.codigo)], ['revisao_incompleta', ['bloco_pendente']]);
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-dois', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-dois', revisao: revisaoAtual(rev) }).ok, true);
     // entrada textual com hash divergente
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício interno.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício interno.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     const e = lerJ(raiz, ...arq('entradas.json'));
     e.entradas[0].texto = 'Texto adulterado depois.';
@@ -269,7 +271,7 @@ test('R9. concluir com revisão divergente é recusado; conteúdo alterado entre
     const rot = path.join(raiz, ...arq('roteiro.md'));
     fs.appendFileSync(rot, '\nAlteração externa.\n');
     const antes = retrato(raiz);
-    assert.equal(rev.concluirRevisao('lac', { revisao: vista }).erro, 'revisao_divergente');
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: vista }).erro, 'revisao_divergente');
     assert.deepEqual(retrato(raiz), antes);
     assert.equal(lerJ(raiz, ...arq('versao.json')).estado, 'rascunho');
   });
@@ -284,7 +286,7 @@ test('R10. rollback: falha em cada gravação desfaz tudo (fonte, bloco, conclus
     for (const alvo of ['versao.json', 'lac.jsonl']) {
       const sistema = { ...fs, renameSync(o, d) { if (String(d).endsWith(alvo)) throw new Error('falha injetada'); return fs.renameSync(o, d); }, writeSync(fd, t, ...r) { return fs.writeSync(fd, t, ...r); } };
       const falho = criarServicoRevisao({ raiz, sistema, agora: AGORA_2 });
-      const r = falho.concluirRevisao('lac', { revisao: s0.revisao });
+      const r = falho.concluirRevisao('lac', { ator: CARLOS, revisao: s0.revisao });
       assert.equal(r.ok, false, alvo);
       assert.equal(r.revertido, true, alvo);
       assert.deepEqual(retrato(raiz), base, `base alterada (${alvo})`);
@@ -294,12 +296,12 @@ test('R10. rollback: falha em cada gravação desfaz tudo (fonte, bloco, conclus
     assert.equal(dec.registros.length, 0, 'nenhuma decisão fica registrada quando a decisão não pôde ser gravada');
     // A decisão foi gravada mas a ação não: a base é desfeita; a decisão fica, e uma nova tentativa a reaproveita.
     const semAcao = { ...fs, renameSync(o, d) { if (String(d).includes(`${path.sep}revisao${path.sep}lac.jsonl`)) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-    const parcial = criarServicoRevisao({ raiz, sistema: semAcao, agora: AGORA_2 }).concluirRevisao('lac', { revisao: s0.revisao });
+    const parcial = criarServicoRevisao({ raiz, sistema: semAcao, agora: AGORA_2 }).concluirRevisao('lac', { ator: CARLOS, revisao: s0.revisao });
     assert.deepEqual([parcial.ok, parcial.erro, parcial.revertido], [false, 'historico_indisponivel', true]);
     assert.deepEqual(retrato(raiz), base);
     assert.equal(lerJ(raiz, ...arq('versao.json')).estado, 'rascunho');
     assert.equal(criarHistoricoRevisao({ raiz }).listarDecisoes('lac').registros.length, 1);
-    const segunda = criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { revisao: s0.revisao });
+    const segunda = criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { ator: CARLOS, revisao: s0.revisao });
     assert.equal(segunda.ok, true, JSON.stringify(segunda));
     assert.equal(criarHistoricoRevisao({ raiz }).listarDecisoes('lac').registros.length, 1, 'a decisão não é duplicada');
     assert.deepEqual(validarServicos(raiz).erros, []);
@@ -312,20 +314,20 @@ test('R10. rollback: falha em cada gravação desfaz tudo (fonte, bloco, conclus
     // 2) revisar fonte: falha na gravação do fontes.json e na do histórico
     for (const alvo of ['fontes.json', 'lac.jsonl']) {
       const sistema = { ...fs, renameSync(o, d) { if (String(d).endsWith(alvo)) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: rv });
+      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: rv });
       assert.deepEqual([r.ok, r.revertido], [false, true], alvo);
       assert.deepEqual(retrato(raiz), base, alvo);
     }
     // 3) rejeitar bloco: falha no conteudo-assistente.json
     const sistema = { ...fs, renameSync(o, d) { if (String(d).endsWith('conteudo-assistente.json')) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-    const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).rejeitarBloco('lac', { blocoId: 'bc-um', revisao: rv });
+    const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).rejeitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: rv });
     assert.deepEqual([r.ok, r.revertido], [false, true]);
     assert.deepEqual(retrato(raiz), base);
     // histórico indisponível desfaz a base
     fs.rmSync(path.join(raiz, 'data'), { recursive: true, force: true });
     fs.mkdirSync(path.join(raiz, 'data'), { recursive: true });
     fs.writeFileSync(path.join(raiz, 'data', 'admin-private'), 'arquivo no lugar da pasta');
-    const semHistorico = criarServicoRevisao({ raiz, agora: AGORA }).revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: rv });
+    const semHistorico = criarServicoRevisao({ raiz, agora: AGORA }).revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: rv });
     assert.deepEqual([semHistorico.ok, semHistorico.erro, semHistorico.revertido], [false, 'historico_indisponivel', true]);
     assert.deepEqual(retrato(raiz), base);
   });
@@ -337,7 +339,7 @@ test('R10b. decisão órfã só é reaproveitada se for exatamente a esperada; r
     const hash = revisaoAtual(rev);
     // tentativa desfeita depois de gravar a decisão
     const semAcao = { ...fs, renameSync(o, d) { if (String(d).includes(`${path.sep}revisao${path.sep}lac.jsonl`)) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-    assert.equal(criarServicoRevisao({ raiz, sistema: semAcao, agora: AGORA_2 }).concluirRevisao('lac', { revisao: hash }).erro, 'historico_indisponivel');
+    assert.equal(criarServicoRevisao({ raiz, sistema: semAcao, agora: AGORA_2 }).concluirRevisao('lac', { ator: CARLOS, revisao: hash }).erro, 'historico_indisponivel');
     const arqDecisoes = path.join(raiz, 'data', 'admin-private', 'decisoes', 'lac.jsonl');
     const original = fs.readFileSync(arqDecisoes, 'utf8');
     // adulterado: outro ator com o mesmo id
@@ -345,23 +347,23 @@ test('R10b. decisão órfã só é reaproveitada se for exatamente a esperada; r
     adulterado.responsavel = 'Outro ator';
     fs.writeFileSync(arqDecisoes, `${JSON.stringify(adulterado)}\n`);
     const antes = retrato(raiz);
-    assert.equal(criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { revisao: hash }).erro, 'historico_invalido');
+    assert.equal(criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { ator: CARLOS, revisao: hash }).erro, 'historico_invalido');
     assert.deepEqual(retrato(raiz), antes);
     assert.equal(lerJ(raiz, ...arq('versao.json')).estado, 'rascunho');
     // íntegro: reaproveitado
     fs.writeFileSync(arqDecisoes, original);
-    assert.equal(criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { revisao: hash }).ok, true);
+    assert.equal(criarServicoRevisao({ raiz, agora: AGORA_2 }).concluirRevisao('lac', { ator: CARLOS, revisao: hash }).ok, true);
   });
 });
 
 test('R11b. nova versão: se a cópia do roteiro divergir, nada é gravado no histórico', async () => {
   await comCopia(async ({ raiz }) => {
     const rev = prontoParaConcluir(raiz);
-    assert.equal(rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
     const acoesAntes = criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.length;
     const antes = retrato(raiz);
     const sistema = { ...fs, writeSync(fd, texto, ...r) { return fs.writeSync(fd, typeof texto === 'string' && texto.startsWith('# ') ? texto.replace(/\s+$/, '') : texto, ...r); } };
-    const r = criarServicoRevisao({ raiz, sistema, agora: AGORA_2 }).criarNovaVersao('lac');
+    const r = criarServicoRevisao({ raiz, sistema, agora: AGORA_2 }).criarNovaVersao('lac', { ator: MARIA });
     assert.equal(r.ok, false);
     assert.deepEqual(retrato(raiz), antes);
     assert.equal(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.length, acoesAntes, 'ação não registrada quando a nova versão é desfeita');
@@ -371,10 +373,10 @@ test('R11b. nova versão: se a cópia do roteiro divergir, nada é gravado no hi
 test('R11. nova versão a partir da concluída: cria a v2 em elaboração, preserva a v1 e a publicada, registra no histórico', async () => {
   await comCopia(async ({ raiz }) => {
     const rev = prontoParaConcluir(raiz);
-    assert.equal(rev.criarNovaVersao('lac').erro, 'estado_nao_permite_nova_versao');
-    assert.equal(rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.criarNovaVersao('lac', { ator: MARIA }).erro, 'estado_nao_permite_nova_versao');
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
-    const r = rev.criarNovaVersao('lac');
+    const r = rev.criarNovaVersao('lac', { ator: MARIA });
     assert.deepEqual([r.ok, r.versaoId, r.baseadaEm], [true, 'lac-v2', 'lac-v1']);
     assert.deepEqual(retrato(raiz).filter((l) => l.includes(`v1${path.sep}`)), v1);
     assert.equal(lerJ(raiz, 'services', 'registry.json').servicos[0].versaoPublicadaId, null);
@@ -389,13 +391,13 @@ test('R11. nova versão a partir da concluída: cria a v2 em elaboração, prese
 
 test('R12. histórico: só os campos previstos, sem conteúdo, texto original, token, caminho nem dado pessoal; fora do build e do Git', async () => {
   await comCopia(async ({ raiz }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: CANARIO }, { ator: MARIA });
     assert.equal(g.ok, true);
     prepararLac(raiz, [bloco('bc-um', ['manual-lac-siga-2020'])]);
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
-    assert.equal(rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
     const pasta = path.join(raiz, 'data', 'admin-private');
     const arquivos = [];
     const andar = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? andar(path.join(d, e.name)) : arquivos.push(path.join(d, e.name))));
@@ -406,7 +408,8 @@ test('R12. histórico: só os campos previstos, sem conteúdo, texto original, t
       assert.ok(!t.includes('CANARIO') && !t.includes(raiz) && !/[A-Za-z]:\\/.test(t) && !/@/.test(t) && !/token|Token/.test(t), a);
     }
     const acoes = criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros;
-    assert.deepEqual(acoes.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco', 'concluir_revisao']);
+    // Passo 8C: o cadastro do texto também é auditado.
+    assert.deepEqual(acoes.map((x) => x.acao), ['cadastrar_texto', 'revisar_fonte', 'aceitar_bloco', 'concluir_revisao']);
     for (const x of acoes) {
       assert.deepEqual(validarAcaoRevisao(x), []);
       assert.deepEqual(Object.keys(x).sort(), ['acao', 'ator', 'dataHora', 'hashConteudo', 'id', 'itemId', 'itemTipo', 'resultado', 'servicoId', 'tipo', 'versaoId']);
@@ -456,11 +459,11 @@ test('R16. reabrir bloco aceito: volta a rascunho/pendente/não publicado, regis
     const rev = prontoParaConcluir(raiz);
     const teste = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((b) => b.ambiente === 'teste_local');
     // bloco de teste e bloco ainda em elaboração não são reabertos
-    assert.equal(rev.reabrirBloco('lac', { blocoId: teste.id, revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceitavel');
-    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-nao-existe', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_encontrado');
+    assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: teste.id, revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceitavel');
+    assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-nao-existe', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_encontrado');
     assert.equal(rev.consultar('lac').situacao.blocos[0].podeReabrir, true);
-    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
-    const r = rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) });
+    assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
+    const r = rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) });
     assert.equal(r.ok, true, JSON.stringify(r));
     const b = lerJ(raiz, ...arq('conteudo-assistente.json')).blocos.find((x) => x.id === 'bc-um');
     assert.deepEqual([b.statusValidacao, b.revisaoAtualidade, b.publicado, b.atualizadoEm], ['rascunho', 'pendente', false, '2026-11-17']);
@@ -468,14 +471,14 @@ test('R16. reabrir bloco aceito: volta a rascunho/pendente/não publicado, regis
     assert.deepEqual(validarServicos(raiz).erros, []);
     const sit = rev.consultar('lac').situacao;
     assert.deepEqual([sit.blocos[0].aceito, sit.blocos[0].podeAceitar, sit.blocos[0].podeReabrir, sit.podeConcluir], [false, true, false, false]);
-    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceito');
+    assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'bloco_nao_aceito');
     // pode ser aceito de novo e concluído
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
     assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco', 'reabrir_bloco', 'aceitar_bloco']);
-    assert.equal(rev.concluirRevisao('lac', { revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
     // depois de concluir não se reabre
     const antes = retrato(raiz);
-    assert.equal(rev.reabrirBloco('lac', { blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'versao_congelada');
+    assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'versao_congelada');
     assert.deepEqual(retrato(raiz), antes);
     assert.equal(rev.consultar('lac').situacao.blocos[0].podeReabrir, false);
   });
@@ -487,12 +490,12 @@ test('R17. situação em linguagem comum: rótulo, revisão pendente e resumo de
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
     let s = rev.consultar('lac').situacao;
     assert.deepEqual([s.rotulo, s.revisaoPendente, s.resumo], ['Em elaboração', true, { fontesPendentes: 1, informacoesPendentes: 1, informacoesAceitas: 0, fontesNaoUsadas: 0, pendenciasParaConcluir: 3 }]);
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: s.revisao }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
     assert.deepEqual([s.rotulo, s.revisaoPendente, s.resumo], ['Em elaboração', false, { fontesPendentes: 0, informacoesPendentes: 0, informacoesAceitas: 1, fontesNaoUsadas: 0, pendenciasParaConcluir: 0 }]);
-    assert.equal(rev.concluirRevisao('lac', { revisao: s.revisao }).ok, true);
+    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
     assert.deepEqual([s.rotulo, s.revisaoPendente], ['Pronto para publicar', false]);
     assert.ok(!/rascunho|validado|em_validacao|hash/i.test(s.rotulo));
@@ -510,12 +513,12 @@ test('R18. fonte não usada por nenhum bloco: aparece como não revisada, fica f
     assert.ok(!s.pendencias.some((p) => ['faq-lac-2022', 'tr-176-lac'].includes(p.id)), 'fonte não usada não é pendência');
     const naoUsada = s.fontes.find((f) => f.id === 'faq-lac-2022');
     assert.deepEqual([naoUsada.usadaPorBloco, naoUsada.revisada, naoUsada.podeRevisar], [false, false, true]);
-    assert.equal(rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
-    assert.equal(rev.aceitarBloco('lac', { blocoId: 'bc-um', revisao: s.revisao }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
     assert.deepEqual([s.resumo.pendenciasParaConcluir, s.resumo.fontesNaoUsadas, s.pendencias, s.podeConcluir], [0, 2, [], true]);
-    const r = rev.concluirRevisao('lac', { revisao: s.revisao });
+    const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: s.revisao });
     assert.equal(r.ok, true, JSON.stringify(r));
     // as fontes não usadas continuam não revisadas e nada foi publicado
     const f = lerJ(raiz, ...arq('fontes.json')).fontes;

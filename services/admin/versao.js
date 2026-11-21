@@ -53,6 +53,7 @@ const idValidoChave = (c) => /^[a-zA-Z][a-zA-Z0-9]*$/.test(c);
 
 // Responsáveis públicos da versão (Sprint 7, Passo 7C): cada etapa só existe a partir do estado em que ela acontece, e cada valor
 // é exatamente { perfil, setor } de um usuário autorizado (atores.js). Nunca usuarioId, nome ou e-mail: o manifesto vai para o Git.
+// Sprint 8, Passo 8C: o perfil precisa ser o da etapa (Revisor; o de demonstração só nos manifestos antigos); Cadastrante é recusado.
 export const ETAPAS_COM_RESPONSAVEL = Object.freeze({
   validacao: Object.freeze(['validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
   autorizacao: Object.freeze(['autorizado_publicacao', 'publicado', 'revogado']),
@@ -69,7 +70,7 @@ function validarResponsaveis(responsaveis, estado) {
       continue;
     }
     if (!ETAPAS_COM_RESPONSAVEL[etapa].includes(estado)) erros.push(`responsaveis.${etapa} não é permitido neste estado`);
-    erros.push(...validarResponsavelPublico(responsavel).map((e) => `responsaveis.${etapa}: ${e}`));
+    erros.push(...validarResponsavelPublico(responsavel, etapa).map((e) => `responsaveis.${etapa}: ${e}`));
   }
   return erros;
 }

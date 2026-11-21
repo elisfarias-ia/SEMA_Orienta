@@ -18,6 +18,7 @@ import { lerConteudoPublicado } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
 import { conferirDist } from '../scripts/check-dist.js';
 import { botoesDePublicacao, frasePublicacao, mensagemDaPublicacao, resumirPublicacao } from '../admin/admin-logic.js';
+import { CARLOS, MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -53,7 +54,7 @@ const bloco = {
   statusValidacao: 'rascunho', publicado: false, revisaoAtualidade: 'pendente', criadoEm: '2026-11-10', atualizadoEm: '2026-11-10',
 };
 
-async function enviar(m, { url, method = 'POST', corpo, token } = {}) {
+async function enviarBruto(m, { url, method = 'POST', corpo, token } = {}) {
   const buffer = method === 'GET' ? Buffer.alloc(0) : Buffer.from(JSON.stringify(corpo ?? {}));
   const headers = { host: 'localhost:5173' };
   if (method !== 'GET') { headers['content-type'] = 'application/json'; headers['content-length'] = String(buffer.length); }
@@ -63,6 +64,22 @@ async function enviar(m, { url, method = 'POST', corpo, token } = {}) {
   const res = { statusCode: 0, setHeader: () => {}, end: (t) => { resposta = t; } };
   await m(req, res, () => {});
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta) };
+}
+
+// Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
+// é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
+const TOKEN_FIXO = 'c'.repeat(64);
+const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
+async function enviar(m, opcoes = {}) {
+  const { method = 'POST' } = opcoes;
+  if (method !== 'POST' || opcoes.token === undefined || !ROTA_DO_REVISOR.test(opcoes.url ?? '')) return enviarBruto(m, opcoes);
+  await entrarComo(m, 'carlos-silva');
+  try {
+    return await enviarBruto(m, opcoes);
+  } finally {
+    await entrarComo(m, 'maria-silva');
+  }
 }
 
 // Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
@@ -82,16 +99,16 @@ async function comLacPublicada(fn, { publicar = true } = {}) {
     if (publicar) {
       const rev = criarServicoRevisao({ raiz, agora: AGORA });
       const sit = () => rev.consultar('lac').situacao;
-      for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao }).ok, true);
-      for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao }).ok, true);
-      const concluida = rev.concluirRevisao('lac', { revisao: sit().revisao });
+      for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
+      for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
+      const concluida = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
       assert.equal(concluida.ok, true);
       hash = concluida.hash;
       const pub = criarServicoPublicacao({ raiz, agora: AGORA });
-      assert.equal(pub.autorizar('lac', { revisao: hash }).ok, true);
-      assert.equal(pub.publicar('lac', { revisao: hash }).ok, true);
+      assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao: hash }).ok, true);
+      assert.equal(pub.publicar('lac', { ator: CARLOS, revisao: hash }).ok, true);
     }
-    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai });
+    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, gerarToken: () => TOKEN_FIXO });
     const token = await obterToken(m);
     const revogar = (corpo) => enviar(m, { url: '/__admin/servicos/lac/revogacao', corpo, token });
     const resumo = async () => (await enviar(m, { url: '/__admin/servicos/lac/publicacao/resumo', method: 'GET', token })).corpo;
@@ -115,7 +132,7 @@ test('RR1. revogar pela rota: 200, manifesto revogado, registro sem publicação
     assert.deepEqual([e.publicado, e.versaoPublicadaId], [false, null]);
     assert.deepEqual(validarServicos(raiz).erros, []);
     const decisao = jsonl(raiz, 'decisoes').at(-1);
-    assert.deepEqual([decisao.tipo, decisao.versaoId, decisao.hashConteudo, decisao.ator, 'responsavel' in decisao], ['revogacao', 'lac-v1', hash, { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }, false]);
+    assert.deepEqual([decisao.tipo, decisao.versaoId, decisao.hashConteudo, decisao.ator, 'responsavel' in decisao], ['revogacao', 'lac-v1', hash, { ...CARLOS }, false]);
     // o motivo é aparado na entrada da rota, como a tela já faz
     assert.equal(decisao.motivo, MOTIVO);
     assert.equal(jsonl(raiz, 'revisao').at(-1).acao, 'revogar');

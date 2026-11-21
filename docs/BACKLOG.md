@@ -190,6 +190,18 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [x] Sprint 5: revisão e publicação (PR #12).
 - [ ] Sprints 6 a 12: plano refeito após a avaliação do professor, centrado no ciclo editorial (`docs/SPRINTS.md`).
 
+## Sprint 8 — Login simulado com perfis e auditoria (em andamento, Issue #30)
+
+Ver `docs/SPRINTS.md`.
+
+- [ ] 8A: usuários fictícios e matriz de permissões (implementado, aguardando aprovação).
+- [ ] 8B: login simulado com sessão única em memória (implementado, aguardando aprovação).
+- [ ] 8C: permissões aplicadas nas rotas que gravam e nos serviços, ator real no histórico, tentativas negadas e cadastros auditados, controles da tela em `aria-disabled` (implementado, aguardando aprovação; `e2e-real` local de 21/11/2026: 75 de 75; roteiro manual não executado).
+- [ ] Alinhar os registros `acao_revisao` dos cadastros com versão (fonte, link, texto, informação; editar e excluir informação), hoje com `hashConteudo: null`, ao padrão das ações em rascunho feitas por `gravar`, que guardam o hash da versão depois da mudança: calcular o hash da versão em disco dentro da conferência final da transação real. Nada consome esse hash hoje (achado da auditoria do 8C; não bloqueante).
+- [ ] 8D: separar "concluir revisão" em enviar para revisão (Cadastrante) e validar materialmente (Revisor), com `solicitar_ajustes`.
+- [ ] Melhoria futura: aparência própria para controles bloqueados por perfil (`admin/styles.css`).
+- [ ] Melhoria futura: registro de auditoria órfão quando a gravação falha depois da conferência (mesmo padrão das ações de revisão; no cadastro guiado, o primeiro registro pode sobrar).
+
 ## Revisão retrospectiva das Sprints 6 e 7 (20/11/2026)
 
 Revisão feita depois da adoção do fluxo com subagentes, só de leitura, sobre a `main` em `6a762a3` (PRs #20 a #29): arquitetura pelo `arquiteto-sema` e segurança pelo `auditor-sema`. Nenhum achado bloqueante. Os quatro achados graves (verificação da PR rodando o próprio código da PR, conteúdo substituído podendo voltar ao ar, motivo de revogação aceitando dados pessoais e evidência do B5 registrada como fato) estão na **Issue #31**. Os demais ficam aqui, com a gravidade que cada revisor deu. Nada foi corrigido ainda.
@@ -203,7 +215,7 @@ Revisão feita depois da adoção do fluxo com subagentes, só de leitura, sobre
 - [ ] **Médio — "Concluir revisão" chega a `validado_materialmente` e o hook trata isso como publicação** (achado 3). A regra B2 exige uma entrada de publicação já na validação. Tratado em parte pela separação do Passo 8D (Issue #30).
 - [ ] **Baixo — regras duplicadas** (achado 8): conversão de id da versão em pasta escrita três vezes; nome do arquivo público em dois lugares (com um `.` não escapado em `regras.js`); listas de arquivos proibidos diferentes entre A4 e B3; datas do hook conferidas só pelo formato; três critérios para "pasta de serviço".
 - [ ] **Baixo — acoplamentos** (achado 9): a análise comum mora em `pre-commit.js` e é importada por `verificar-pr.js`; `pre-commit.js` repete expressões de `regras.js`; a regra B1 aceita **modificar** um arquivo público já autorizado; as mensagens dizem "(B1)" e "(B2)" para os códigos B1R e B2R.
-- [ ] **Baixo — atores e histórico** (achado 10): ator padrão silencioso (a fechar no 8C); perfil `demonstracao` aceito em manifestos; datas locais nas decisões e UTC nas ações; o motivo da revogação só fora do Git.
+- [ ] **Baixo — atores e histórico** (achado 10): ator padrão silencioso (fechado no 8C: não há mais ator padrão); perfil `demonstracao` aceito em manifestos (no 8C, só nos manifestos antigos; as gravações novas exigem Revisor); datas locais nas decisões e UTC nas ações; o motivo da revogação só fora do Git.
 
 **Segurança (`auditor-sema`)**
 

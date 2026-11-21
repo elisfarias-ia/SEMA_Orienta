@@ -6,15 +6,17 @@
 // Duas listas (Sprint 8):
 //   - USUARIOS_SELECIONAVEIS: os usuários fictícios de demonstração do login simulado (Maria Silva, Cadastrante, e Carlos Silva,
 //     Revisor, ambos da CLABI), com nome de exibição para a futura tela de login (8B). Não são pessoas reais.
-//   - ATORES_ACEITOS: o ator de demonstração e os selecionáveis SEM nome, no formato { usuarioId, perfil, setor }. Vale na leitura
-//     de registros e, até o 8C, também na gravação.
-// Transição: até o 8C, quando nada é informado, vale o ator de demonstração (ATOR_PADRAO). No 8C o padrão deixa de existir e
-// as gravações passam a exigir um usuário selecionável; o ator de demonstração continua aceito só na leitura de registros antigos.
+//   - ATORES_ACEITOS: o ator de demonstração e os selecionáveis SEM nome, no formato { usuarioId, perfil, setor }. Vale só na
+//     LEITURA de registros (inclusive os antigos, gravados com o ator de demonstração).
+// Sprint 8, Passo 8C: não há mais ator padrão. Toda gravação exige um usuário selecionável cujo perfil possa executar a ação
+// (resolverAtorDeGravacao, com a matriz de permissoes.js); sem ator, a gravação é recusada (ator_ausente).
 //
 // Onde cada informação fica:
 //   - auditoria completa (usuarioId, perfil, setor, ação, resultado, horário): só em data/admin-private/, fora do Git;
 //   - manifesto da versão (vai para o Git): só { perfil, setor } de quem validou, autorizou, publicou ou revogou, nunca usuarioId,
 //     nome ou e-mail (`responsavelPublico`).
+
+import { podeExecutar } from './permissoes.js';
 
 // Perfis previstos.
 export const PERFIS = Object.freeze(['demonstracao', 'cadastrante', 'revisor']);
@@ -22,9 +24,6 @@ export const PERFIS = Object.freeze(['demonstracao', 'cadastrante', 'revisor']);
 export const SETOR_CLABI = 'CLABI';
 
 export const ATOR_DEMONSTRACAO = Object.freeze({ usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' });
-
-// Apelido transitório: o ator padrão (sem ator informado) deixa de existir no 8C.
-export const ATOR_PADRAO = ATOR_DEMONSTRACAO;
 
 /** Usuários fictícios do login simulado (cada um com um único perfil e um único setor), com nome de exibição. */
 export const USUARIOS_SELECIONAVEIS = Object.freeze([
@@ -67,25 +66,53 @@ export function atorDoUsuario(usuarioId) {
   return { ok: true, ator: { usuarioId: u.usuarioId, perfil: u.perfil, setor: u.setor } };
 }
 
-/** Ator informado ou, sem nenhum, o de demonstração. Devolve { ok: true, ator } (cópia) ou { ok: false, erro: 'ator_invalido' }. */
+const copia = (a) => ({ usuarioId: a.usuarioId, perfil: a.perfil, setor: a.setor });
+
+/**
+ * Ator aceito (inclusive o de demonstração, para conferir registros antigos), sem padrão: sem ator, { ok: false, erro: 'ator_ausente' };
+ * fora da lista, { ok: false, erro: 'ator_invalido' }; senão { ok: true, ator } (cópia).
+ */
 export function resolverAtor(ator) {
-  const escolhido = ator === undefined ? ATOR_PADRAO : ator;
-  if (validarAtor(escolhido).length > 0) return { ok: false, erro: 'ator_invalido' };
-  return { ok: true, ator: { usuarioId: escolhido.usuarioId, perfil: escolhido.perfil, setor: escolhido.setor } };
+  if (ator === undefined || ator === null) return { ok: false, erro: 'ator_ausente' };
+  if (validarAtor(ator).length > 0) return { ok: false, erro: 'ator_invalido' };
+  return { ok: true, ator: copia(ator) };
+}
+
+/**
+ * Ator de uma GRAVAÇÃO (Sprint 8, Passo 8C): só um usuário selecionável cujo perfil possa executar a ação (permissoes.js).
+ * { ok: true, ator } (cópia) ou { ok: false, erro: 'ator_ausente' | 'ator_invalido' | 'perfil_sem_permissao' }. O ator de
+ * demonstração nunca grava. É a segunda barreira: a primeira é a conferência da rota, antes de ler o corpo.
+ */
+export function resolverAtorDeGravacao(ator, acao) {
+  if (ator === undefined || ator === null) return { ok: false, erro: 'ator_ausente' };
+  if (validarAtorSelecionavel(ator).length > 0) return { ok: false, erro: 'ator_invalido' };
+  if (!podeExecutar(ator.perfil, acao)) return { ok: false, erro: 'perfil_sem_permissao' };
+  return { ok: true, ator: copia(ator) };
 }
 
 /** O que pode ir para o Git: só perfil e setor (nunca usuarioId, nome ou e-mail). */
 export const responsavelPublico = (ator) => ({ perfil: ator.perfil, setor: ator.setor });
 
-/** Confere um responsável público do manifesto: exatamente { perfil, setor } de algum ator aceito. */
-export function validarResponsavelPublico(r) {
+// Etapas do manifesto e quem pode responder por elas (Sprint 8, Passo 8C): validação, autorização, publicação e revogação são do
+// Revisor; o ator de demonstração continua aceito só porque manifestos antigos (gravados antes do 8C) o trazem. Cadastrante, nunca.
+const PERFIS_POR_ETAPA = Object.freeze({
+  validacao: Object.freeze(['revisor', 'demonstracao']),
+  autorizacao: Object.freeze(['revisor', 'demonstracao']),
+  publicacao: Object.freeze(['revisor', 'demonstracao']),
+  revogacao: Object.freeze(['revisor', 'demonstracao']),
+});
+
+/** Confere um responsável público do manifesto: exatamente { perfil, setor } de algum ator aceito e com perfil próprio da etapa. */
+export function validarResponsavelPublico(r, etapa) {
   if (!chavesExatas(r, CAMPOS_DO_RESPONSAVEL_PUBLICO)) return ['responsável deve ter exatamente perfil e setor'];
-  return ATORES_ACEITOS.some((u) => u.perfil === r.perfil && u.setor === r.setor) ? [] : ['responsável fora da lista de atores aceitos'];
+  if (!ATORES_ACEITOS.some((u) => u.perfil === r.perfil && u.setor === r.setor)) return ['responsável fora da lista de atores aceitos'];
+  if (typeof etapa !== 'string' || !Object.hasOwn(PERFIS_POR_ETAPA, etapa)) return ['etapa do responsável não prevista'];
+  return PERFIS_POR_ETAPA[etapa].includes(r.perfil) ? [] : ['perfil do responsável não pode responder por esta etapa'];
 }
 
-/** Mesmo ator? Compara o formato novo e aceita o legado só para o ator de demonstração (registros de tentativas antigas). */
+/** Mesmo ator? Compara o formato novo e aceita o legado só para o ator de demonstração (só na leitura de registros antigos). */
 export function registroDoAtor(registro, ator) {
   if (!ehObjeto(registro)) return false;
   if (ehObjeto(registro.ator)) return mesmoAtor(registro.ator, ator);
-  return ator.usuarioId === ATOR_PADRAO.usuarioId && registro.responsavel === ATOR_LEGADO.responsavel && registro.unidade === ATOR_LEGADO.unidade;
+  return ator.usuarioId === ATOR_DEMONSTRACAO.usuarioId && registro.responsavel === ATOR_LEGADO.responsavel && registro.unidade === ATOR_LEGADO.unidade;
 }

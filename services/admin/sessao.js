@@ -5,6 +5,8 @@
 //     Em recusa, a sessão atual não muda.
 //   - sair(token): só com o token atual; senão falha e a sessão continua.
 //   - tokenValido(token): SHA-256 dos dois lados e comparação em tempo constante; falso sem sessão.
+//   - atorDoToken(token) (Passo 8C): numa única conferência (a mesma de tokenValido), o ator da sessão (cópia, sem nome) ou falha.
+//     O endpoint chama esta função uma vez por pedido e fixa o ator: trocar a sessão depois não muda quem grava aquele pedido.
 //   - atual(): usuário da sessão (com o nome vindo de USUARIOS_SELECIONAVEIS) e a lista de usuários selecionáveis.
 // A sessão NÃO guarda nome. Falhas no formato { ok: false, erro }, sem repetir o valor recebido.
 // O login é simulado: não há senha e nada comprova identidade. Maria Silva e Carlos Silva são usuários fictícios.
@@ -28,6 +30,13 @@ export function criarGerenciadorSessao({ gerarToken = geradorPadrao } = {}) {
     const a = crypto.createHash('sha256').update(recebido).digest();
     const b = crypto.createHash('sha256').update(sessao.token).digest();
     return crypto.timingSafeEqual(a, b);
+  }
+
+  /** Ator da sessão para o token recebido: { ok: true, ator } (cópia) ou { ok: false }. Uma só conferência em tempo constante. */
+  function atorDoToken(recebido) {
+    const atual = sessao;
+    if (!tokenValido(recebido) || atual === null || sessao !== atual) return { ok: false };
+    return { ok: true, ator: { usuarioId: atual.ator.usuarioId, perfil: atual.ator.perfil, setor: atual.ator.setor } };
   }
 
   return {
@@ -66,5 +75,6 @@ export function criarGerenciadorSessao({ gerarToken = geradorPadrao } = {}) {
     },
 
     tokenValido,
+    atorDoToken,
   };
 }
