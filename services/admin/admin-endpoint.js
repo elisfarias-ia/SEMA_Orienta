@@ -9,7 +9,14 @@
 // Rota da sessão do login simulado (Sprint 8, Passo 8B; regras em sessao.js, sem HTTP lá):
 //   POST   /__admin/sessao  -> entra com { "usuarioId": "<texto>" } (JSON de até 1 KB; não exige token); token novo a cada entrada
 //   DELETE /__admin/sessao  -> sai (exige o token atual); 204
-//   Até o Passo 8C, o ator da sessão NÃO é repassado às gravações: elas continuam com o ator de demonstração.
+//   GET e POST devolvem também `acoes`, as ações do perfil da sessão (Passo 8C), para a tela desabilitar o que o perfil não faz.
+//
+// Permissões aplicadas (Sprint 8, Passo 8C): o ator da sessão é conferido UMA vez por pedido (sessao.atorDoToken) e fica fixado
+// até o fim dele, mesmo que a sessão troque durante a leitura do corpo ou na espera da trava. Antes de ler o corpo e antes da
+// trava, as ações exigidas pela rota (acoes-das-rotas.js) são conferidas na matriz (permissoes.js): fora do perfil, 403
+// { erro: 'perfil_sem_permissao' } com Connection: close, sem ler o corpo, e a recusa vai para data/admin-private/negadas/
+// (só ação, data e hora, ator e serviço; se esse registro falhar, a resposta continua 403 e nada é gravado em services/).
+// O ator é repassado a cada gravação, que o confere de novo (segunda barreira) e o registra no histórico privado.
 // Rotas de cadastro (POST, JSON de até 32 KB, exigem token):
 //   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
@@ -45,7 +52,8 @@
 //   PATCH /__admin/temas/<id>/edicao      -> altera só o nome do tema; exige `confirmado: true` (catálogo gravado de forma atômica)
 //
 // Este módulo NÃO tem autenticação de pessoas: o token só impede que outro site aberto no navegador use o endpoint.
-// Não decide, não valida conteúdo, não publica e não exclui nada. Não lê dados privados (data/admin-private/); não usa
+// Não decide, não valida conteúdo, não publica e não exclui nada. Só ACRESCENTA registros de auditoria em data/admin-private/ (nunca os
+// devolve ao navegador); não usa
 // cookies, armazenamento do navegador, variáveis de ambiente nem registro em log. Erros são códigos genéricos, sem
 // caminho, token ou conteúdo. Toda gravação passa por transacao.js (tudo ou nada, com desfazer) e por uma trava que
 // recusa gravações simultâneas com 409.
@@ -56,6 +64,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { criarArmazenamento } from './armazenamento.js';
 import { criarGerenciadorSessao } from './sessao.js';
+import { acoesDaRequisicao } from './acoes-das-rotas.js';
+import { resolverAtorDeGravacao } from './atores.js';
+import { criarHistoricoRevisao } from './historico-revisao.js';
+import { acoesDoPerfil, podeExecutar } from './permissoes.js';
 import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
 import { executarTransacao } from './transacao.js';
 import {
@@ -130,12 +142,30 @@ const STATUS_DA_REVISAO = Object.freeze({
   estado_invalido: 409, conteudo_excluido_citado: 422, historico_incompativel: 422, sem_informacao_aceita: 422, conteudo_publico_invalido: 422, tema_indisponivel: 422,
   entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
   nada_publicado: 409, motivo_invalido: 422,
+  perfil_sem_permissao: 403,
 });
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
 const SEC_FETCH_PERMITIDOS = new Set(['same-origin', 'none']);
 
 const LIMITE_CORPO_SESSAO = 1024;
+// Códigos do gravador de entradas de texto que podem ir ao navegador (os demais viram 500 indisponivel).
+const ERROS_PUBLICOS_DAS_ENTRADAS = new Set(['dados_invalidos', 'nao_encontrado', 'versao_nao_editavel', 'limite_versao', 'ja_existe', 'operacao_em_andamento', 'desfazer_incompleto', 'historico_indisponivel', 'indisponivel']);
+
+/**
+ * Resposta HTTP do gravador de entradas de texto (Passo 8C). Só códigos públicos saem; erros do ator (ator_ausente, ator_invalido)
+ * e qualquer código interno viram 500 genérico, como em recusaDoAtor; perfil_sem_permissao continua 403. Campos, só nomes em texto.
+ */
+export function respostaDaEntradaDeTexto(g) {
+  if (g !== null && typeof g === 'object' && g.ok === true) return { status: 201, corpo: { criado: true } };
+  if (g === null || typeof g !== 'object') return { status: 500, corpo: { erro: 'indisponivel' } };
+  if (g.erro === 'perfil_sem_permissao') return { status: 403, corpo: { erro: 'perfil_sem_permissao' } };
+  if (!ERROS_PUBLICOS_DAS_ENTRADAS.has(g.erro) || !Number.isInteger(g.status) || g.status < 400 || g.status > 599) return { status: 500, corpo: { erro: 'indisponivel' } };
+  const corpo = { erro: g.erro };
+  if (Array.isArray(g.campos)) corpo.campos = g.campos.filter((c) => typeof c === 'string');
+  if (typeof g.campo === 'string') corpo.campo = g.campo;
+  return { status: g.status, corpo };
+}
 const sobPrefixo = (caminho) => caminho === PREFIXO_ADMIN || caminho.startsWith(`${PREFIXO_ADMIN}/`);
 
 /** Data local AAAA-MM-DD a partir de um Date (o relógio é injetável nos testes). */
@@ -232,6 +262,23 @@ export function criarManipuladorAdmin({
   const servicoRevisao = criarServicoRevisao({ raiz, sistema, agora, verificarFinal, gerarIdBloco });
   const servicoPublicacao = criarServicoPublicacao({ raiz, sistema, agora, verificarFinal });
   const edicaoTema = criarEdicaoTema({ raiz, sistema, agora, verificarFinal });
+  const historico = criarHistoricoRevisao({ raiz, sistema, agora });
+
+  /**
+   * Segunda barreira das gravações feitas aqui (Passo 8C): o ator precisa ser um usuário selecionável com perfil para todas as
+   * ações. null se puder; senão a resposta (403 por perfil; 500 genérico para ator ausente ou inválido).
+   */
+  function recusaDoAtor(ator, acoes) {
+    for (const acao of acoes) {
+      const q = resolverAtorDeGravacao(ator, acao);
+      if (!q.ok) return q.erro === 'perfil_sem_permissao' ? { status: 403, corpo: { erro: 'perfil_sem_permissao' } } : { status: 500, corpo: { erro: 'indisponivel' } };
+    }
+    return null;
+  }
+
+  // Registros de auditoria (só metadados) gravados DENTRO da conferência final da transação real, nunca no ensaio.
+  const auditarCadastro = (acao, itemId, ator) => () => historico.registrarAcaoCadastro({ acao, itemId, ator }).ok;
+  const auditarAcao = (servicoId, versaoId, acao, itemId, itemTipo, ator) => () => historico.registrarAcao(servicoId, { versaoId, hashConteudo: null, acao, itemId, itemTipo, ator }).ok;
 
   const lerJson = (relativo) => {
     const r = armazenamento.lerJson(relativo);
@@ -304,8 +351,11 @@ export function criarManipuladorAdmin({
   /**
    * Aplica a alteração em duas etapas: 1) ensaio completo numa cópia temporária de services/, conferido pelo validador da
    * base; 2) gravação real, tudo ou nada, conferida de novo pelo validador. Falha em qualquer ponto desfaz tudo.
+   * `auditorias` (Passo 8C): funções que acrescentam os registros de auditoria; rodam só na conferência da gravação REAL, depois do
+   * validador, em ordem e parando na primeira falha (que desfaz a gravação). Limitação conhecida: se a gravação falhar depois de
+   * algum registro acrescentado (ou um registro seguinte falhar), o registro anterior fica sem a gravação correspondente.
    */
-  function aplicar(passos) {
+  function aplicar(passos, auditorias = []) {
     const tmp = fs.mkdtempSync(path.join(diretorioTemporario, 'sema-orienta-ensaio-'));
     try {
       fs.cpSync(path.join(raiz, 'services'), path.join(tmp, 'services'), { recursive: true });
@@ -314,17 +364,36 @@ export function criarManipuladorAdmin({
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
-    return executarTransacao({ raiz, sistema, passos, verificar: () => verificarFinal(raiz) });
+    let semHistorico = false;
+    const r = executarTransacao({
+      raiz,
+      sistema,
+      passos,
+      verificar: () => {
+        const erros = verificarFinal(raiz);
+        if (!Array.isArray(erros) || erros.length > 0) return erros;
+        if (!auditorias.every((auditar) => auditar())) {
+          semHistorico = true;
+          return ['historico'];
+        }
+        return [];
+      },
+    });
+    if (!r.ok && semHistorico && r.revertido !== false) return { ok: false, erro: 'historico_indisponivel' };
+    return r;
   }
 
   const resultadoDaTransacao = (r) => {
     if (r.ok) return null;
     if (r.erro === 'dados_invalidos') return { status: 422, corpo: { erro: 'dados_invalidos' } };
     if (r.erro === 'ja_existe') return { status: 409, corpo: { erro: 'ja_existe' } };
+    if (r.erro === 'historico_indisponivel') return { status: 500, corpo: { erro: 'historico_indisponivel' } };
     return { status: 500, corpo: { erro: 'indisponivel' } };
   };
 
-  function cadastrarAssunto(dados) {
+  function cadastrarAssunto(dados, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_tema']);
+    if (recusa) return recusa;
     const doc = lerJson('services/assuntos.json');
     const nome = normalizarNome(dados.nome);
     if (doc.assuntos.some((a) => normalizarNome(a.nome) === nome)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'nome' } };
@@ -333,11 +402,13 @@ export function criarManipuladorAdmin({
     if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['nome'] } };
     const assunto = montarAssunto({ id, nome: dados.nome, descricao: dados.descricao }, dataLocal(agora()));
     const novo = { ...doc, assuntos: [...doc.assuntos, assunto] };
-    const r = aplicar([{ caminho: 'services/assuntos.json', tipo: 'json', conteudo: novo, validar: (d) => validarAssuntos(d).erros }]);
+    const r = aplicar([{ caminho: 'services/assuntos.json', tipo: 'json', conteudo: novo, validar: (d) => validarAssuntos(d).erros }], [auditarCadastro('cadastrar_tema', id, ator)]);
     return resultadoDaTransacao(r) ?? { status: 201, corpo: { assunto } };
   }
 
-  function cadastrarServico(dados) {
+  function cadastrarServico(dados, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_servico']);
+    if (recusa) return recusa;
     const assunto = lerJson('services/assuntos.json').assuntos.find((a) => a.id === dados.assuntoId);
     if (!assunto || assunto.ativo !== true) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['assuntoId'] } };
     const registro = lerJson('services/registry.json');
@@ -354,7 +425,7 @@ export function criarManipuladorAdmin({
       // O registro é gravado por último: é ele que torna o serviço visível.
       { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro, servicos: [...registro.servicos, esqueleto.entradaRegistro] }, validar: () => [] },
     ];
-    const r = aplicar(passos);
+    const r = aplicar(passos, [auditarCadastro('cadastrar_servico', id, ator)]);
     const falha = resultadoDaTransacao(r);
     if (falha) return falha;
     const e = esqueleto.entradaRegistro;
@@ -368,7 +439,9 @@ export function criarManipuladorAdmin({
    * Cadastra uma fonte no arquivo de fontes da versão atual do serviço. Só em versão em rascunho e com a revisão informada
    * igual à atual (revisão otimista). A fonte nasce em rascunho, não publicada, e as existentes não são alteradas.
    */
-  function cadastrarFonte(servicoId, dados) {
+  function cadastrarFonte(servicoId, dados, ator, { acao = 'cadastrar_fonte', itemTipo = 'fonte' } = {}) {
+    const recusa = recusaDoAtor(ator, [acao]);
+    if (recusa) return recusa;
     const versao = localizarVersaoAtual(raiz, servicoId);
     if (!versao.ok) throw new Error('versao');
     if (lerJson(`${versao.pasta}/${NOME_DO_MANIFESTO}`).estado !== 'rascunho') return { status: 409, corpo: { erro: 'versao_nao_editavel' } };
@@ -379,7 +452,7 @@ export function criarManipuladorAdmin({
     if (doc.fontes.some((f) => f.excluidaEm == null && urlNormalizada(f.url) === normalizada)) return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
     const fonte = montarFonte(dados, dataLocal(agora()));
     const novo = { ...doc, fontes: [...doc.fontes, fonte] };
-    const r = aplicar([{ caminho: versao.arquivos.fontes, tipo: 'json', conteudo: novo, validar: (d) => validarFontes(d) }]);
+    const r = aplicar([{ caminho: versao.arquivos.fontes, tipo: 'json', conteudo: novo, validar: (d) => validarFontes(d) }], [auditarAcao(servicoId, versao.versaoId, acao, fonte.id, itemTipo, ator)]);
     return resultadoDaTransacao(r) ?? { status: 201, corpo: { fonte, revisao: hashConteudo(novo) } };
   }
 
@@ -388,7 +461,9 @@ export function criarManipuladorAdmin({
    * cadastro-guiado.js (que reutiliza as regras de cadastro.js); aqui só se lê o estado da base, se acrescenta o validador de
    * cada arquivo e se grava pelo mesmo caminho dos demais cadastros (ensaio, escrita atômica, conferência final e desfazer).
    */
-  function cadastrarGuiado(dados) {
+  function cadastrarGuiado(dados, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_tema', 'cadastrar_servico', 'cadastrar_fonte']);
+    if (recusa) return recusa;
     const documentoAssuntos = lerJson('services/assuntos.json');
     const registro = lerJson('services/registry.json');
     const pastas = nomesDePastas();
@@ -423,14 +498,23 @@ export function criarManipuladorAdmin({
       ...p,
       validar: p.caminho === 'services/assuntos.json' ? (d) => validarAssuntos(d).erros : validadorDoArquivo(p.caminho, idServico),
     }));
-    const r = aplicar(passos);
+    // Auditoria: tema e serviço criados (acao_cadastro) e cada fonte (acao_revisao), nessa ordem.
+    const { assunto: assuntoDoPlano, servico: servicoDoPlano, fontes: fontesDoPlano } = plano.resposta;
+    const auditorias = [
+      ...(assuntoDoPlano.criado ? [auditarCadastro('cadastrar_tema', assuntoDoPlano.id, ator)] : []),
+      ...(servicoDoPlano.criado ? [auditarCadastro('cadastrar_servico', idServico, ator)] : []),
+      ...fontesDoPlano.map((f) => auditarAcao(idServico, servicoDoPlano.versaoAtualId, 'cadastrar_fonte', f.id, 'fonte', ator)),
+    ];
+    const r = aplicar(passos, auditorias);
     return resultadoDaTransacao(r) ?? { status: 201, corpo: plano.resposta };
   }
 
   // ---------- Gestão simples por serviço (4B2) ----------
 
   /** Serviço novo com tema (existente ou novo) numa única transação. O cliente envia só o nome e o tema; os ids são do servidor. */
-  function cadastrarServicoComTema(dados) {
+  function cadastrarServicoComTema(dados, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_servico', 'cadastrar_tema']);
+    if (recusa) return recusa;
     const documentoAssuntos = lerJson('services/assuntos.json');
     const registro = lerJson('services/registry.json');
     const nomeNormalizado = normalizarNome(dados.nome);
@@ -460,13 +544,16 @@ export function criarManipuladorAdmin({
       ...esqueleto.arquivos.map((a) => ({ caminho: a.caminho, tipo: a.tipo, conteudo: a.conteudo, novo: true, validar: validadorDoArquivo(a.caminho, id) })),
       { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...registro, servicos: [...registro.servicos, esqueleto.entradaRegistro] }, validar: () => [] },
     ];
-    const falha = resultadoDaTransacao(aplicar(passos));
+    const auditorias = [...(passoAssunto ? [auditarCadastro('cadastrar_tema', assunto.id, ator)] : []), auditarCadastro('cadastrar_servico', id, ator)];
+    const falha = resultadoDaTransacao(aplicar(passos, auditorias));
     if (falha) return falha;
     return { status: 201, corpo: { servico: { id, nome: dados.nome, assuntoId: assunto.id, temaNome: assunto.nome, estado: 'rascunho', publicado: false }, temaCriado: passoAssunto !== null } };
   }
 
   /** Link novo: id e revisão são gerados aqui; o corpo do cliente nunca os traz. Reaproveita cadastrarFonte (mesmas regras de duplicidade). */
-  function cadastrarLinkNovo(servicoId, corpo) {
+  function cadastrarLinkNovo(servicoId, corpo, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_link']);
+    if (recusa) return recusa;
     const versao = localizarVersaoAtual(raiz, servicoId);
     if (!versao.ok) throw new Error('versao');
     const doc = lerJson(versao.arquivos.fontes);
@@ -474,11 +561,13 @@ export function criarManipuladorAdmin({
     if (id === null) return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['titulo'] } };
     const validacao = validarCorpoFonte({ ...corpo, id, revisao: hashConteudo(doc) });
     if (!validacao.ok) return { status: 422, corpo: { erro: 'dados_invalidos', campos: validacao.campos.filter((c) => c !== 'id' && c !== 'revisao') } };
-    return cadastrarFonte(servicoId, validacao.dados);
+    return cadastrarFonte(servicoId, validacao.dados, ator, { acao: 'cadastrar_link', itemTipo: 'link' });
   }
 
   /** "Usar link já cadastrado": o cliente envia só a identidade; a fonte é relida do disco e a cópia nasce em rascunho. */
-  function usarLinkExistente(destinoId, identidade) {
+  function usarLinkExistente(destinoId, identidade, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_link']);
+    if (recusa) return recusa;
     const origem = localizarVersaoAtual(raiz, identidade.servicoId);
     if (!origem.ok || !lerJson('services/registry.json').servicos.some((s) => s.id === identidade.servicoId)) return { status: 404, corpo: { erro: 'nao_encontrado', campo: 'servicoId' } };
     const fonteOrigem = lerJson(origem.arquivos.fontes).fontes.find((f) => f && f.id === identidade.fonteId);
@@ -495,7 +584,10 @@ export function criarManipuladorAdmin({
       if (r.erro === 'url_duplicada') return { status: 409, corpo: { erro: 'ja_existe', campo: 'url' } };
       return { status: 422, corpo: { erro: 'dados_invalidos', campos: ['fonteId'] } };
     }
-    const falha = resultadoDaTransacao(aplicar([{ caminho: destino.arquivos.fontes, tipo: 'json', conteudo: r.documentoFontes, validar: (d) => validarFontes(d) }]));
+    const falha = resultadoDaTransacao(aplicar(
+      [{ caminho: destino.arquivos.fontes, tipo: 'json', conteudo: r.documentoFontes, validar: (d) => validarFontes(d) }],
+      [auditarAcao(destinoId, destino.versaoId, 'cadastrar_link', r.fonte.id, 'link', ator)],
+    ));
     return falha ?? { status: 201, corpo: { fonte: { id: r.fonte.id, titulo: r.fonte.titulo, url: r.fonte.url, statusValidacao: r.fonte.statusValidacao, publicado: r.fonte.publicado, reutilizadaDe: r.fonte.reutilizadaDe } } };
   }
 
@@ -558,7 +650,7 @@ export function criarManipuladorAdmin({
   }
 
   /** Grava só o arquivo de conteúdo do assistente da versão atual: base válida antes, ensaio, escrita atômica, conferência e desfazer. */
-  function gravarConhecimento(contexto, novoConteudo, servicoId) {
+  function gravarConhecimento(contexto, novoConteudo, servicoId, auditoria) {
     let errosIniciais;
     try {
       errosIniciais = verificarInicial(raiz);
@@ -570,11 +662,13 @@ export function criarManipuladorAdmin({
     const r = aplicar([{
       caminho: contexto.versao.arquivos.conteudoAssistente, tipo: 'json', conteudo: novoConteudo,
       validar: (d) => validarConteudoAssistente(d, { idServico: servicoId, fontesPorId }),
-    }]);
+    }], [auditarAcao(servicoId, contexto.versao.versaoId, auditoria.acao, auditoria.itemId, 'bloco', auditoria.ator)]);
     return { falha: resultadoDaTransacao(r) };
   }
 
-  function criarConhecimento(servicoId, corpo) {
+  function criarConhecimento(servicoId, corpo, ator) {
+    const recusa = recusaDoAtor(ator, ['cadastrar_informacao']);
+    if (recusa) return recusa;
     const ctx = contextoDeConhecimento(servicoId);
     const existentes = new Set(ctx.conteudo.blocos.map((b) => b && b.id));
     // O id é gerado aqui, sem usar o título; repete o sorteio se houver colisão e nunca reaproveita um id existente.
@@ -586,23 +680,27 @@ export function criarManipuladorAdmin({
     if (id === null) return { status: 500, corpo: { erro: 'indisponivel' } };
     const r = montarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, corpo, { id, data: dataLocal(agora()) });
     if (!r.ok) return respostaDoErroPuro(r);
-    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId, { acao: 'cadastrar_informacao', itemId: id, ator });
     return g.falha ?? { status: 201, corpo: { bloco: visaoDoBloco(r.bloco) } };
   }
 
-  function alterarConhecimento(servicoId, blocoId, corpo) {
+  function alterarConhecimento(servicoId, blocoId, corpo, ator) {
+    const recusa = recusaDoAtor(ator, ['editar_informacao']);
+    if (recusa) return recusa;
     const ctx = contextoDeConhecimento(servicoId);
     const r = alterarBlocoConhecimento(ctx.manifesto, ctx.conteudo, ctx.fontes, blocoId, corpo, { data: dataLocal(agora()) });
     if (!r.ok) return respostaDoErroPuro(r);
-    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId, { acao: 'editar_informacao', itemId: blocoId, ator });
     return g.falha ?? { status: 200, corpo: { bloco: visaoDoBloco(r.bloco) } };
   }
 
-  function removerConhecimento(servicoId, blocoId) {
+  function removerConhecimento(servicoId, blocoId, ator) {
+    const recusa = recusaDoAtor(ator, ['excluir_informacao']);
+    if (recusa) return recusa;
     const ctx = contextoDeConhecimento(servicoId);
     const r = removerBlocoConhecimento(ctx.manifesto, ctx.conteudo, blocoId);
     if (!r.ok) return respostaDoErroPuro(r);
-    const g = gravarConhecimento(ctx, r.conteudo, servicoId);
+    const g = gravarConhecimento(ctx, r.conteudo, servicoId, { acao: 'excluir_informacao', itemId: blocoId, ator });
     return g.falha ?? { status: 204, corpo: null };
   }
 
@@ -643,14 +741,15 @@ export function criarManipuladorAdmin({
     }
   }
 
-  function executarAcaoRevisao(acao, servicoId, dados) {
+  function executarAcaoRevisao(acao, servicoId, dados, ator) {
+    const comAtor = { ...dados, ator };
     switch (acao) {
-      case 'revisar_fonte': return respostaDaRevisao(servicoRevisao.revisarFonte(servicoId, dados));
-      case 'aceitar_bloco': return respostaDaRevisao(servicoRevisao.aceitarBloco(servicoId, dados));
-      case 'rejeitar_bloco': return respostaDaRevisao(servicoRevisao.rejeitarBloco(servicoId, dados));
-      case 'reabrir_bloco': return respostaDaRevisao(servicoRevisao.reabrirBloco(servicoId, dados));
-      case 'concluir_revisao': return respostaDaRevisao(servicoRevisao.concluirRevisao(servicoId, dados));
-      default: return respostaDaRevisao(servicoRevisao.criarNovaVersao(servicoId), 201);
+      case 'revisar_fonte': return respostaDaRevisao(servicoRevisao.revisarFonte(servicoId, comAtor));
+      case 'aceitar_bloco': return respostaDaRevisao(servicoRevisao.aceitarBloco(servicoId, comAtor));
+      case 'rejeitar_bloco': return respostaDaRevisao(servicoRevisao.rejeitarBloco(servicoId, comAtor));
+      case 'reabrir_bloco': return respostaDaRevisao(servicoRevisao.reabrirBloco(servicoId, comAtor));
+      case 'concluir_revisao': return respostaDaRevisao(servicoRevisao.concluirRevisao(servicoId, comAtor));
+      default: return respostaDaRevisao(servicoRevisao.criarNovaVersao(servicoId, { ator }), 201);
     }
   }
 
@@ -731,7 +830,9 @@ export function criarManipuladorAdmin({
         // Só chama o módulo da sessão; nada de corpo, token, nome ou usuarioId vai para log.
         if (req.method === 'GET') {
           const token = sessao.token();
-          return responderJson(token === null ? sessao.atual() : { ...sessao.atual(), token });
+          if (token === null) return responderJson(sessao.atual());
+          const atual = sessao.atual();
+          return responderJson({ ...atual, token, acoes: acoesDoPerfil(atual.usuario?.perfil) });
         }
         if (req.method === 'DELETE') {
           if (!sessao.sair(req.headers[CABECALHO_TOKEN]).ok) return responder(401, { erro: 'nao_autorizado' });
@@ -755,13 +856,25 @@ export function criarManipuladorAdmin({
         const r = formatoOk ? sessao.entrar(corpo.usuarioId) : { ok: false, erro: 'usuario_invalido' };
         if (!r.ok && r.erro === 'indisponivel') return responder(500, { erro: 'indisponivel' });
         if (!r.ok) return responder(422, { erro: 'dados_invalidos', campos: ['usuarioId'] });
-        return responderJson({ token: r.token, usuario: r.usuario });
+        return responderJson({ token: r.token, usuario: r.usuario, acoes: acoesDoPerfil(r.usuario.perfil) });
       }
-      if (!sessao.tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
+      // O ator é conferido uma única vez e fica fixado para todo este pedido (Passo 8C).
+      const daSessao = sessao.atorDoToken(req.headers[CABECALHO_TOKEN]);
+      if (!daSessao.ok) return responder(401, { erro: 'nao_autorizado' });
+      const ator = daSessao.ator;
 
       const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes ?? rotaRevisao ?? rotaAcaoRevisao ?? rotaResumoPublicacao ?? rotaPublicar ?? rotaFonteItem ?? rotaFonteImpacto ?? rotaEdicaoServico ?? rotaImportacao)?.[1];
       if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {
         return responder(404, { erro: 'nao_encontrado' });
+      }
+      // Permissão antes do corpo e da trava (Passo 8C): fora do perfil, 403 sem ler o corpo.
+      const exigidas = acoesDaRequisicao({ caminho, metodo: req.method });
+      const negada = exigidas === null ? undefined : exigidas.find((a) => !podeExecutar(ator.perfil, a));
+      if (negada !== undefined) {
+        try {
+          historico.registrarAcaoNegada({ acao: negada, ator, servicoId: servicoDaRota ?? null });
+        } catch { /* o registro da recusa é melhor esforço: a resposta continua 403 e nada é gravado em services/ */ }
+        return responder(403, { erro: 'perfil_sem_permissao' }, { Connection: 'close' });
       }
       if (rotaResumoPublicacao !== null) {
         // Somente leitura: nada é gravado; sem hash nem ids.
@@ -806,10 +919,10 @@ export function criarManipuladorAdmin({
         if (typeof revisaoRecebida !== 'string' || !PADRAO_REVISAO_CABECALHO.test(revisaoRecebida) || !fonteIdValido(rotaFonteItem[2])) {
           return responder(422, { erro: 'dados_invalidos', campos: ['revisao'] });
         }
-        return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.excluirFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: revisaoRecebida }))));
+        return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.excluirFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: revisaoRecebida, ator }))));
       }
       if (rotaDeConhecimento !== null && req.method === 'DELETE') {
-        return responderResultado(await comTrava(() => removerConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2])));
+        return responderResultado(await comTrava(() => removerConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], ator)));
       }
 
       if (temCorpo) {
@@ -829,29 +942,29 @@ export function criarManipuladorAdmin({
         if (rotaImportacao !== null) {
           const v = validarCorpoImportacao(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.importarConteudo(rotaImportacao[1], v.dados), 201)));
+          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.importarConteudo(rotaImportacao[1], { ...v.dados, ator }), 201)));
         }
         if (rotaEdicaoServico !== null) {
           const v = validarCorpoEdicaoServico(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => respostaDaEdicao(servicoRevisao.editarServico(rotaEdicaoServico[1], v.dados))));
+          return responderResultado(await comTrava(() => respostaDaEdicao(servicoRevisao.editarServico(rotaEdicaoServico[1], { ...v.dados, ator }))));
         }
         if (rotaEdicaoTema !== null) {
           const v = validarCorpoEdicaoTema(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => respostaDaEdicao(edicaoTema.editar(rotaEdicaoTema[1], v.dados))));
+          return responderResultado(await comTrava(() => respostaDaEdicao(edicaoTema.editar(rotaEdicaoTema[1], { ...v.dados, ator }))));
         }
         if (rotaFonteItem !== null) {
           const v = validarCorpoEdicaoFonte(corpo);
           if (!v.ok || !fonteIdValido(rotaFonteItem[2])) return responder(422, { erro: 'dados_invalidos', campos: v.ok ? ['fonteId'] : v.campos });
-          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.editarFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: v.dados.revisao, campos: v.dados.campos }))));
+          return responderResultado(await comTrava(() => respostaDaRevisao(servicoRevisao.editarFonte(rotaFonteItem[1], { fonteId: rotaFonteItem[2], revisao: v.dados.revisao, campos: v.dados.campos, ator }))));
         }
         if (rotaDeConhecimentos !== null || rotaDeConhecimento !== null) {
           // Os campos são conferidos pelas funções puras (somente titulo, texto, fonteIds, referencias e alertas), com as fontes da versão.
           if (corpo === null || typeof corpo !== 'object' || Array.isArray(corpo)) return responder(422, { erro: 'dados_invalidos', campos: ['corpo'] });
           const resultado = await comTrava(() => (rotaDeConhecimentos !== null
-            ? criarConhecimento(rotaDeConhecimentos[1], corpo)
-            : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo)));
+            ? criarConhecimento(rotaDeConhecimentos[1], corpo, ator)
+            : alterarConhecimento(rotaDeConhecimento[1], rotaDeConhecimento[2], corpo, ator)));
           return responderResultado(resultado);
         }
         if (rotaPublicar !== null) {
@@ -860,9 +973,9 @@ export function criarManipuladorAdmin({
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
           const servico = rotaPublicar[1];
           const executar = () => {
-            if (acao === 'autorizacao') return servicoPublicacao.autorizar(servico, v.dados);
-            if (acao === 'publicacao') return servicoPublicacao.publicar(servico, v.dados);
-            return servicoPublicacao.revogar(servico, v.dados);
+            if (acao === 'autorizacao') return servicoPublicacao.autorizar(servico, { ...v.dados, ator });
+            if (acao === 'publicacao') return servicoPublicacao.publicar(servico, { ...v.dados, ator });
+            return servicoPublicacao.revogar(servico, { ...v.dados, ator });
           };
           return responderResultado(await comTrava(() => respostaDaRevisao(executar())));
         }
@@ -870,12 +983,12 @@ export function criarManipuladorAdmin({
           const acao = ACAO_DA_ROTA[rotaAcaoRevisao[2]];
           const v = validarCorpoDaAcao(acao, corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => executarAcaoRevisao(acao, rotaAcaoRevisao[1], v.dados)));
+          return responderResultado(await comTrava(() => executarAcaoRevisao(acao, rotaAcaoRevisao[1], v.dados, ator)));
         }
         if (caminho === ROTA_SERVICO_COM_TEMA) {
           const v = validarCorpoServicoSimples(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => cadastrarServicoComTema(v.dados)));
+          return responderResultado(await comTrava(() => cadastrarServicoComTema(v.dados, ator)));
         }
         if (rotaBuscaLinks !== null) {
           // Somente leitura: não usa a trava e nunca altera o serviço de origem.
@@ -888,27 +1001,25 @@ export function criarManipuladorAdmin({
         if (rotaEntradasTexto !== null) {
           // Campos e limites são conferidos pelo gravador (funções puras de entradas.js); a trava é a comum.
           const r = await comTrava(() => {
-            const g = gravadorEntradas.gravar(rotaEntradasTexto[1], corpo);
-            if (g.ok) return { status: 201, corpo: { criado: true } };
-            return { status: g.status, corpo: { erro: g.erro, ...(g.campos ? { campos: g.campos } : {}), ...(g.campo ? { campo: g.campo } : {}) } };
+            return respostaDaEntradaDeTexto(gravadorEntradas.gravar(rotaEntradasTexto[1], corpo, { ator }));
           });
           return responderResultado(r);
         }
         if (rotaLinks !== null) {
           const v = validarCamposLinkNovo(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => cadastrarLinkNovo(rotaLinks[1], v.dados)));
+          return responderResultado(await comTrava(() => cadastrarLinkNovo(rotaLinks[1], v.dados, ator)));
         }
         if (rotaLinksExistentes !== null) {
           const v = validarIdentidadeLink(corpo);
           if (!v.ok) return responder(422, { erro: 'dados_invalidos', campos: v.campos });
-          return responderResultado(await comTrava(() => usarLinkExistente(rotaLinksExistentes[1], v.dados)));
+          return responderResultado(await comTrava(() => usarLinkExistente(rotaLinksExistentes[1], v.dados, ator)));
         }
         if (caminho === ROTA_CADASTRO_GUIADO) {
           // Estrutura conferida antes da trava (função pura, sem ler a base); o restante, dentro dela.
           const pedido = validarPedidoGuiado(corpo);
           if (!pedido.ok) return responder(pedido.status, { erro: pedido.erro, campos: pedido.campos });
-          return responderResultado(await comTrava(() => cadastrarGuiado(pedido.dados)));
+          return responderResultado(await comTrava(() => cadastrarGuiado(pedido.dados, ator)));
         }
         const validacao = rotaDeFontes !== null ? validarCorpoFonte(corpo) : caminho === ROTA_ASSUNTOS ? validarCorpoAssunto(corpo) : validarCorpoServico(corpo);
         if (!validacao.ok) return responder(422, { erro: 'dados_invalidos', campos: validacao.campos });
@@ -920,8 +1031,8 @@ export function criarManipuladorAdmin({
         try {
           if (antesDeGravar) await antesDeGravar();
           resultado = rotaDeFontes !== null
-            ? cadastrarFonte(rotaDeFontes[1], validacao.dados)
-            : caminho === ROTA_ASSUNTOS ? cadastrarAssunto(validacao.dados) : cadastrarServico(validacao.dados);
+            ? cadastrarFonte(rotaDeFontes[1], validacao.dados, ator)
+            : caminho === ROTA_ASSUNTOS ? cadastrarAssunto(validacao.dados, ator) : cadastrarServico(validacao.dados, ator);
         } finally {
           escrevendo = false;
         }

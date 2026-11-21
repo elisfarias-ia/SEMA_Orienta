@@ -12,7 +12,7 @@ import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
 import { congelarVersao } from './congelamento.js';
 import { registrarDecisaoMaterial } from './decisoes.js';
-import { registroDoAtor, resolverAtor, responsavelPublico } from './atores.js';
+import { registroDoAtor, resolverAtorDeGravacao, responsavelPublico } from './atores.js';
 import { criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
 import { dadosParaEdicao, editarFonte, excluirFonte, impactoDaExclusao } from './edicao-fonte.js';
@@ -75,10 +75,10 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
   /** Gravação comum das ações de revisão (fonte, aceitar e rejeitar bloco): só a versão atual em rascunho, com revisão otimista. */
   function gravar({ servicoId, revisao, acao, preparar, ator }) {
     // preparar pode devolver `item: { itemId, itemTipo }` para o histórico (só metadados mínimos).
-    // `ator`: da lista fixa de atores.js; sem ator, vale o de demonstração (Sprint 7, Passo 7C).
+    // `ator` (Sprint 8, Passo 8C): obrigatório, um usuário selecionável cujo perfil pode executar `acao` (segunda barreira).
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      const quem = resolverAtorDeGravacao(ator, acao);
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
       if (c.atual.manifesto.estado !== 'rascunho') return falha('versao_congelada');
@@ -304,10 +304,11 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
    * Conclui a revisão numa única transação: confere a base, monta o conteúdo canônico, calcula o hash, registra a decisão
    * material, congela a versão (hash gravado) e leva-a a validado_materialmente ("Pronto para publicar"). Não autoriza nem publica.
    */
-  function concluirRevisao(servicoId, { revisao, ator }) {
+  function concluirRevisao(servicoId, { revisao, ator } = {}) {
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      // Pseudônimo até o Passo 8D: concluir exige validar_materialmente (Revisor); o histórico continua com concluir_revisao.
+      const quem = resolverAtorDeGravacao(ator, 'validar_materialmente');
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const { manifesto, arquivos, pasta } = c.atual;
@@ -370,8 +371,8 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
   /** Nova versão a partir da atual congelada (5A). A versão publicada anterior e a atual ficam intactas. */
   function criarNovaVersao(servicoId, { ator } = {}) {
     try {
-      const quem = resolverAtor(ator);
-      if (!quem.ok) return falha('ator_invalido');
+      const quem = resolverAtorDeGravacao(ator, 'nova_versao');
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
       const origem = c.atual.manifesto;

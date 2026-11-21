@@ -9,7 +9,8 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { criarManipuladorAdmin, CABECALHO_TOKEN, ROTA_SESSAO, ROTA_CATALOGO } from '../services/admin/admin-endpoint.js';
-import { ATOR_DEMONSTRACAO, USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+import { acoesDoPerfil } from '../services/admin/permissoes.js';
 import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,6 +18,9 @@ const AGORA = () => new Date(2026, 10, 21, 12, 0, 0);
 const [MARIA, CARLOS] = USUARIOS_SELECIONAVEIS;
 const exibicao = (u) => ({ usuarioId: u.usuarioId, nome: u.nome, perfil: u.perfil, setor: u.setor });
 const USUARIOS = USUARIOS_SELECIONAVEIS.map(exibicao);
+// Passo 8C: com sessão, GET e POST devolvem também as ações do perfil.
+const ACOES_MARIA = acoesDoPerfil('cadastrante');
+const semNome = (u) => ({ usuarioId: u.usuarioId, perfil: u.perfil, setor: u.setor });
 
 /** Executa o manipulador com uma requisição simulada. `texto` é o corpo bruto; `corpo` vira JSON. */
 async function chamar(m, { url = ROTA_SESSAO, method = 'GET', corpo, texto, token, headers = {}, tipo, remoteAddress = '127.0.0.1', comTamanho = true } = {}) {
@@ -47,16 +51,20 @@ test('S1. GET sem sessão: 200 com usuario null e a lista dos selecionáveis, se
   assert.deepEqual((await chamar(m)).corpo, { usuario: null, usuarios: USUARIOS });
 });
 
-test('S2. POST com Maria: 200 { token, usuario }; o GET passa a devolver Maria e o mesmo token; o token abre as outras rotas', async () => {
+test('S2. POST com Maria: 200 { token, usuario, acoes }; o GET passa a devolver Maria, o mesmo token e as ações; o token abre as outras rotas', async () => {
   const m = novo();
   const r = await entrar(m, 'maria-silva');
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.corpo).sort(), ['token', 'usuario']);
+  assert.deepEqual(Object.keys(r.corpo).sort(), ['acoes', 'token', 'usuario']);
   assert.match(r.corpo.token, /^[0-9a-f]{64}$/);
   assert.deepEqual(r.corpo.usuario, exibicao(MARIA));
+  assert.deepEqual(r.corpo.acoes, ACOES_MARIA);
   const g = await chamar(m);
-  assert.deepEqual(g.corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: r.corpo.token });
+  assert.deepEqual(g.corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: r.corpo.token, acoes: ACOES_MARIA });
   assert.equal((await chamar(m, { url: ROTA_CATALOGO, token: r.corpo.token })).status, 200);
+  const c = await entrar(m, 'carlos-silva');
+  assert.deepEqual(c.corpo.acoes, acoesDoPerfil('revisor'));
+  assert.deepEqual((await chamar(m)).corpo.acoes, acoesDoPerfil('revisor'));
 });
 
 test('S3. troca de usuário: o token antigo recebe 401 nas outras rotas e o novo recebe 200; o mesmo usuário também troca o token', async () => {
@@ -87,7 +95,7 @@ test('S4. recusas 422 (extras, tipo errado, desconhecido, demonstração, não o
     assert.deepEqual(r.corpo, { erro: 'dados_invalidos', campos: ['usuarioId'] });
     assert.doesNotMatch(r.bruto, /desconhecido-xyz|servidor-demonstracao|campo-extra-xyz|carlos/);
   }
-  assert.deepEqual((await chamar(m)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t });
+  assert.deepEqual((await chamar(m)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t, acoes: ACOES_MARIA });
 });
 
 test('S5. POST: só application/json (415), corpo até 1 KB (413), JSON ilegível ou tamanho inválido (400); a sessão não muda', async () => {
@@ -115,7 +123,7 @@ test('S5. POST: só application/json (415), corpo até 1 KB (413), JSON ilegíve
     await chamar(m2, { method: 'POST', texto: grande }),
     await chamar(m2, { method: 'POST', texto: '{' }),
   ]) assert.ok([400, 413, 415].includes(r.status));
-  assert.deepEqual((await chamar(m2)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t2 });
+  assert.deepEqual((await chamar(m2)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t2, acoes: ACOES_MARIA });
 });
 
 test('S6. DELETE exige o token atual: 204 e a sessão acaba; sem token ou com token errado → 401 e a sessão continua', async () => {
@@ -170,7 +178,7 @@ test('S8. outros métodos recebem 405 com Allow: GET, POST, DELETE; GET e DELETE
     assert.equal(r.status, 400, pedido.method);
     assert.deepEqual(r.corpo, { erro: 'requisicao_invalida' });
   }
-  assert.deepEqual((await chamar(m)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t }, 'nenhuma recusa mudou a sessão');
+  assert.deepEqual((await chamar(m)).corpo, { usuario: exibicao(MARIA), usuarios: USUARIOS, token: t, acoes: ACOES_MARIA }, 'nenhuma recusa mudou a sessão');
 });
 
 test('S9. um manipulador novo (servidor reiniciado) começa sem sessão e não aceita o token do anterior', async () => {
@@ -240,7 +248,7 @@ test('S12. POSTs simultâneos: todos respondem, só o token do último processad
   assert.equal(atual.usuario.usuarioId, ids[validos[0]]);
 });
 
-test('S13. efeito colateral até o 8C: com Maria na sessão, uma gravação ainda registra o ator de demonstração', async () => {
+test('S13. Passo 8C: com Maria na sessão, a gravação registra o ator real (sem nome); com Carlos, a mesma rota é negada (403) e só a recusa é registrada', async () => {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-sessao-ep-'));
   const raiz = path.join(pai, 'raiz');
   fs.mkdirSync(raiz);
@@ -255,14 +263,25 @@ test('S13. efeito colateral até o 8C: com Maria na sessão, uma gravação aind
     assert.equal(r.status, 200, r.bruto);
     const historico = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'temas', 'historico.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
     assert.equal(historico.length, 1);
-    assert.deepEqual(historico[0].ator, { ...ATOR_DEMONSTRACAO }, 'o ator da sessão ainda não é repassado às gravações');
-    assert.doesNotMatch(JSON.stringify(historico), /maria|Maria/);
+    assert.deepEqual(historico[0].ator, semNome(MARIA), 'o ator da sessão é o gravado');
+    assert.doesNotMatch(JSON.stringify(historico), /Maria Silva|nome/);
+    // Caso negado: Carlos (Revisor) não edita tema.
+    const tokenCarlos = (await entrar(m, 'carlos-silva')).corpo.token;
+    const assuntosAntes = fs.readFileSync(path.join(raiz, 'services', 'assuntos.json'));
+    const lido2 = await chamar(m, { url: `/__admin/temas/${temaId}/edicao`, token: tokenCarlos });
+    const negado = await chamar(m, { url: `/__admin/temas/${temaId}/edicao`, method: 'PATCH', token: tokenCarlos, corpo: { revisao: lido2.corpo.revisao, nome: 'Outro nome fictício', confirmado: true } });
+    assert.deepEqual([negado.status, negado.corpo, negado.cab.connection], [403, { erro: 'perfil_sem_permissao' }, 'close']);
+    assert.equal(Buffer.compare(fs.readFileSync(path.join(raiz, 'services', 'assuntos.json')), assuntosAntes), 0);
+    const negadas = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'negadas', 'historico.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.equal(negadas.length, 1);
+    assert.deepEqual({ ...negadas[0], dataHora: 'x' }, { id: 'negada-000001', tipo: 'acao_negada', acao: 'editar_tema', dataHora: 'x', resultado: 'negado', motivo: 'perfil_sem_permissao', ator: semNome(CARLOS), servicoId: null });
+    assert.equal(fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'temas', 'historico.jsonl'), 'utf8').split('\n').filter(Boolean).length, 1, 'a recusa não entra no histórico do tema');
   } finally {
     fs.rmSync(pai, { recursive: true, force: true });
   }
 });
 
-test('S13b. efeito colateral até o 8C: revisão de fonte (com Maria) e autorização (com Carlos) ainda registram o ator de demonstração', async () => {
+test('S13b. Passo 8C: revisão de fonte (com Maria) e autorização (com Carlos) registram o ator real; Maria não autoriza (403)', async () => {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-sessao-ep-'));
   const raiz = path.join(pai, 'raiz');
   fs.mkdirSync(raiz);
@@ -290,25 +309,36 @@ test('S13b. efeito colateral até o 8C: revisão de fonte (com Maria) e autoriza
     assert.equal(r1.status, 200, r1.bruto);
     const revisada = lerJsonl('revisao', 'lac.jsonl').filter((a) => a.acao === 'revisar_fonte');
     assert.equal(revisada.length, 1);
-    assert.deepEqual(revisada[0].ator, { ...ATOR_DEMONSTRACAO });
-    // Aceitar e concluir pelas funções existentes (só preparação); depois autorizar pela rota com Carlos (Revisor) na sessão.
+    assert.deepEqual(revisada[0].ator, semNome(MARIA));
+    assert.deepEqual(lerJsonl('revisao', 'lac.jsonl').filter((a) => a.acao === 'cadastrar_texto').map((a) => a.ator), [semNome(MARIA)]);
+    // Aceitar e concluir pelas funções existentes (só preparação, com os atores certos).
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const sit = () => rev.consultar('lac').situacao;
-    for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao }).ok, true);
-    for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao }).ok, true);
-    const concluida = rev.concluirRevisao('lac', { revisao: sit().revisao });
+    for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao, ator: semNome(MARIA) }).ok, true);
+    for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao, ator: semNome(MARIA) }).ok, true);
+    const concluida = rev.concluirRevisao('lac', { revisao: sit().revisao, ator: semNome(CARLOS) });
     assert.equal(concluida.ok, true);
+    // Maria (Cadastrante) não autoriza: 403 antes de ler o corpo, nada muda e a recusa é registrada.
+    const manifestoAntes = fs.readFileSync(v1('versao.json'));
+    const negado = await chamar(m, { url: '/__admin/servicos/lac/autorizacao', method: 'POST', token, corpo: { revisao: concluida.hash } });
+    assert.deepEqual([negado.status, negado.corpo], [403, { erro: 'perfil_sem_permissao' }]);
+    assert.equal(Buffer.compare(fs.readFileSync(v1('versao.json')), manifestoAntes), 0);
+    assert.deepEqual(lerJsonl('negadas', 'historico.jsonl').map((n) => [n.acao, n.ator.usuarioId, n.servicoId]), [['autorizar_publicacao', 'maria-silva', 'lac']]);
+    // Carlos (Revisor) autoriza pela rota.
     token = (await entrar(m, 'carlos-silva')).corpo.token;
     const r2 = await chamar(m, { url: '/__admin/servicos/lac/autorizacao', method: 'POST', token, corpo: { revisao: concluida.hash } });
     assert.equal(r2.status, 200, r2.bruto);
     const autorizacoes = lerJsonl('decisoes', 'lac.jsonl').filter((d) => d.tipo === 'autorizacao_publicacao');
     assert.equal(autorizacoes.length, 1);
-    assert.deepEqual(autorizacoes[0].ator, { ...ATOR_DEMONSTRACAO });
+    assert.deepEqual(autorizacoes[0].ator, semNome(CARLOS));
     const acao = lerJsonl('revisao', 'lac.jsonl').filter((a) => a.acao === 'autorizar_publicacao');
     assert.equal(acao.length, 1);
-    assert.deepEqual(acao[0].ator, { ...ATOR_DEMONSTRACAO });
-    const bruto = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'revisao', 'lac.jsonl'), 'utf8') + fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'decisoes', 'lac.jsonl'), 'utf8');
-    assert.doesNotMatch(bruto, /maria|carlos|Maria|Carlos/);
+    assert.deepEqual(acao[0].ator, semNome(CARLOS));
+    // O manifesto (vai para o Git) guarda só perfil e setor; nome nunca aparece em lugar nenhum.
+    assert.deepEqual(JSON.parse(fs.readFileSync(v1('versao.json'), 'utf8')).responsaveis.autorizacao, { perfil: 'revisor', setor: 'CLABI' });
+    const bruto = ['revisao/lac.jsonl', 'decisoes/lac.jsonl', 'negadas/historico.jsonl'].map((p) => fs.readFileSync(path.join(raiz, 'data', 'admin-private', ...p.split('/')), 'utf8')).join('') + fs.readFileSync(v1('versao.json'), 'utf8');
+    assert.doesNotMatch(bruto, /Maria Silva|Carlos Silva|"nome"/);
+    assert.doesNotMatch(fs.readFileSync(v1('versao.json'), 'utf8'), /maria-silva|carlos-silva/);
   } finally {
     fs.rmSync(pai, { recursive: true, force: true });
   }

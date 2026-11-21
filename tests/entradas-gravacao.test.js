@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { criarGravadorEntradas } from '../services/admin/entradas-gravacao.js';
 import { hashTexto } from '../services/admin/entradas.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 10, 12, 0, 0);
@@ -56,7 +57,7 @@ test('G1. primeira entrada: cria entradas.json, acrescenta a fonte textual e reg
   await comCopia(async ({ raiz }) => {
     const antesFontes = lerJson(raiz, ...caminho('fontes.json'));
     const g = criarGravadorEntradas({ raiz, agora: AGORA });
-    const r = await g.gravarEntradaTexto('lac', CORPO);
+    const r = await g.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.equal(r.ok, true);
     assert.equal(r.status, 201);
     assert.equal(r.criouArquivo, true);
@@ -93,10 +94,10 @@ test('G1. primeira entrada: cria entradas.json, acrescenta a fonte textual e reg
 test('G2. segunda entrada: acrescenta sem recriar o arquivo, sem mexer em versao.json e preservando a primeira', async () => {
   await comCopia(async ({ raiz }) => {
     const g = criarGravadorEntradas({ raiz, agora: AGORA });
-    const a = await g.gravarEntradaTexto('lac', CORPO);
+    const a = await g.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     const versaoAntes = lerBruto(raiz, ...caminho('versao.json'));
     const primeira = lerJson(raiz, ...caminho('entradas.json')).entradas[0];
-    const b = await g.gravarEntradaTexto('lac', { titulo: CORPO.titulo, texto: '  outro texto com espaços  ' });
+    const b = await g.gravarEntradaTexto('lac', { titulo: CORPO.titulo, texto: '  outro texto com espaços  ' }, { ator: MARIA });
     assert.equal(b.ok, true);
     assert.equal(b.criouArquivo, false);
     assert.notEqual(b.entradaId, a.entradaId);
@@ -124,7 +125,7 @@ test('G3. rollback ao falhar a escrita de versao.json: remove entradas.json rec�
       },
     };
     const g = criarGravadorEntradas({ raiz, sistema, agora: AGORA });
-    const r = await g.gravarEntradaTexto('lac', CORPO);
+    const r = await g.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.deepEqual([r.ok, r.status, r.erro], [false, 500, 'indisponivel']);
     assert.ok(!JSON.stringify(r).includes('Segunda linha'));
     assert.equal(fs.existsSync(path.join(raiz, ...caminho('entradas.json'))), false);
@@ -138,7 +139,7 @@ test('G4. rollback total quando a verificação final recusa o resultado (entrad
   await comCopia(async ({ raiz }) => {
     const antes = retrato(raiz);
     const g = criarGravadorEntradas({ raiz, agora: AGORA, verificarFinal: () => ['recusado'] });
-    const r = await g.gravarEntradaTexto('lac', CORPO);
+    const r = await g.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.deepEqual([r.ok, r.status, r.erro], [false, 422, 'dados_invalidos']);
     assert.deepEqual(retrato(raiz), antes);
   });
@@ -146,9 +147,9 @@ test('G4. rollback total quando a verificação final recusa o resultado (entrad
 
 test('G5. rollback da segunda entrada preserva a primeira byte a byte', async () => {
   await comCopia(async ({ raiz }) => {
-    await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO);
+    await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     const antes = retrato(raiz);
-    const r = await criarGravadorEntradas({ raiz, agora: AGORA, verificarFinal: () => ['recusado'] }).gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outro' });
+    const r = await criarGravadorEntradas({ raiz, agora: AGORA, verificarFinal: () => ['recusado'] }).gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outro' }, { ator: MARIA });
     assert.equal(r.ok, false);
     assert.deepEqual(retrato(raiz), antes);
   });
@@ -163,7 +164,7 @@ test('G6. versão congelada ou publicada: recusada com 409 e nada muda', async (
       versao.enviadaEm = '2026-11-10';
       fs.writeFileSync(path.join(raiz, ...caminho('versao.json')), `${JSON.stringify(versao, null, 2)}\n`);
       const antes = retrato(raiz);
-      const r = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO);
+      const r = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO, { ator: MARIA });
       assert.deepEqual([r.ok, r.status, r.erro], [false, 409, 'versao_nao_editavel'], estado);
       assert.deepEqual(retrato(raiz), antes);
     });
@@ -185,13 +186,13 @@ test('G7. corpo inválido (PII, extras, vazio, limite) e serviço inexistente: r
       { ...CORPO, url: 'https://exemplo.gov.br' },
     ];
     for (const c of casos) {
-      const r = await g.gravarEntradaTexto('lac', c);
+      const r = await g.gravarEntradaTexto('lac', c, { ator: MARIA });
       assert.deepEqual([r.ok, r.status, r.erro], [false, 422, 'dados_invalidos']);
       assert.ok(Array.isArray(r.campos));
       assert.ok(!JSON.stringify(r).includes('fulano'));
       assert.ok(!JSON.stringify(r).includes('12345'));
     }
-    const r404 = await g.gravarEntradaTexto('inexistente', CORPO);
+    const r404 = await g.gravarEntradaTexto('inexistente', CORPO, { ator: MARIA });
     assert.deepEqual([r404.ok, r404.status, r404.erro], [false, 404, 'nao_encontrado']);
     assert.deepEqual(retrato(raiz), antes);
   });
@@ -201,11 +202,11 @@ test('G8. limite por versão na gravação: recusa sem alterar nada', async () =
   await comCopia(async ({ raiz }) => {
     const g = criarGravadorEntradas({ raiz, agora: AGORA });
     for (let i = 0; i < 5; i += 1) {
-      const r = await g.gravarEntradaTexto('lac', { titulo: `Texto grande ${i}`, texto: `${'a'.repeat(19990)} ${i}`.padEnd(20000, 'b') });
+      const r = await g.gravarEntradaTexto('lac', { titulo: `Texto grande ${i}`, texto: `${'a'.repeat(19990)} ${i}`.padEnd(20000, 'b') }, { ator: MARIA });
       assert.equal(r.ok, true, `entrada ${i}`);
     }
     const antes = retrato(raiz);
-    const r = await g.gravarEntradaTexto('lac', { titulo: 'Excedente', texto: 'x' });
+    const r = await g.gravarEntradaTexto('lac', { titulo: 'Excedente', texto: 'x' }, { ator: MARIA });
     assert.deepEqual([r.ok, r.status, r.erro], [false, 422, 'limite_versao']);
     assert.deepEqual(retrato(raiz), antes);
     assert.deepEqual(validarServicos(raiz).erros, []);
@@ -217,7 +218,7 @@ test('G9. entradas.json solto (sem arquivos.entradas no manifesto): a base é in
     fs.writeFileSync(path.join(raiz, ...caminho('entradas.json')), `${JSON.stringify({ servicoId: 'lac', entradas: [] })}\n`);
     assert.ok(validarServicos(raiz).erros.some((e) => /sem arquivos.entradas no manifesto/.test(e)));
     const antes = retrato(raiz);
-    const r = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO);
+    const r = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.deepEqual([r.ok, r.status, r.erro], [false, 409, 'ja_existe']);
     assert.deepEqual(retrato(raiz), antes);
   });
@@ -225,7 +226,7 @@ test('G9. entradas.json solto (sem arquivos.entradas no manifesto): a base é in
 
 test('G10. validador: arquivos.entradas com caminho errado, arquivo ausente e adulteração depois de gravar', async () => {
   await comCopia(async ({ raiz }) => {
-    await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO);
+    await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.deepEqual(validarServicos(raiz).erros, []);
     const arquivo = path.join(raiz, ...caminho('entradas.json'));
     const original = fs.readFileSync(arquivo, 'utf8');
@@ -265,8 +266,8 @@ test('G11. uma gravação por vez: a segunda, durante a primeira, é recusada co
     let liberar;
     const espera = new Promise((res) => { liberar = res; });
     const g = criarGravadorEntradas({ raiz, agora: AGORA, antesDeGravar: () => espera });
-    const primeira = g.gravarEntradaTexto('lac', CORPO);
-    const segunda = await g.gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outra' });
+    const primeira = g.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
+    const segunda = await g.gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outra' }, { ator: MARIA });
     assert.deepEqual([segunda.ok, segunda.status, segunda.erro], [false, 409, 'operacao_em_andamento']);
     liberar();
     assert.equal((await primeira).ok, true);
@@ -292,7 +293,7 @@ test('G13. desfazer incompleto: erro distinto (desfazer_incompleto), sem texto n
         return fs.renameSync(origem, destino);
       },
     };
-    const r = await criarGravadorEntradas({ raiz, sistema, agora: AGORA }).gravarEntradaTexto('lac', CORPO);
+    const r = await criarGravadorEntradas({ raiz, sistema, agora: AGORA }).gravarEntradaTexto('lac', CORPO, { ator: MARIA });
     assert.deepEqual(r, { ok: false, status: 500, erro: 'desfazer_incompleto' });
     assert.ok(!JSON.stringify(r).includes('Segunda linha'));
     assert.equal(fs.existsSync(path.join(raiz, ...caminho('entradas.json'))), false);
@@ -305,8 +306,8 @@ test('G14. duas instâncias do gravador têm travas independentes (por isso a ro
     const espera = new Promise((res) => { liberar = res; });
     const a = criarGravadorEntradas({ raiz, agora: AGORA, antesDeGravar: () => espera });
     const b = criarGravadorEntradas({ raiz, agora: AGORA });
-    const primeira = a.gravarEntradaTexto('lac', CORPO);
-    const segunda = await b.gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outra' });
+    const primeira = a.gravarEntradaTexto('lac', CORPO, { ator: MARIA });
+    const segunda = await b.gravarEntradaTexto('lac', { titulo: 'Outra', texto: 'outra' }, { ator: MARIA });
     assert.equal(segunda.ok, true, 'a trava é por instância: a segunda instância não é bloqueada');
     liberar();
     const r = await primeira;

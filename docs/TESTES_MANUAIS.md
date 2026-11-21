@@ -383,4 +383,19 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | LS-08 | Duas abas: na segunda, trocar para outro usuário; na primeira, fazer qualquer ação | A primeira aba mostra "O usuário da sessão mudou. Atualize a página." e volta à escolha | não executado |
 | LS-09 | "Sair" | Volta à escolha, com o foco em "Acessar administração"; recarregar continua sem usuário | não executado |
 | LS-10 | Usar só o teclado (Tab, setas, Espaço e Enter) na escolha | O foco é visível, as setas trocam a opção e Enter entra | não executado |
-| LS-11 | Com Maria na sessão, fazer uma gravação numa cópia (ou restaurar pelo Git depois) e olhar o histórico em `data/admin-private/` | O registro ainda traz o ator de demonstração (efeito colateral esperado até o 8C) | não executado |
+| LS-11 | Com Maria na sessão, fazer uma gravação numa cópia (ou restaurar pelo Git depois) e olhar o histórico em `data/admin-private/` | Até o 8B, o registro trazia o ator de demonstração; desde o 8C, traz Maria (veja PA-M06) | não executado |
+
+### Roteiro — permissões aplicadas (Sprint 8, Passo 8C) — **não executado**
+
+Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi executado ou aprovado ainda. **As gravações deste roteiro mudam `services/` e `data/`: ao final, conferir `git status` e restaurar pelo Git tudo o que mudou (regra 11 do `CLAUDE.md`)**, ou usar uma cópia preparada pela usuária.
+
+| Id | Ação | Resultado esperado | Situação |
+|---|---|---|---|
+| PA-M01 | Entrar como Maria (Cadastrante) em `/admin/` | Novo serviço, Texto, Link, Usar este link, Editar nome e tema, Editar tema e Nova versão funcionam normalmente | não executado |
+| PA-M02 | Com Maria, abrir "Conteúdo para respostas" de um serviço | Marcar como revisado, Editar, Excluir, Incluir informação, Aceitar, Reabrir e Importar funcionam; "Concluir revisão", "Autorizar publicação", "Publicar" e "Revogar publicação" (quando aparecem) continuam focáveis, mas não fazem nada ao clicar | não executado |
+| PA-M03 | Com Maria, focar "Concluir revisão" com Tab e apertar Enter; ouvir com leitor de tela | O botão é anunciado como indisponível, com a descrição "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; a mesma frase aparece na área de status | não executado |
+| PA-M04 | "Trocar usuário" para Carlos (Revisor) e voltar ao serviço | "Concluir revisão", autorizar, publicar e revogar funcionam; as ações de cadastro e edição ficam indisponíveis com a descrição "Esta ação é feita pelo perfil Cadastrante. Você entrou como Revisor." | não executado |
+| PA-M05 | Duas abas: na primeira, Maria abre a revisão; na segunda, troca para Carlos; na primeira, tentar gravar | A primeira aba avisa "O usuário da sessão mudou. Atualize a página." e nada é gravado | não executado |
+| PA-M06 | Depois das gravações, olhar `data/admin-private/` (revisao/, decisoes/, cadastros/, temas/, negadas/) | Os registros trazem o ator real (maria-silva ou carlos-silva, com perfil e setor), nunca o nome, título, URL ou texto; o `versao.json` traz só perfil e setor do Revisor em `responsaveis` | não executado |
+| PA-M07 | Conferir a aparência dos botões indisponíveis | Hoje eles parecem iguais aos disponíveis (a aparência própria ficou fora do 8C); registrar se isso atrapalha | não executado |
+| PA-M08 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |

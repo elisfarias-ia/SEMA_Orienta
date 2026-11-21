@@ -80,7 +80,14 @@ function mudados(antes, depois) {
   const a = new Set(antes.split('\n'));
   const b = new Set(depois.split('\n'));
   const dif = [...a].filter((l) => !b.has(l)).concat([...b].filter((l) => !a.has(l)));
-  return [...new Set(dif.map((l) => l.split(' ')[1]))].sort();
+  // Passo 8C: a auditoria privada (data/admin-private/, fora do Git) é conferida à parte, por acoesAuditadas.
+  return [...new Set(dif.map((l) => l.split(' ')[1]))].filter((c) => c !== 'data' && !c.startsWith(`data${path.sep}`)).sort();
+}
+/** Passo 8C: ações gravadas no histórico privado da LAC (ação, tipo do item e usuário), na ordem. */
+function acoesAuditadas(raiz) {
+  const p = path.join(raiz, 'data', 'admin-private', 'revisao', 'lac.jsonl');
+  if (!fs.existsSync(p)) return [];
+  return fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).map((r) => [r.acao, r.itemTipo, r.ator.usuarioId]);
 }
 const sobras = (dir) => fs.readdirSync(dir).filter((n) => n.startsWith('sema-orienta-ensaio-') || n.endsWith('.tmp'));
 const alterarManifesto = (raiz, estado) => {
@@ -124,6 +131,7 @@ test('CE1. criação: 201, id e datas automáticos, bloco em rascunho, só conte
     assert.deepEqual(c.blocos.slice(0, 5), BLOCOS_TESTE_REAIS, 'os cinco blocos teste_local ficam intactos');
     assert.deepEqual(c.blocos[5], { ...r.corpo.bloco, tipo: 'conhecimento', origem: 'fonte', ambiente: 'publico' });
     assert.deepEqual(mudados(antes, retrato(raiz)), [ARQUIVO_CONTEUDO], 'nenhuma escrita fora de conteudo-assistente.json');
+    assert.deepEqual(acoesAuditadas(raiz), [['cadastrar_informacao', 'bloco', 'maria-silva']], 'Passo 8C: o cadastro fica auditado com o ator real');
     assert.deepEqual(validarServicos(raiz), { erros: [], servicos: ['lac'] });
     assert.equal(r.textoBruto.includes(pai), false);
     assert.equal(r.textoBruto.includes(token), false);
@@ -166,6 +174,7 @@ test('CE3. alteração: 200, preserva id e criadoEm, atualiza atualizadoEm e sub
     assert.equal(conteudoDe(raiz).blocos.length, 6);
     assert.deepEqual(conteudoDe(raiz).blocos.slice(0, 5), BLOCOS_TESTE_REAIS);
     assert.deepEqual(mudados(antes, retrato(raiz)), [ARQUIVO_CONTEUDO]);
+    assert.deepEqual(acoesAuditadas(raiz).at(-1), ['editar_informacao', 'bloco', 'maria-silva']);
   }, { agora: () => dia });
 });
 
@@ -179,6 +188,7 @@ test('CE4. remoção: 204 sem corpo e só o bloco de conhecimento sai', async ()
     assert.equal(r.textoBruto, '');
     assert.deepEqual(conteudoDe(raiz).blocos, BLOCOS_TESTE_REAIS);
     assert.deepEqual(mudados(antes, retrato(raiz)), [ARQUIVO_CONTEUDO]);
+    assert.deepEqual(acoesAuditadas(raiz).map((x) => x[0]), ['cadastrar_informacao', 'excluir_informacao']);
     assert.equal((await apagar(m, token, id)).status, 404, 'já removido');
   });
 });

@@ -14,6 +14,7 @@ import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { criarHistoricoRevisao } from '../services/admin/historico-revisao.js';
 import { criarEdicaoTema, edicaoDoServicoExigeConfirmacao, editarServicoPuro, editarTemaNoCatalogo, validarCorpoEdicaoServico, validarCorpoEdicaoTema } from '../services/admin/edicao-tema-servico.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 18, 12, 0, 0);
@@ -37,7 +38,7 @@ function retrato(raiz, sub = 'services') {
 const RETRATO_REAL_ANTES = retrato(RAIZ);
 const EXISTIA_DATA = fs.existsSync(path.join(RAIZ, 'data'));
 
-async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost:5173' } = {}) {
+async function enviarBruto(m, { url, method = 'POST', corpo, token, host = 'localhost:5173' } = {}) {
   const comCorpo = method === 'POST' || method === 'PATCH';
   const buffer = comCorpo ? Buffer.from(JSON.stringify(corpo ?? {})) : Buffer.alloc(0);
   const headers = { host };
@@ -48,6 +49,22 @@ async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost
   const res = { statusCode: 0, setHeader: () => {}, end: (t) => { resposta = t; } };
   await m(req, res, () => {});
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
+}
+
+// Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
+// é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
+const TOKEN_FIXO = 'c'.repeat(64);
+const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
+async function enviar(m, opcoes = {}) {
+  const { method = 'POST' } = opcoes;
+  if (method !== 'POST' || opcoes.token === undefined || !ROTA_DO_REVISOR.test(opcoes.url ?? '')) return enviarBruto(m, opcoes);
+  await entrarComo(m, 'carlos-silva');
+  try {
+    return await enviarBruto(m, opcoes);
+  } finally {
+    await entrarComo(m, 'maria-silva');
+  }
 }
 
 // Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
@@ -73,7 +90,7 @@ async function comCopia(fn, { blocos = [bloco('bc-aceito', [FAQ], aceito), bloco
   gravarJ(raiz, arq('conteudo-assistente.json'), c);
   assert.deepEqual(validarServicos(raiz).erros, [], 'a LAC de teste precisa ser válida');
   try {
-    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
+    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, gerarToken: () => TOKEN_FIXO, ...opcoes });
     const token = await obterToken(m);
     const ctx = {
       m, token, raiz, pai,
@@ -189,7 +206,7 @@ test('TS4. tema: lê nome e serviços afetados (sem ids), edita só o nome com c
     assert.deepEqual(validarServicos(raiz).erros, []);
     const h = historicoDeTemas(raiz);
     assert.equal(h.length, 1);
-    assert.deepEqual([h[0].acao, h[0].itemTipo, h[0].itemId, h[0].resultado, h[0].ator], ['editar_tema', 'tema', 'licenciamento-ambiental', 'ok', { usuarioId: 'servidor-demonstracao', perfil: 'demonstracao', setor: 'Ambiente local de demonstração' }]);
+    assert.deepEqual([h[0].acao, h[0].itemTipo, h[0].itemId, h[0].resultado, h[0].ator], ['editar_tema', 'tema', 'licenciamento-ambiental', 'ok', { ...MARIA }]);
     assert.deepEqual(Object.keys(h[0]).sort(), ['acao', 'ator', 'dataHora', 'id', 'itemId', 'itemTipo', 'resultado', 'tipo']);
     assert.ok(!JSON.stringify(h).includes('Florestal') && !JSON.stringify(h).includes('Licenciamento Ambiental'), 'o histórico não guarda nomes');
     const lido = await lerTema('licenciamento-ambiental');
@@ -263,14 +280,14 @@ test('TS7. tema: falha em cada gravação (e conferência recusada, e histórico
     const pedido = { revisao: lida.revisao, nome: NOME_NOVO_TEMA };
     let total = 0;
     const contar = { ...fs, renameSync(o, d) { total += 1; return fs.renameSync(o, d); } };
-    const ensaio = criarEdicaoTema({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editar('licenciamento-ambiental', pedido);
+    const ensaio = criarEdicaoTema({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editar('licenciamento-ambiental', { ...pedido, ator: MARIA });
     assert.equal(ensaio.ok, false, JSON.stringify(ensaio));
     assert.ok(total >= 2, `gravações contadas: ${total}`);
     assert.deepEqual(retrato(raiz), antes);
     for (let k = 1; k <= total / 2 + 1; k += 1) { // o catálogo e, depois, o histórico (última etapa)
       let n = 0;
       const sistema = { ...fs, renameSync(o, d) { n += 1; if (n === k) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-      const r = criarEdicaoTema({ raiz, sistema, agora: AGORA }).editar('licenciamento-ambiental', pedido);
+      const r = criarEdicaoTema({ raiz, sistema, agora: AGORA }).editar('licenciamento-ambiental', { ...pedido, ator: MARIA });
       assert.equal(r.ok, false, `falha no ponto ${k}`);
       assert.deepEqual(retrato(raiz), antes, `catálogo alterado no ponto ${k}`);
       assert.equal(lerJ(raiz, 'services', 'assuntos.json').assuntos[0].nome, 'Licenciamento Ambiental');
@@ -278,7 +295,7 @@ test('TS7. tema: falha em cada gravação (e conferência recusada, e histórico
     assert.deepEqual(historicoDeTemas(raiz), []);
     assert.deepEqual(validarServicos(raiz).erros, []);
     // sem falha: grava
-    assert.equal(base.editar('licenciamento-ambiental', pedido).ok, true);
+    assert.equal(base.editar('licenciamento-ambiental', { ...pedido, ator: MARIA }).ok, true);
     assert.equal(historicoDeTemas(raiz).length, 1);
   });
 });
@@ -413,7 +430,7 @@ test('TS12. serviço: falha em cada gravação (service.json, informações, reg
     const pedido = { revisao, nome: NOME_NOVO_SERVICO, temaId: tema.id, confirmado: true };
     let total = 0;
     const contar = { ...fs, renameSync(o, d) { total += 1; return fs.renameSync(o, d); } };
-    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editarServico('lac', pedido);
+    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editarServico('lac', { ...pedido, ator: MARIA });
     assert.equal(ensaio.ok, false, JSON.stringify(ensaio));
     assert.equal(ensaio.revertido, true);
     // service.json, informações e registro: 3 gravações, cada uma desfeita por uma restauração
@@ -422,13 +439,13 @@ test('TS12. serviço: falha em cada gravação (service.json, informações, reg
     for (let k = 1; k <= total / 2 + 1; k += 1) {
       let n = 0;
       const sistema = { ...fs, renameSync(o, d) { n += 1; if (n === k) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).editarServico('lac', pedido);
+      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).editarServico('lac', { ...pedido, ator: MARIA });
       assert.deepEqual([r.ok, r.revertido], [false, true], `falha no ponto ${k}`);
       assert.deepEqual(retrato(raiz), antes, `base alterada no ponto ${k}`);
     }
     assert.equal(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.length, 0);
     assert.deepEqual(validarServicos(raiz).erros, []);
-    assert.equal(criarServicoRevisao({ raiz, agora: AGORA }).editarServico('lac', pedido).ok, true);
+    assert.equal(criarServicoRevisao({ raiz, agora: AGORA }).editarServico('lac', { ...pedido, ator: MARIA }).ok, true);
     assert.deepEqual(validarServicos(raiz).erros, []);
   });
 });

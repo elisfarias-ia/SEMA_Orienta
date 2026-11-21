@@ -13,6 +13,22 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
+// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
+// revisão, que relê o usuário e reabre o serviço pela URL.
+async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
+  const r = await page.request.post('/__admin/sessao', { data: { usuarioId } });
+  expect(r.status()).toBe(200);
+  await page.reload();
+  await expect(page.locator('#sessao-usuario')).toHaveText(rotulo);
+  // O serviço precisa estar reaberto de verdade pela URL (o aria-busy="false" de #blocos já é o estado inicial do HTML).
+  await expect(page.locator('#servico-situacao')).toBeVisible();
+  await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
+  await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
+}
+const comoCarlos = (page) => trocarUsuarioNaRevisao(page, 'carlos-silva', 'Carlos Silva — Revisor');
+const comoMaria = (page) => trocarUsuarioNaRevisao(page, 'maria-silva', 'Maria Silva — Cadastrante');
+
 const ACESSAR = 'Acessar administração';
 const TEMA = 'Tema Fonte Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|fonte_em_uso|fonte_pendente|revisao_divergente|versao_congelada|url_duplicada|excluidaEm|[0-9a-f]{64}|X-Admin-Token|X-Revisao|\bbc-[0-9a-f]{6,}/i;
@@ -387,10 +403,12 @@ test('8. versão congelada sem Editar/Excluir; na nova versão a exclusão vale 
   await emInfos(page);
   await botao(page, 'Aceitar informação: Conteúdo congelado').click();
   await expect(blocoDa(page, 'Conteúdo congelado')).toContainText('Situação: Aceita');
+  await comoCarlos(page);
   await botao(page, 'Concluir revisão').click();
   await botao(page, 'Confirmar conclusão').click();
   await expect(status(page)).toContainText('Revisão concluída.');
   for (const nome of [/^Editar fonte/, /^Excluir fonte/, /^Marcar como revisado/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+  await comoMaria(page);
   await expect(botao(page, 'Criar nova versão para editar')).toBeVisible();
   await botao(page, 'Criar nova versão para editar').click();
   await expect(status(page)).toContainText('Nova versão criada.');

@@ -3,11 +3,14 @@
 // e sem log. A chave da sessão fica dentro do cliente (memória). Login simulado (Passo 8B): ao abrir, a página lê a sessão do
 // servidor local; sem usuário escolhido, mostra a escolha entre os usuários fictícios; com usuário, entra direto.
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
+// Permissões (Sprint 8, Passo 8C): adições e edições que o perfil da sessão não pode fazer ficam focáveis, com aria-disabled="true",
+// clique bloqueado e uma descrição do perfil que faz a ação. A tela só ajuda: o servidor confere o perfil antes de gravar.
 
 import {
   AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, AVISO_USUARIOS_FICTICIOS, criarClienteGestao, MENSAGEM_ESCOLHA_USUARIO, MENSAGEM_USUARIO_MUDOU,
   rotuloDaEscolha, rotuloDoUsuario, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
   servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
+  aplicarPermissoesDoPerfil, instalarBloqueioDePerfil,
 } from './admin-logic.js';
 
 // Se o servidor recusar a chave da sessão (outro usuário entrou em outra aba ou o servidor reiniciou), a tela volta à escolha.
@@ -114,6 +117,12 @@ function fecharPaineis() {
 // ---------- Entrada e saída ----------
 
 let usuarioAtual = null; // { usuarioId, nome, perfil, setor } da sessão
+let acoesAtuais = null; // ações do perfil da sessão (Passo 8C); null = a tela não restringe
+
+/** Passo 8C: aplica as permissões do perfil a todos os controles marcados com data-permissao. */
+function aplicarPermissoes() {
+  aplicarPermissoesDoPerfil(document, { acoes: usuarioAtual === null ? null : acoesAtuais, perfil: usuarioAtual === null ? null : usuarioAtual.perfil });
+}
 let trocando = false; // a escolha foi reaberta por "Trocar usuário" (cancelar volta sem mudar)
 
 function mostrarErroEscolha(texto) {
@@ -169,6 +178,7 @@ function abrirGestao(usuario, dadosDoCatalogo) {
   mostrarVista('lista');
   renderizarLista();
   renderizarTemas();
+  aplicarPermissoes();
   mostrarStatus('Você acessou a administração.');
   const titulo = $('titulo-lista');
   titulo.setAttribute('tabindex', '-1');
@@ -193,6 +203,7 @@ async function entrar(evento) {
   if (sessao.ok) {
     // O servidor já trocou o usuário: o topo passa a mostrar o novo e a troca termina, mesmo se o catálogo falhar depois.
     usuarioAtual = sessao.usuario;
+    acoesAtuais = sessao.acoes ?? null;
     trocando = false;
     $('sessao-usuario').textContent = rotuloDoUsuario(sessao.usuario);
     $('botao-cancelar-troca').hidden = true;
@@ -271,6 +282,7 @@ function cancelarTroca() {
 function perderSessao() {
   ocupado = false;
   usuarioAtual = null;
+  acoesAtuais = null;
   limparTela();
   mostrarEscolha();
   mostrarStatus(MENSAGEM_USUARIO_MUDOU, 'erro', true);
@@ -305,6 +317,7 @@ async function iniciar() {
     mostrarStatus(dados.mensagem, 'erro');
     return;
   }
+  acoesAtuais = r.acoes ?? null;
   abrirGestao(r.usuario, dados.catalogo);
   const idDaUrl = servicoDaUrl(window.location.search);
   const doCatalogo = idDaUrl === null ? undefined : servicosDaLista(catalogo, '').find((s) => s.id === idDaUrl);
@@ -637,12 +650,14 @@ function desenharResultadoBusca(truncado) {
     botao.type = 'button';
     botao.disabled = item.jaNoServico;
     botao.setAttribute('aria-label', item.jaNoServico ? `Já neste serviço: ${item.titulo}` : `Usar este link: ${item.titulo}`);
+    botao.dataset.permissao = 'cadastrar_link';
     botao.addEventListener('click', () => usarLink(item));
     const acoes = criar('p', 'servico__acoes');
     acoes.append(botao);
     li.append(acoes);
     lista.append(li);
   }
+  aplicarPermissoes();
   $('existente-resumo').textContent = resultadoBusca.length === 0
     ? 'Nenhum link cadastrado encontrado.'
     : `${resultadoBusca.length} ${resultadoBusca.length === 1 ? 'link encontrado' : 'links encontrados'}.${truncado ? ' Mostrando só os primeiros; pesquise para refinar.' : ''}`;
@@ -705,12 +720,14 @@ function renderizarTemas() {
     const botao = criar('button', 'botao botao--secundario', 'Editar');
     botao.type = 'button';
     botao.setAttribute('aria-label', `Editar o tema ${t.nome}`);
+    botao.dataset.permissao = 'editar_tema';
     botao.addEventListener('click', () => abrirEdicaoTema(t, botao));
     const acoes = criar('p', 'servico__acoes');
     acoes.append(botao);
     li.append(acoes);
     lista.append(li);
   }
+  aplicarPermissoes();
 }
 
 const botaoDoTema = (id) => [...document.querySelectorAll('#lista-temas li')].find((li) => li.__temaId === id)?.querySelector('button') ?? null;
@@ -982,5 +999,13 @@ $('link-cancelar').addEventListener('click', () => fecharPainel('link'));
 $('form-texto').addEventListener('submit', enviarTexto);
 $('form-link').addEventListener('submit', enviarLink);
 $('form-busca').addEventListener('submit', buscarLinks);
+
+// Passo 8C: ação de cada controle fixo de adição e edição, e bloqueio dos controles fora do perfil (antes de qualquer outro clique).
+$('botao-novo-servico').dataset.permissao = 'cadastrar_servico';
+$(MANEIRAS.texto).dataset.permissao = 'cadastrar_texto';
+$(MANEIRAS.link).dataset.permissao = 'cadastrar_link';
+$('painel-nova-versao').dataset.permissao = 'nova_versao';
+$('botao-editar-servico').dataset.permissao = 'editar_servico';
+instalarBloqueioDePerfil(document, (descricao) => mostrarStatus(descricao, 'erro'));
 
 iniciar();

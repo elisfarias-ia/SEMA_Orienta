@@ -17,6 +17,7 @@
 import { baseDoId, contemCredencial, normalizarNome, PADRAO_ID, textoLivre } from './cadastro.js';
 import { hashConteudo } from './hash.js';
 import { criarArmazenamento } from './armazenamento.js';
+import { resolverAtorDeGravacao } from './atores.js';
 import { criarHistoricoRevisao } from './historico-revisao.js';
 import { executarTransacao } from './transacao.js';
 import { dataIsoValida, falha } from './versao.js';
@@ -180,8 +181,11 @@ export function criarEdicaoTema({ raiz, sistema = fs, agora = () => new Date(), 
     }
   }
 
-  function editar(temaId, { revisao, nome }) {
+  function editar(temaId, { revisao, nome, ator } = {}) {
     try {
+      // Sprint 8, Passo 8C: ator obrigatório, com perfil que pode editar tema (segunda barreira).
+      const quem = resolverAtorDeGravacao(ator, 'editar_tema');
+      if (!quem.ok) return falha(quem.erro);
       const c = carregar(temaId);
       if (!c.ok) return c;
       if (c.hash !== revisao) return falha('revisao_divergente');
@@ -195,7 +199,7 @@ export function criarEdicaoTema({ raiz, sistema = fs, agora = () => new Date(), 
         verificar: () => {
           const erros = verificarFinal(raiz);
           if (erros.length > 0) return erros;
-          if (!historico.registrarAcaoDeTema(temaId).ok) {
+          if (!historico.registrarAcaoDeTema(temaId, { ator: quem.ator }).ok) {
             motivo = 'historico_indisponivel';
             return ['historico'];
           }

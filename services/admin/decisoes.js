@@ -53,9 +53,20 @@ function camposInesperados(r, esperados) {
   ];
 }
 
-/** Confere um registro do histórico (decisão material ou autorização). Retorna a lista de erros. */
-export function validarRegistro(r) {
+// Sprint 8, Passo 8C: decisão material, autorização e revogação são do Revisor. Na GRAVAÇÃO de um registro novo ({ nova: true }),
+// um ator com perfil de Cadastrante é recusado. A leitura do histórico (validarHistorico) não usa a opção: registros antigos continuam legíveis.
+const ERRO_CADASTRANTE = 'ator com perfil cadastrante não pode registrar esta decisão';
+const atorCadastrante = (r) => ehObjeto(r.ator) && r.ator.perfil === 'cadastrante';
+
+/** Confere um registro do histórico (decisão material, autorização ou revogação). Retorna a lista de erros. */
+export function validarRegistro(r, { nova = false } = {}) {
   if (!ehObjeto(r)) return ['registro deve ser um objeto'];
+  const erros = validarRegistroLido(r);
+  if (erros.length === 0 && nova === true && atorCadastrante(r)) return [ERRO_CADASTRANTE];
+  return erros;
+}
+
+function validarRegistroLido(r) {
   if (r.tipo === TIPO_DECISAO_MATERIAL) {
     const erros = camposInesperados(r, [...camposComuns(r), 'decisao']);
     if (erros.length) return erros;
@@ -137,7 +148,7 @@ export function registrarDecisaoMaterial(versao, historico, entrada) {
   if (versao.estado !== 'em_validacao') return falha('versao_nao_esta_em_validacao');
   if (!ehObjeto(entrada)) return falha('decisao_invalida', ['entrada deve ser um objeto']);
   const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_DECISAO_MATERIAL };
-  const erros = validarRegistro(registro);
+  const erros = validarRegistro(registro, { nova: true });
   if (erros.length) return falha('decisao_invalida', erros);
   const divergencia = conferirRegistro(versao, historico, registro);
   if (divergencia) return divergencia;
@@ -158,7 +169,7 @@ export function autorizarPublicacao(versao, historico, entrada) {
   if (versao.estado !== 'validado_materialmente') return falha('versao_nao_validada_materialmente');
   if (!ehObjeto(entrada)) return falha('autorizacao_invalida', ['entrada deve ser um objeto']);
   const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_AUTORIZACAO };
-  const erros = validarRegistro(registro);
+  const erros = validarRegistro(registro, { nova: true });
   if (erros.length) return falha('autorizacao_invalida', erros);
   const divergencia = conferirRegistro(versao, historico, registro);
   if (divergencia) return divergencia;
@@ -191,7 +202,7 @@ export function revogarVersao(versao, historico, entrada) {
   if (versao.estado !== 'publicado') return falha('versao_nao_publicada');
   if (!ehObjeto(entrada)) return falha('revogacao_invalida', ['entrada deve ser um objeto']);
   const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_REVOGACAO };
-  const erros = validarRegistro(registro);
+  const erros = validarRegistro(registro, { nova: true });
   if (erros.length) return falha('revogacao_invalida', erros);
   if (contemDadoSensivel(registro.motivo) || PADRAO_CPF.test(registro.motivo)) {
     return falha('revogacao_invalida', ['motivo não pode conter e-mail, telefone, CPF ou credencial']);

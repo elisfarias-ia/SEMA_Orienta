@@ -6,11 +6,17 @@
 // Sem rota HTTP neste passo. O texto da entrada nunca entra em erros, resposta de falha ou log: só códigos e nomes de campos.
 // A data vem de fora (`agora`), sem relógio próprio.
 //
+// Sprint 8, Passo 8C: a gravação exige o ator real (usuário selecionável com perfil que pode cadastrar texto) e registra a ação
+// `cadastrar_texto` no histórico privado DENTRO da conferência final (se o histórico falhar, a base volta ao que era). Só metadados:
+// versão, id interno e tipo do item; nunca o texto, o título ou o nome de quem gravou.
+//
 // ATENÇÃO (4B2): a trava deste gravador é por instância. Ao ligar a rota, ela deve ser a MESMA trava das demais escritas
 // administrativas (comTrava do admin-endpoint), senão duas rotas poderiam gravar ao mesmo tempo.
 
 import fs from 'node:fs';
 import { criarArmazenamento } from './armazenamento.js';
+import { resolverAtorDeGravacao } from './atores.js';
+import { criarHistoricoRevisao } from './historico-revisao.js';
 import { CHAVE_ENTRADAS, NOME_ARQUIVO_ENTRADAS, prepararEntradaTexto, validarArquivoEntradas, validarCorpoEntradaTexto } from './entradas.js';
 import { executarTransacao } from './transacao.js';
 import { validarVersao } from './versao.js';
@@ -29,6 +35,7 @@ const indisponivel = { ok: false, status: 500, erro: 'indisponivel' };
  */
 export function criarGravadorEntradas({ raiz, sistema = fs, agora = () => new Date(), verificarFinal = (r) => validarServicos(r).erros, antesDeGravar } = {}) {
   let escrevendo = false;
+  const historico = criarHistoricoRevisao({ raiz, sistema, agora });
 
   /** Lê o estado da versão atual: registro, manifesto, fontes e entradas (ou null se ainda não existe). */
   function lerEstado(servicoId) {
@@ -59,7 +66,9 @@ export function criarGravadorEntradas({ raiz, sistema = fs, agora = () => new Da
     return { pasta, manifesto, caminhoManifesto: `${pasta}/${NOME_DO_MANIFESTO}`, caminhoFontes: caminhos.fontes, caminhoEntradas, documentoFontes, documentoEntradas };
   }
 
-  function gravar(servicoId, corpo) {
+  function gravar(servicoId, corpo, { ator } = {}) {
+    const quem = resolverAtorDeGravacao(ator, 'cadastrar_texto');
+    if (!quem.ok) return { ok: false, status: quem.erro === 'perfil_sem_permissao' ? 403 : 500, erro: quem.erro };
     const validado = validarCorpoEntradaTexto(corpo);
     if (!validado.ok) return { ok: false, status: 422, erro: 'dados_invalidos', campos: validado.campos };
     let estado;
@@ -96,8 +105,24 @@ export function criarGravadorEntradas({ raiz, sistema = fs, agora = () => new Da
       passos.push({ caminho: estado.caminhoManifesto, tipo: 'json', conteudo: manifestoNovo, novo: false, validar: (d) => validarVersao(d) });
     }
 
-    const r = executarTransacao({ raiz, sistema, passos, verificar: () => verificarFinal(raiz) });
+    let semHistorico = false;
+    const r = executarTransacao({
+      raiz,
+      sistema,
+      passos,
+      verificar: () => {
+        const erros = verificarFinal(raiz);
+        if (erros.length > 0) return erros;
+        const h = historico.registrarAcao(servicoId, { versaoId: estado.manifesto.id, hashConteudo: null, acao: 'cadastrar_texto', itemId: preparado.fonte.id, itemTipo: 'texto', ator: quem.ator });
+        if (!h.ok) {
+          semHistorico = true;
+          return ['historico'];
+        }
+        return [];
+      },
+    });
     if (!r.ok) {
+      if (semHistorico && r.revertido !== false) return { ok: false, status: 500, erro: 'historico_indisponivel' };
       // Desfazer incompleto: erro distinto, sem texto nem caminho; a base pode ter ficado parcialmente alterada.
       if (r.revertido === false) return { ok: false, status: 500, erro: 'desfazer_incompleto' };
       if (r.erro === 'dados_invalidos' || r.erro === 'verificacao_recusada') return { ok: false, status: 422, erro: 'dados_invalidos' };
@@ -108,12 +133,12 @@ export function criarGravadorEntradas({ raiz, sistema = fs, agora = () => new Da
   }
 
   /** Uma gravação por vez: se outra estiver em andamento, esta é recusada (nada é enfileirado). */
-  async function gravarEntradaTexto(servicoId, corpo) {
+  async function gravarEntradaTexto(servicoId, corpo, opcoes = {}) {
     if (escrevendo) return { ok: false, status: 409, erro: 'operacao_em_andamento' };
     escrevendo = true;
     try {
       if (antesDeGravar) await antesDeGravar();
-      return gravar(servicoId, corpo);
+      return gravar(servicoId, corpo, opcoes);
     } catch {
       return indisponivel;
     } finally {

@@ -15,6 +15,21 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
+// Passo 8C (troca de usuário e ator real: a decisão de revogação passa a registrar o Revisor, não o ator de demonstração): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
+// revisão, que relê o usuário e reabre o serviço pela URL.
+async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
+  const r = await page.request.post('/__admin/sessao', { data: { usuarioId } });
+  expect(r.status()).toBe(200);
+  await page.reload();
+  await expect(page.locator('#sessao-usuario')).toHaveText(rotulo);
+  // O serviço precisa estar reaberto de verdade pela URL (o aria-busy="false" de #blocos já é o estado inicial do HTML).
+  await expect(page.locator('#servico-situacao')).toBeVisible();
+  await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
+  await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
+}
+const comoCarlos = (page) => trocarUsuarioNaRevisao(page, 'carlos-silva', 'Carlos Silva — Revisor');
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOME_LAC = 'Licença por Adesão e Compromisso';
 const TEXTO = 'Informação fictícia de demonstração sobre zelmorante, usada só no teste de revogação.';
@@ -69,6 +84,7 @@ test('revogar pelo botão: confirmação com motivo obrigatório, situação "Pu
   await page.locator('#aba-informacoes').click();
   await botao(page, 'Aceitar informação: Informação zelmorante').click();
   await expect(status(page)).toContainText('Informação aceita.');
+  await comoCarlos(page);
   await botao(page, 'Concluir revisão').click();
   await botao(page, 'Confirmar conclusão').click();
   await expect(status(page)).toContainText('Revisão concluída.');
@@ -114,8 +130,9 @@ test('revogar pelo botão: confirmação com motivo obrigatório, situação "Pu
   await expect(depois).not.toContainText(TEXTO);
   await expect(page.locator('meta[name="conteudo-publico"]')).toHaveCount(0);
 
-  // A revogação ficou no histórico privado da CÓPIA (fora do Git), com o motivo e o ator de demonstração.
+  // A revogação ficou no histórico privado da CÓPIA (fora do Git), com o motivo e o ator real (Passo 8C: Carlos Silva, Revisor, sem nome).
   const decisoes = fs.readFileSync(path.join(process.env.SEMA_REAL_COPIA, 'data', 'admin-private', 'decisoes', 'lac.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   const revogacao = decisoes.at(-1);
-  expect([revogacao.tipo, revogacao.motivo, revogacao.ator.perfil]).toEqual(['revogacao', MOTIVO, 'demonstracao']);
+  expect([revogacao.tipo, revogacao.motivo, revogacao.ator.perfil]).toEqual(['revogacao', MOTIVO, 'revisor']);
+  expect(revogacao.ator).toEqual({ usuarioId: 'carlos-silva', perfil: 'revisor', setor: 'CLABI' });
 });

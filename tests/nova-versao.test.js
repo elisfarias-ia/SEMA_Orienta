@@ -14,6 +14,7 @@ import { criarNovaVersaoDoServico, prepararConteudoDaNovaVersao } from '../servi
 import { conferirHashDaVersaoEmDisco, lerArquivosDaVersao } from '../services/admin/versao-arquivos.js';
 import { caminhoDoConteudoPublico, gerarConteudoPublico } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 16, 12, 0, 0);
@@ -144,7 +145,7 @@ test('N2. nova versão: pasta nova, arquivos independentes com caminhos da próp
 
 test('N3. entradas.json é copiado, o hash da v1 o inclui e a v2 volta a rascunho sem hash; v1 intacta', async () => {
   await comCopia(async ({ raiz }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação fictícia', texto: 'Texto fictício da versão um.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação fictícia', texto: 'Texto fictício da versão um.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     v1Validada(raiz);
     const hashV1 = lerJ(raiz, ...arq(1, 'versao.json')).hashConteudo;

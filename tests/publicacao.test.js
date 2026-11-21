@@ -16,6 +16,7 @@ import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { lerArquivosDaVersao } from '../services/admin/versao-arquivos.js';
 import { gerarConteudoPublico, integridadeDoCorpo, lerConteudoPublicado, validarConteudoPublico } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { CARLOS, MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -56,7 +57,7 @@ const bloco = (id, titulo, fonteIds, extra = {}) => ({
   statusValidacao: 'rascunho', publicado: false, revisaoAtualidade: 'pendente', criadoEm: '2026-11-10', atualizadoEm: '2026-11-10', ...extra,
 });
 
-async function enviar(m, { url, method = 'POST', corpo, token, cabecalhos = {} } = {}) {
+async function enviarBruto(m, { url, method = 'POST', corpo, token, cabecalhos = {} } = {}) {
   const buffer = method === 'GET' ? Buffer.alloc(0) : Buffer.from(JSON.stringify(corpo ?? {}));
   const headers = { host: 'localhost:5173', ...cabecalhos };
   if (method !== 'GET') { headers['content-type'] = 'application/json'; headers['content-length'] = String(buffer.length); }
@@ -66,6 +67,22 @@ async function enviar(m, { url, method = 'POST', corpo, token, cabecalhos = {} }
   const res = { statusCode: 0, setHeader: () => {}, end: (t) => { resposta = t; } };
   await m(req, res, () => {});
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
+}
+
+// Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
+// é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
+const TOKEN_FIXO = 'c'.repeat(64);
+const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
+async function enviar(m, opcoes = {}) {
+  const { method = 'POST' } = opcoes;
+  if (method !== 'POST' || opcoes.token === undefined || !ROTA_DO_REVISOR.test(opcoes.url ?? '')) return enviarBruto(m, opcoes);
+  await entrarComo(m, 'carlos-silva');
+  try {
+    return await enviarBruto(m, opcoes);
+  } finally {
+    await entrarComo(m, 'maria-silva');
+  }
 }
 
 // Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
@@ -78,7 +95,7 @@ async function comCopia(fn, opcoes = {}) {
   fs.mkdirSync(raiz);
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
-    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
+    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, gerarToken: () => TOKEN_FIXO, ...opcoes });
     const token = await obterToken(m);
     const post = (rota, corpo, cabecalhos) => enviar(m, { url: `/__admin/servicos/lac/${rota}`, corpo, token, cabecalhos });
     const get = (rota) => enviar(m, { url: `/__admin/servicos/lac/${rota}`, method: 'GET', token });
@@ -102,12 +119,12 @@ function revisarEConcluir(raiz) {
   const rev = criarServicoRevisao({ raiz, agora: AGORA });
   const sit = () => rev.consultar('lac').situacao;
   for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) {
-    assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao }).ok, true);
+    assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
   }
   for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) {
-    assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao }).ok, true);
+    assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
   }
-  const r = rev.concluirRevisao('lac', { revisao: sit().revisao });
+  const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
   assert.equal(r.ok, true);
   return { rev, revisao: r.hash };
 }
@@ -122,7 +139,7 @@ async function ateValidada(ctx) {
 async function ateAutorizada(ctx) {
   const v = await ateValidada(ctx);
   const pub = publicador(ctx.raiz);
-  assert.equal(pub.autorizar('lac', { revisao: v.revisao }).ok, true);
+  assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao: v.revisao }).ok, true);
   return { ...v, pub };
 }
 
@@ -143,7 +160,7 @@ test('P2. autorizar: válido leva a autorizado_publicacao, sem publicar, e o his
     const { raiz } = ctx;
     const { revisao } = await ateValidada(ctx);
     const pub = publicador(raiz);
-    const r = pub.autorizar('lac', { revisao });
+    const r = pub.autorizar('lac', { ator: CARLOS, revisao });
     assert.deepEqual([r.ok, r.estado, r.revisao], [true, 'autorizado_publicacao', revisao]);
     const m = manifesto(raiz);
     assert.deepEqual([m.estado, m.hashConteudo], ['autorizado_publicacao', revisao]);
@@ -158,7 +175,7 @@ test('P2. autorizar: válido leva a autorizado_publicacao, sem publicar, e o his
     const decisoes = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'decisoes', 'lac.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     assert.deepEqual(decisoes.map((d) => d.tipo), ['decisao_material', 'autorizacao_publicacao']);
     // autorizar de novo: o estado já não é o esperado
-    assert.equal(pub.autorizar('lac', { revisao }).erro, 'estado_invalido');
+    assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao }).erro, 'estado_invalido');
   });
 });
 
@@ -168,8 +185,8 @@ test('P3. autorizar é recusado (e nada muda) com estado errado, revisão diverg
     await ctx.preparar();
     const antes = retrato(ctx.raiz);
     const rev = criarServicoRevisao({ raiz: ctx.raiz, agora: AGORA });
-    assert.equal(publicador(ctx.raiz).autorizar('lac', { revisao: rev.consultar('lac').situacao.revisao }).erro, 'estado_invalido');
-    assert.equal(publicador(ctx.raiz).publicar('lac', { revisao: rev.consultar('lac').situacao.revisao }).erro, 'estado_invalido');
+    assert.equal(publicador(ctx.raiz).autorizar('lac', { ator: CARLOS, revisao: rev.consultar('lac').situacao.revisao }).erro, 'estado_invalido');
+    assert.equal(publicador(ctx.raiz).publicar('lac', { ator: CARLOS, revisao: rev.consultar('lac').situacao.revisao }).erro, 'estado_invalido');
     assert.deepEqual(retrato(ctx.raiz), antes);
   });
   // estado errado (publicar sem autorizar) e revisão divergente
@@ -177,9 +194,9 @@ test('P3. autorizar é recusado (e nada muda) com estado errado, revisão diverg
     const { revisao } = await ateValidada(ctx);
     const antes = retrato(ctx.raiz);
     const pub = publicador(ctx.raiz);
-    assert.equal(pub.publicar('lac', { revisao }).erro, 'estado_invalido');
-    assert.equal(pub.autorizar('lac', { revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
-    assert.equal(pub.autorizar('nao-existe', { revisao }).erro, 'servico_nao_encontrado');
+    assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).erro, 'estado_invalido');
+    assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao: 'a'.repeat(64) }).erro, 'revisao_divergente');
+    assert.equal(pub.autorizar('nao-existe', { ator: CARLOS, revisao }).erro, 'servico_nao_encontrado');
     assert.deepEqual(retrato(ctx.raiz), antes);
   });
   // hash divergente: o conteúdo mudou depois de congelado
@@ -190,7 +207,7 @@ test('P3. autorizar é recusado (e nada muda) com estado errado, revisão diverg
     gravarJ(ctx.raiz, arq('conteudo-assistente.json'), c);
     const novo = calcularHashDaVersao(lerArquivosDaVersao({ raiz: ctx.raiz, servicoId: 'lac', versaoId: 'lac-v1' }).arquivos).hash;
     const antes = retrato(ctx.raiz);
-    assert.equal(publicador(ctx.raiz).autorizar('lac', { revisao: novo }).erro, 'hash_divergente');
+    assert.equal(publicador(ctx.raiz).autorizar('lac', { ator: CARLOS, revisao: novo }).erro, 'hash_divergente');
     assert.deepEqual(retrato(ctx.raiz), antes);
   });
   // pendências: informação em elaboração com manifesto e hash coerentes
@@ -201,7 +218,7 @@ test('P3. autorizar é recusado (e nada muda) com estado errado, revisão diverg
     gravarJ(ctx.raiz, arq('conteudo-assistente.json'), c);
     const novo = calcularHashDaVersao(lerArquivosDaVersao({ raiz: ctx.raiz, servicoId: 'lac', versaoId: 'lac-v1' }).arquivos).hash;
     gravarJ(ctx.raiz, arq('versao.json'), { ...manifesto(ctx.raiz), hashConteudo: novo });
-    const r = publicador(ctx.raiz).autorizar('lac', { revisao: novo });
+    const r = publicador(ctx.raiz).autorizar('lac', { ator: CARLOS, revisao: novo });
     assert.deepEqual([r.ok, r.erro, r.pendencias.map((p) => p.codigo)], [false, 'revisao_incompleta', ['bloco_pendente']]);
   });
   // conteúdo excluído citado
@@ -213,14 +230,14 @@ test('P3. autorizar é recusado (e nada muda) com estado errado, revisão diverg
     const novo = calcularHashDaVersao(lerArquivosDaVersao({ raiz: ctx.raiz, servicoId: 'lac', versaoId: 'lac-v1' }).arquivos).hash;
     gravarJ(ctx.raiz, arq('versao.json'), { ...manifesto(ctx.raiz), hashConteudo: novo });
     const antes = retrato(ctx.raiz);
-    assert.equal(publicador(ctx.raiz).autorizar('lac', { revisao: novo }).erro, 'conteudo_excluido_citado');
+    assert.equal(publicador(ctx.raiz).autorizar('lac', { ator: CARLOS, revisao: novo }).erro, 'conteudo_excluido_citado');
     assert.deepEqual(retrato(ctx.raiz), antes);
   });
   // histórico incompatível: manifesto e hash corretos, mas sem a decisão material correspondente (nunca se decide só pelo manifesto)
   await comCopia(async (ctx) => {
     const { revisao } = await ateValidada(ctx);
     fs.rmSync(path.join(ctx.raiz, 'data', 'admin-private', 'decisoes', 'lac.jsonl'));
-    assert.equal(publicador(ctx.raiz).autorizar('lac', { revisao }).erro, 'historico_incompativel');
+    assert.equal(publicador(ctx.raiz).autorizar('lac', { ator: CARLOS, revisao }).erro, 'historico_incompativel');
     assert.equal(manifesto(ctx.raiz).estado, 'validado_materialmente');
   });
 });
@@ -229,7 +246,7 @@ test('P4. publicar: estado publicado, registro atualizado, arquivo público com 
   await comCopia(async (ctx) => {
     const { raiz } = ctx;
     const { pub, revisao } = await ateAutorizada(ctx);
-    const r = pub.publicar('lac', { revisao });
+    const r = pub.publicar('lac', { ator: CARLOS, revisao });
     assert.deepEqual([r.ok, r.estado, r.revisao], [true, 'publicado', revisao]);
     const m = manifesto(raiz);
     assert.deepEqual([m.estado, m.hashConteudo, m.publicadoEm], ['publicado', revisao, '2026-11-17']);
@@ -249,8 +266,8 @@ test('P4. publicar: estado publicado, registro atualizado, arquivo público com 
     const acoes = fs.readFileSync(path.join(raiz, 'data', 'admin-private', 'revisao', 'lac.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     assert.equal(acoes.at(-1).acao, 'publicar');
     // publicar de novo e autorizar depois de publicado: estado inválido
-    assert.equal(pub.publicar('lac', { revisao }).erro, 'estado_invalido');
-    assert.equal(pub.autorizar('lac', { revisao }).erro, 'estado_invalido');
+    assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).erro, 'estado_invalido');
+    assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao }).erro, 'estado_invalido');
   });
 });
 
@@ -258,7 +275,7 @@ test('P5. conteúdo público: texto cadastrado sem fonte, link só com a URL, e 
   await comCopia(async (ctx) => {
     const { raiz } = ctx;
     const { pub, revisao } = await ateAutorizada(ctx);
-    assert.equal(pub.publicar('lac', { revisao }).ok, true);
+    assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).ok, true);
     const arquivo = path.join(pastaPublica(raiz), `conteudo-${revisao.slice(0, 16)}.json`);
     const texto = fs.readFileSync(arquivo, 'utf8');
     const obj = JSON.parse(texto);
@@ -292,7 +309,7 @@ test('P6. rollback total em CADA gravação da publicação (arquivo público, m
       const { revisao } = await ateAutorizada(ctx);
       const antes = retrato(raiz);
       const ativo = { v: true };
-      const r = publicador(raiz, { sistema: montar(fs, ativo) }).publicar('lac', { revisao });
+      const r = publicador(raiz, { sistema: montar(fs, ativo) }).publicar('lac', { ator: CARLOS, revisao });
       assert.equal(r.ok, false, nome);
       assert.equal(r.revertido, true, nome);
       assert.deepEqual(retrato(raiz), antes, `nada muda (${nome})`);
@@ -300,7 +317,7 @@ test('P6. rollback total em CADA gravação da publicação (arquivo público, m
       assert.deepEqual(arquivosPublicos(raiz), [], nome);
       assert.ok(!fs.existsSync(pastaPublica(raiz)), `a pasta pública criada também é desfeita (${nome})`);
       // sem a falha, a mesma publicação funciona
-      assert.equal(publicador(raiz).publicar('lac', { revisao }).ok, true, nome);
+      assert.equal(publicador(raiz).publicar('lac', { ator: CARLOS, revisao }).ok, true, nome);
     });
   }
   // falha na conferência final (depois de TODAS as gravações)
@@ -309,7 +326,7 @@ test('P6. rollback total em CADA gravação da publicação (arquivo público, m
     const { revisao } = await ateAutorizada(ctx);
     const antes = retrato(raiz);
     let chamadas = 0;
-    const r = publicador(raiz, { verificarFinal: () => { chamadas += 1; return chamadas === 1 ? [] : ['recusado']; } }).publicar('lac', { revisao });
+    const r = publicador(raiz, { verificarFinal: () => { chamadas += 1; return chamadas === 1 ? [] : ['recusado']; } }).publicar('lac', { ator: CARLOS, revisao });
     assert.deepEqual([r.ok, r.erro, r.revertido], [false, 'dados_invalidos', true]);
     assert.deepEqual(retrato(raiz), antes);
   });
@@ -322,12 +339,12 @@ test('P7. autorizar: falha de escrita ou de histórico desfaz tudo', async () =>
       const { revisao } = await ateValidada(ctx);
       const antes = retrato(raiz);
       const sistema = { ...fs, renameSync: (a, b) => { if (String(b).endsWith(alvo)) throw new Error('falha injetada'); return fs.renameSync(a, b); } };
-      const r = publicador(raiz, { sistema }).autorizar('lac', { revisao });
+      const r = publicador(raiz, { sistema }).autorizar('lac', { ator: CARLOS, revisao });
       assert.equal(r.ok, false, alvo);
       assert.equal(manifesto(raiz).estado, 'validado_materialmente', alvo);
       assert.deepEqual(registro(raiz).versaoPublicadaId, null);
       if (alvo === 'versao.json') assert.deepEqual(retrato(raiz), antes);
-      assert.equal(publicador(raiz).autorizar('lac', { revisao }).ok, true, 'a nova tentativa funciona');
+      assert.equal(publicador(raiz).autorizar('lac', { ator: CARLOS, revisao }).ok, true, 'a nova tentativa funciona');
     });
   }
 });
@@ -336,10 +353,10 @@ test('P8. versão publicada + nova versão em elaboração: versaoAtualId segue 
   await comCopia(async (ctx) => {
     const { raiz } = ctx;
     const { pub, rev, revisao } = await ateAutorizada(ctx);
-    assert.equal(pub.publicar('lac', { revisao }).ok, true);
+    assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).ok, true);
     const v1 = retrato(raiz, ['services/lac/versoes/v1', 'services/lac/publico']);
     const publicadoV1 = lerConteudoPublicado(raiz, 'lac');
-    assert.equal(rev.criarNovaVersao('lac').ok, true);
+    assert.equal(rev.criarNovaVersao('lac', { ator: MARIA }).ok, true);
     const reg = registro(raiz);
     assert.deepEqual([reg.versaoAtualId, reg.versaoPublicadaId, reg.publicado], ['lac-v2', 'lac-v1', true]);
     assert.deepEqual(retrato(raiz, ['services/lac/versoes/v1', 'services/lac/publico']), v1, 'a versão publicada fica intacta');
@@ -351,8 +368,8 @@ test('P8. versão publicada + nova versão em elaboração: versaoAtualId segue 
     // a v2 é revisada, autorizada e publicada: a publicada passa a ser a v2; o arquivo da v1 permanece no disco
     const c2 = revisarEConcluir(raiz);
     const pub2 = publicador(raiz);
-    assert.equal(pub2.autorizar('lac', { revisao: c2.revisao }).ok, true);
-    assert.equal(pub2.publicar('lac', { revisao: c2.revisao }).ok, true);
+    assert.equal(pub2.autorizar('lac', { ator: CARLOS, revisao: c2.revisao }).ok, true);
+    assert.equal(pub2.publicar('lac', { ator: CARLOS, revisao: c2.revisao }).ok, true);
     const reg2 = registro(raiz);
     assert.deepEqual([reg2.versaoAtualId, reg2.versaoPublicadaId], ['lac-v2', 'lac-v2']);
     assert.equal(arquivosPublicos(raiz).length, 2);
@@ -415,7 +432,7 @@ test('P11. leitura falha de forma segura (null): arquivo adulterado, renomeado, 
   await comCopia(async (ctx) => {
     const { raiz } = ctx;
     const { pub, revisao } = await ateAutorizada(ctx);
-    assert.equal(pub.publicar('lac', { revisao }).ok, true);
+    assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).ok, true);
     const arquivo = path.join(pastaPublica(raiz), `conteudo-${revisao.slice(0, 16)}.json`);
     const original = fs.readFileSync(arquivo, 'utf8');
     const reg = fs.readFileSync(path.join(raiz, 'services', 'registry.json'), 'utf8');

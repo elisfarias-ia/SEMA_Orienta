@@ -12,6 +12,7 @@ import { lerDadosDaBase } from '../services/assistant-endpoint.js';
 import { criarFerramentas } from '../scripts/mcp/ferramentas.js';
 import { conferirDist, termosProibidos } from '../scripts/check-dist.js';
 import { hashTexto } from '../services/admin/entradas.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CANARIO = 'CANARIO-ENTRADA-FICTICIO-7391: orientação fictícia que jamais deve sair da administração.';
@@ -158,7 +159,7 @@ test('I9. com arquivos.entradas no manifesto (gravação real em cópia): assist
   fs.mkdirSync(raiz);
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
-    const r = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: 'Texto de isolamento', texto: CANARIO });
+    const r = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: 'Texto de isolamento', texto: CANARIO }, { ator: MARIA });
     assert.equal(r.ok, true);
     assert.equal(JSON.parse(fs.readFileSync(path.join(raiz, ...PASTA, 'versao.json'), 'utf8')).arquivos.entradas, 'services/lac/versoes/v1/entradas.json');
     const v = localizarVersaoAtual(raiz, 'lac');

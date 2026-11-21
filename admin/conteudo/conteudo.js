@@ -4,6 +4,8 @@
 // gravado ao abrir a página: toda gravação exige ação explícita (e confirmação quando é irreversível), uma por vez.
 // Autorizar e publicar são ações separadas, depois de concluir a revisão; cada uma pede confirmação própria e envia uma única requisição.
 // Revogar (Sprint 7) só aparece com a versão publicada e pede confirmação com motivo obrigatório.
+// Permissões (Sprint 8, Passo 8C): controles que o perfil da sessão não pode usar ficam focáveis, com aria-disabled="true", clique
+// bloqueado e uma descrição do perfil que faz a ação. A tela só ajuda: o servidor confere o perfil antes de gravar.
 
 import {
   corpoDaImportacao, corpoDoConhecimento, criarClienteAdmin, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
@@ -11,6 +13,7 @@ import {
   AVISO_MOTIVO_REVOGACAO, MENSAGEM_MOTIVO_OBRIGATORIO, TEXTO_CONFIRMAR_REVOGACAO,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
   MENSAGEM_SEM_USUARIO, MENSAGEM_USUARIO_MUDOU, rotuloDoUsuario,
+  ACAO_DO_CONTROLE, aplicarPermissoesDoPerfil, instalarBloqueioDePerfil,
 } from '../admin-logic.js';
 
 // Se o servidor recusar o token (o usuário da sessão mudou), a página volta ao estado sem usuário.
@@ -31,6 +34,8 @@ let importacaoAberta = false; // lista de conteúdo existente visível
 let candidatos = null; // { revisao, candidatos } da última leitura (somente leitura no servidor) ou null
 let ocupado = false; // uma ação de revisão por vez, até a tela terminar de atualizar
 let formAberto = false; // o formulário de nova orientação fica recolhido até a pessoa pedir
+let acoesDaSessao = null; // ações do perfil da sessão (Passo 8C); null = a tela não restringe
+let perfilDaSessao = null;
 
 const status = $('status');
 const dialogo = $('confirmacao');
@@ -78,6 +83,7 @@ function criarBotao(texto, rotuloAcessivel, acao, aoClicar, { secundario = true,
   botao.dataset.acao = acao;
   botao.dataset.indisponivel = indisponivel ? 'true' : 'false';
   if (rotuloAcessivel) botao.setAttribute('aria-label', rotuloAcessivel);
+  if (Object.hasOwn(ACAO_DO_CONTROLE, acao)) botao.dataset.permissao = ACAO_DO_CONTROLE[acao];
   botao.addEventListener('click', () => aoClicar(botao));
   return botao;
 }
@@ -603,6 +609,9 @@ function atualizarPermissoes() {
   for (const botao of document.querySelectorAll('#blocos button[data-acao], #importacao-lista button[data-acao], #fontes-revisao button[data-acao], #cartao-conclusao button[data-acao], #cartao-publicacao button[data-acao]')) {
     botao.disabled = parada || botao.dataset.indisponivel === 'true';
   }
+  // Passo 8C: o envio do formulário é cadastro ou edição de informação, conforme o que está aberto.
+  $('bloco-enviar').dataset.permissao = editando === null ? 'cadastrar_informacao' : 'editar_informacao';
+  aplicarPermissoesDoPerfil(document, { acoes: acoesDaSessao, perfil: perfilDaSessao });
 }
 
 // ---------- Confirmação do cadastro e da edição (diálogo com resumo) ----------
@@ -1285,7 +1294,9 @@ $('botao-nova-orientacao').addEventListener('click', abrirFormulario);
 
 // ---------- Usuário da sessão (login simulado, Passo 8B) ----------
 // O usuário é escolhido na Gestão de conteúdo; aqui só aparece "Nome — Perfil" e o link "Trocar usuário" para lá.
-function mostrarUsuario(usuario) {
+function mostrarUsuario(usuario, acoes = null) {
+  acoesDaSessao = usuario === null ? null : acoes;
+  perfilDaSessao = usuario === null ? null : usuario.perfil;
   const quem = $('sessao-usuario');
   quem.textContent = usuario === null ? '' : rotuloDoUsuario(usuario);
   quem.hidden = usuario === null;
@@ -1309,7 +1320,7 @@ async function iniciar() {
     mostrarStatus(sessao.mensagem ?? MENSAGENS.sessao, 'erro');
     return;
   }
-  mostrarUsuario(sessao.usuario);
+  mostrarUsuario(sessao.usuario, sessao.acoes ?? null);
   if (sessao.usuario === null) {
     preencherAssuntos();
     mostrarStatus(MENSAGEM_SEM_USUARIO, 'erro');
@@ -1328,5 +1339,14 @@ async function iniciar() {
   }
   atualizarPermissoes();
 }
+
+// Passo 8C: ação de cada controle fixo da página e bloqueio dos controles fora do perfil (antes de qualquer outro clique).
+for (const id of ['botao-concluir', 'botao-nova-versao', 'botao-autorizar', 'botao-publicar', 'botao-revogar']) {
+  const botao = $(id);
+  if (Object.hasOwn(ACAO_DO_CONTROLE, botao.dataset.acao)) botao.dataset.permissao = ACAO_DO_CONTROLE[botao.dataset.acao];
+}
+$('botao-nova-orientacao').dataset.permissao = 'cadastrar_informacao';
+$('botao-importar').dataset.permissao = 'importar_conteudo';
+instalarBloqueioDePerfil(document, (descricao) => mostrarStatus(descricao, 'erro'));
 
 iniciar();

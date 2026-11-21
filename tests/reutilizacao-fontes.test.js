@@ -12,6 +12,7 @@ import { buscarLinksReutilizaveis, criarCopiaDeLink, fonteReutilizavel } from '.
 import { criarGravadorEntradas } from '../services/admin/entradas-gravacao.js';
 import { criarFerramentas } from '../scripts/mcp/ferramentas.js';
 import { validarFontes } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PASTA_LAC = ['services', 'lac', 'versoes', 'v1'];
@@ -124,7 +125,7 @@ test('R3. fonte textual (inclusive validada à força), não validada e revogada
   fs.mkdirSync(raiz);
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
-    const g = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: TITULO_TEXTO, texto: TEXTO, descricao: DESCRICAO_TEXTO });
+    const g = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: TITULO_TEXTO, texto: TEXTO, descricao: DESCRICAO_TEXTO }, { ator: MARIA });
     assert.equal(g.ok, true);
     const fontes = lerJson(raiz, ...PASTA_LAC, 'fontes.json').fontes;
     assert.equal(fontes.length, 9);
@@ -235,7 +236,7 @@ test('R8. MCP: fonte textual em rascunho some por completo (título, descrição
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
     const semTexto = JSON.parse(JSON.stringify(criarFerramentas({ raiz }).chamar("consultar_fontes", { servicoId: "lac" })));
-    const g = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: TITULO_TEXTO, texto: TEXTO, descricao: DESCRICAO_TEXTO });
+    const g = await criarGravadorEntradas({ raiz, agora: () => new Date(2026, 10, 10) }).gravarEntradaTexto('lac', { titulo: TITULO_TEXTO, texto: TEXTO, descricao: DESCRICAO_TEXTO }, { ator: MARIA });
     assert.equal(g.ok, true);
     const ferramentas = criarFerramentas({ raiz });
     const comTexto = ferramentas.chamar('consultar_fontes', { servicoId: 'lac' });

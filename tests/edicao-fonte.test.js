@@ -17,6 +17,7 @@ import { buscarLinksReutilizaveis, fonteReutilizavel } from '../services/admin/r
 import { selecionarBlocosAssistente } from '../services/assistant-content.js';
 import { hashTexto } from '../services/admin/entradas.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 18, 12, 0, 0);
@@ -40,7 +41,7 @@ function retrato(raiz, sub = 'services') {
 const RETRATO_REAL_ANTES = retrato(RAIZ);
 const EXISTIA_DATA = fs.existsSync(path.join(RAIZ, 'data'));
 
-async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost:5173', cabecalhos = {} } = {}) {
+async function enviarBruto(m, { url, method = 'POST', corpo, token, host = 'localhost:5173', cabecalhos = {} } = {}) {
   const comCorpo = method === 'POST' || method === 'PATCH';
   const buffer = comCorpo ? Buffer.from(JSON.stringify(corpo ?? {})) : Buffer.alloc(0);
   const headers = { host, ...cabecalhos };
@@ -51,6 +52,22 @@ async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost
   const res = { statusCode: 0, setHeader: () => {}, end: (t) => { resposta = t; } };
   await m(req, res, () => {});
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
+}
+
+// Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
+// é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
+const TOKEN_FIXO = 'c'.repeat(64);
+const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
+async function enviar(m, opcoes = {}) {
+  const { method = 'POST' } = opcoes;
+  if (method !== 'POST' || opcoes.token === undefined || !ROTA_DO_REVISOR.test(opcoes.url ?? '')) return enviarBruto(m, opcoes);
+  await entrarComo(m, 'carlos-silva');
+  try {
+    return await enviarBruto(m, opcoes);
+  } finally {
+    await entrarComo(m, 'maria-silva');
+  }
 }
 
 // Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
@@ -79,7 +96,7 @@ async function comCopia(fn, { blocos = [bloco('bc-aceito', [FAQ], aceito), bloco
   gravarJ(raiz, arq('conteudo-assistente.json'), c);
   assert.deepEqual(validarServicos(raiz).erros, [], 'a LAC de teste precisa ser válida');
   try {
-    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
+    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, gerarToken: () => TOKEN_FIXO, ...opcoes });
     const token = await obterToken(m);
     const base = '/__admin/servicos/lac';
     const ctx = {
@@ -141,7 +158,7 @@ test('EF2. editar fonte reabre os blocos ACEITOS que a usam (e só eles) e mant�
 
 test('EF3. editar texto: texto original e hash atualizados, fonte volta à revisão, 1:1 preservado, dado sensível recusado sem eco', async () => {
   await comCopia(async ({ editar, situacao, raiz, fonteNoDisco, ler }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício original.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício original.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     // revisa a fonte textual (validada) e cita em um bloco aceito
     const idTexto = lerJ(raiz, ...arq('fontes.json')).fontes.find((f) => f.formaEntrada === 'texto').id;
@@ -223,7 +240,7 @@ test('EF8. versão congelada: editar e excluir recusados; nova versão permite e
 
 test('EF9. rollback: falha em cada gravação desfaz tudo (editar com cascata e texto, excluir) e o histórico não registra a ação', async () => {
   await comCopia(async ({ raiz }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício original.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício original.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     const doc = lerJ(raiz, ...arq('fontes.json'));
     const ft = doc.fontes.find((f) => f.formaEntrada === 'texto');
@@ -238,7 +255,7 @@ test('EF9. rollback: falha em cada gravação desfaz tudo (editar com cascata e 
     const antes = retrato(raiz);
     let total = 0;
     const contar = { ...fs, renameSync(o, d) { total += 1; return fs.renameSync(o, d); } };
-    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editarFonte('lac', { fonteId: ft.id, revisao, campos: { texto: 'Texto alterado.' } });
+    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).editarFonte('lac', { ator: MARIA, fonteId: ft.id, revisao, campos: { texto: 'Texto alterado.' } });
     assert.deepEqual([ensaio.ok, ensaio.revertido], [false, true], JSON.stringify(ensaio));
     // Com a conferência final recusada, cada gravação (fontes, informações, entradas) é desfeita por uma restauração: total = 2 × gravações.
     assert.ok(total >= 6 && total % 2 === 0, `gravações contadas: ${total}`);
@@ -246,11 +263,12 @@ test('EF9. rollback: falha em cada gravação desfaz tudo (editar com cascata e 
     for (let k = 1; k <= total / 2 + 1; k += 1) { // as gravações do conteúdo e a do histórico (a última etapa)
       let n = 0;
       const sistema = { ...fs, renameSync(o, d) { n += 1; if (n === k) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).editarFonte('lac', { fonteId: ft.id, revisao, campos: { texto: 'Texto alterado.' } });
+      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).editarFonte('lac', { ator: MARIA, fonteId: ft.id, revisao, campos: { texto: 'Texto alterado.' } });
       assert.deepEqual([r.ok, r.revertido], [false, true], `falha no ponto ${k}`);
       assert.deepEqual(retrato(raiz), antes, `base alterada no ponto ${k}`);
     }
-    assert.equal(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.length, 0);
+    // Passo 8C: só o cadastro do texto (preparo do teste) está no histórico; a edição desfeita não.
+    assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['cadastrar_texto']);
     // exclusão: falha na gravação e no histórico
     const novo = (await import('../services/admin/revisao-servico.js')).criarServicoRevisao;
     assert.ok(novo);
@@ -376,7 +394,7 @@ test('EF9. decreto revogado e demais itens antigos podem ser excluídos; somem d
 
 test('EF11. excluir texto: a entrada original fica só como registro da versão; nova versão não copia a fonte nem a entrada excluída', async () => {
   await comCopia(async ({ excluir, situacao, post, raiz, m, token }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício interno.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação interna', texto: 'Texto fictício interno.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     let s = await situacao();
     const idTexto = s.fontes.find((f) => f.forma === 'texto').id;
@@ -435,14 +453,14 @@ test('EF13. rollback da exclusão em cascata: falha em cada gravação desfaz tu
     const antes = retrato(raiz);
     let total = 0;
     const contar = { ...fs, renameSync(o, d) { total += 1; return fs.renameSync(o, d); } };
-    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).excluirFonte('lac', { fonteId: SEMA, revisao });
+    const ensaio = criarServicoRevisao({ raiz, sistema: contar, agora: AGORA, verificarFinal: () => ['recusado'] }).excluirFonte('lac', { ator: MARIA, fonteId: SEMA, revisao });
     assert.deepEqual([ensaio.ok, ensaio.revertido], [false, true], JSON.stringify(ensaio));
     assert.ok(total >= 6 && total % 2 === 0, `gravações contadas: ${total}`);
     assert.deepEqual(retrato(raiz), antes);
     for (let k = 1; k <= total / 2 + 1; k += 1) {
       let n = 0;
       const sistema = { ...fs, renameSync(o, d) { n += 1; if (n === k) throw new Error('falha injetada'); return fs.renameSync(o, d); } };
-      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).excluirFonte('lac', { fonteId: SEMA, revisao });
+      const r = criarServicoRevisao({ raiz, sistema, agora: AGORA }).excluirFonte('lac', { ator: MARIA, fonteId: SEMA, revisao });
       assert.deepEqual([r.ok, r.revertido], [false, true], `falha no ponto ${k}`);
       assert.deepEqual(retrato(raiz), antes, `base alterada no ponto ${k}`);
     }
