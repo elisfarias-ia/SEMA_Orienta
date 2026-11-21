@@ -336,7 +336,9 @@ Nada foi commitado. Detalhes e liberação autorizada: docs/ADMINISTRACAO.md.
 - **A3:** o comando foi barrado antes de executar, sem contato com o GitHub. A conferência de leitura (`git ls-remote --heads origin teste-hook-a3`) não encontrou o branch.
 - **B1:** nada foi commitado, segundo a usuária, e o arquivo de teste foi removido.
 
-Também foi conferido que o hook do Claude Code resolve `$CLAUDE_PROJECT_DIR` corretamente numa sessão real. As regras A2, A4, A6, A7 e A0, a liberação por prazo curto e as regras B0 e B2 a B5 não foram conferidas ao vivo: estão cobertas só pelos testes automatizados. A regra B5 rodou de verdade no commit do Passo 6B (`e15a2fe`), em cerca de 3,6 s, mas só no caso em que o build passa.
+Também foi conferido que o hook do Claude Code resolve `$CLAUDE_PROJECT_DIR` corretamente numa sessão real. As regras A2, A4, A6, A7 e A0, a liberação por prazo curto e as regras B0 e B2 a B5 não foram conferidas ao vivo: estão cobertas só pelos testes automatizados. Há indício de que a regra B5 rodou no commit do Passo 6B (`e15a2fe`, que altera `package.json`), no caso em que o build passa: a data de modificação do `dist/` coincide com o horário do commit e sugere cerca de 3,6 s. A saída do build não foi registrada.
+
+Observação: o `npm test` não foi repetido depois do último ajuste de texto do Passo 6C.
 
 ### Execução — revogação pelo navegador (Sprint 7, Passo 7E; Issue #24)
 

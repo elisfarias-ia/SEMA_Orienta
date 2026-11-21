@@ -7,6 +7,7 @@
 // pessoal ficam fora do Git.
 
 import { validarAtor } from './atores.js';
+import { contemDadoSensivel, PADRAO_CPF } from './cadastro.js';
 import { verificarTransicao } from './fluxo.js';
 import { dataIsoValida, falha, idValido, structuredCloneSeguro, validarVersao } from './versao.js';
 
@@ -70,6 +71,8 @@ export function validarRegistro(r) {
   }
   if (r.tipo === TIPO_REVOGACAO) {
     // Revogação (Sprint 7, Passo 7A): motivo obrigatório, curto e sem e-mail. Não exige autorização de publicação.
+    // Na gravação nova, revogarVersao recusa também telefone, CPF e credencial; aqui (também usado na leitura do
+    // histórico) só o e-mail é recusado, para que registros antigos continuem legíveis.
     const erros = camposInesperados(r, [...camposComuns(r), 'motivo']);
     if (erros.length) return erros;
     erros.push(...validarComuns(r));
@@ -190,6 +193,9 @@ export function revogarVersao(versao, historico, entrada) {
   const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_REVOGACAO };
   const erros = validarRegistro(registro);
   if (erros.length) return falha('revogacao_invalida', erros);
+  if (contemDadoSensivel(registro.motivo) || PADRAO_CPF.test(registro.motivo)) {
+    return falha('revogacao_invalida', ['motivo não pode conter e-mail, telefone, CPF ou credencial']);
+  }
   const divergencia = conferirRegistro(versao, historico, registro);
   if (divergencia) return divergencia;
   if (dataIsoValida(versao.publicadoEm) && registro.data < versao.publicadoEm) return falha('data_anterior_a_publicacao');

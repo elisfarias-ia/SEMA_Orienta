@@ -146,6 +146,23 @@ test('RR2. motivo validado só pela função do domínio: ausente, vazio, longo 
   });
 });
 
+test('RR2b. motivo com CPF, telefone ou credencial pela rota vira 422 motivo_invalido e nada muda', async () => {
+  await comLacPublicada(async ({ raiz, hash, revogar }) => {
+    const antes = retrato(raiz);
+    // montados por concatenação, para que nenhum literal fique no arquivo de teste
+    const motivos = [
+      `Pedido do titular ${['123', '456', '789'].join('.')}-${'09'}`,
+      `Ligar para ${['(65)', '9' + '8765'].join(' ')}-${'4321'}`,
+      `Acesso ${'sen' + 'ha'}: ${'abc' + '123'}`,
+    ];
+    for (const motivo of motivos) {
+      const r = await revogar({ revisao: hash, motivo });
+      assert.deepEqual([r.status, r.corpo], [422, { erro: 'motivo_invalido' }]);
+    }
+    assert.deepEqual(retrato(raiz), antes);
+  });
+});
+
 test('RR3. sem publicação em uso, a revogação é recusada (409) e nada muda', async () => {
   await comLacPublicada(async ({ raiz, revogar }) => {
     const antes = retrato(raiz);

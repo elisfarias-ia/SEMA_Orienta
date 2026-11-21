@@ -43,7 +43,7 @@ export function validarCorpoDePublicacao(corpo, revisaoDoCabecalho) {
 
 /**
  * Corpo da revogação (Sprint 7, Passo 7B): só `revisao` (ou X-Revisao) e `motivo`. Aqui se confere apenas a FORMA do corpo e se
- * apara o motivo (como a tela já faz); o conteúdo do motivo (obrigatório, tamanho, sem e-mail) é validado uma única vez, por
+ * apara o motivo (como a tela já faz); o conteúdo do motivo (obrigatório, tamanho, sem e-mail, telefone, CPF ou credencial) é validado uma única vez, por
  * revogarVersao (decisoes.js). Motivo que não é texto segue como veio, para ser recusado lá.
  */
 export function validarCorpoDeRevogacao(corpo, revisaoDoCabecalho) {
@@ -276,7 +276,7 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
    * publicado -> revogado (Sprint 7, Passo 7B), numa única transação: manifesto (estado e revogadoEm), registro (publicado: false,
    * versaoPublicadaId: null) e, na conferência final, a decisão de revogação e a ação no histórico privado. Se qualquer etapa falhar,
    * tudo é desfeito. O arquivo público continua no disco como histórico imutável, mas deixa de ser servido e de entrar no build.
-   * O motivo é validado só por revogarVersao (decisoes.js). O ator vem da lista fixa de atores.js; sem ator, vale o de demonstração.
+   * O motivo (sem e-mail, telefone, CPF ou credencial) é validado só por revogarVersao (decisoes.js). O ator vem da lista fixa de atores.js; sem ator, vale o de demonstração.
    */
   function revogar(servicoId, { revisao, motivo, ator }) {
     try {

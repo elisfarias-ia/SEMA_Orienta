@@ -1378,7 +1378,7 @@ export const MENSAGENS_PUBLICACAO = Object.freeze({
 });
 // Revogação (Sprint 7, Passo 7B): tira de uso a versão publicada inteira; o motivo é obrigatório e fica registrado.
 export const TEXTO_CONFIRMAR_REVOGACAO = 'Ao revogar, o chatbot deixa de usar o conteúdo desta versão. A versão não volta a ser publicada: para publicar de novo, será preciso criar uma nova versão e passar por revisão, autorização e publicação.';
-export const AVISO_MOTIVO_REVOGACAO = 'Informe o motivo da revogação. Não inclua dados pessoais.';
+export const AVISO_MOTIVO_REVOGACAO = 'Informe o motivo da revogação, sem nomes nem outros dados pessoais. O sistema recusa os formatos comuns de e-mail, telefone, CPF e senha; um número de processo ou protocolo com 10 ou 11 dígitos seguidos também é recusado, por parecer telefone.';
 export const MENSAGEM_MOTIVO_OBRIGATORIO = 'Informe o motivo da revogação.';
 export const LIMITE_MOTIVO_REVOGACAO = 500;
 
@@ -1468,7 +1468,7 @@ export function mensagemDaPublicacao(status, corpo, acao = 'autorizar') {
     return { mensagem: `Não foi possível ${verbo}. Nada foi alterado.`, recarregar: true };
   }
   if (status === 422) {
-    if (erro === 'motivo_invalido') return { mensagem: `Informe um motivo de até ${LIMITE_MOTIVO_REVOGACAO} caracteres, sem e-mail. Nada foi alterado.`, campo: 'motivo' };
+    if (erro === 'motivo_invalido') return { mensagem: `Informe um motivo de até ${LIMITE_MOTIVO_REVOGACAO} caracteres, sem e-mail, telefone, CPF ou senha. Nada foi alterado.`, campo: 'motivo' };
     if (erro === 'sem_informacao_aceita') return { mensagem: 'Não há nenhuma informação aceita para publicar. Nada foi alterado.', recarregar: true };
     if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências na revisão. Nada foi alterado.', recarregar: true };
     if (erro === 'conteudo_excluido_citado') return { mensagem: 'Há informação que ainda cita um documento ou link excluído. Nada foi alterado; crie uma nova versão para corrigir.', recarregar: true };
