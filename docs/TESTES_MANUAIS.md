@@ -366,3 +366,21 @@ A conferência do botão e do diálogo de revogação, pendente desde o Passo 7B
 - Usar o diálogo por teclado (Tab, Esc e foco) e conferir a leitura por leitor de tela.
 - Conferir a aparência em celular (390 px) e em computador.
 - Fazer a revogação numa cópia preparada pela própria usuária, se quiser evidência visual (por exemplo, captura de tela), sem usar a base real.
+
+### Roteiro — login simulado (Sprint 8, Passo 8B) — **não executado**
+
+Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi executado ou aprovado ainda. Entrar, trocar e sair só mudam a sessão em memória; se alguma gravação for feita durante o teste, restaurar `services/` e `data/` pelo Git ao final (regra 11 do `CLAUDE.md`).
+
+| Id | Ação | Resultado esperado | Situação |
+|---|---|---|---|
+| LS-01 | Abrir `http://localhost:5173/admin/` com o servidor recém-iniciado | Aparece "Escolha com qual usuário entrar", com "Maria Silva — Cadastrante, CLABI", "Carlos Silva — Revisor, CLABI" e o aviso "Usuários fictícios de demonstração, sem senha." | não executado |
+| LS-02 | Clicar em "Acessar administração" sem escolher | Mensagem "Escolha com qual usuário entrar." junto do grupo, com o foco no grupo | não executado |
+| LS-03 | Escolher Maria e acessar | Lista de serviços; topo "Maria Silva — Cadastrante", "Trocar usuário" e "Sair"; nenhuma menção a "demonstração" depois da entrada | não executado |
+| LS-04 | "Trocar usuário" e depois "Cancelar" | Volta à lista sem mudar; o topo continua com Maria | não executado |
+| LS-05 | "Trocar usuário", escolher Carlos e acessar | Topo "Carlos Silva — Revisor" | não executado |
+| LS-06 | Recarregar a página | Entra direto, com o mesmo usuário no topo | não executado |
+| LS-07 | Abrir "Saúde do sistema" e "Conteúdo para respostas" | O nome aparece no topo e "Trocar usuário" leva de volta à gestão | não executado |
+| LS-08 | Duas abas: na segunda, trocar para outro usuário; na primeira, fazer qualquer ação | A primeira aba mostra "O usuário da sessão mudou. Atualize a página." e volta à escolha | não executado |
+| LS-09 | "Sair" | Volta à escolha, com o foco em "Acessar administração"; recarregar continua sem usuário | não executado |
+| LS-10 | Usar só o teclado (Tab, setas, Espaço e Enter) na escolha | O foco é visível, as setas trocam a opção e Enter entra | não executado |
+| LS-11 | Com Maria na sessão, fazer uma gravação numa cópia (ou restaurar pelo Git depois) e olhar o histórico em `data/admin-private/` | O registro ainda traz o ator de demonstração (efeito colateral esperado até o 8C) | não executado |

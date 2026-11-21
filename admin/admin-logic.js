@@ -542,18 +542,118 @@ export function mensagemDeErro(status, corpo, contexto = 'geral') {
   return MENSAGENS.generica;
 }
 
+// ---------- Sessão do login simulado (Sprint 8, Passo 8B) ----------
+// Usuários fictícios, sem senha: escolher um usuário não comprova identidade. O token fica só dentro de cada cliente.
+
+const PADRAO_TOKEN_SESSAO = /^[0-9a-f]{64}$/;
+const ROTULOS_DO_PERFIL = Object.freeze({ cadastrante: 'Cadastrante', revisor: 'Revisor' });
+const CAMPOS_DO_USUARIO = 'nome,perfil,setor,usuarioId';
+export const MENSAGEM_USUARIO_MUDOU = 'O usuário da sessão mudou. Atualize a página.';
+export const MENSAGEM_SEM_USUARIO = 'Escolha o usuário na Gestão de conteúdo.';
+export const MENSAGEM_ESCOLHA_USUARIO = 'Escolha com qual usuário entrar.';
+export const AVISO_USUARIOS_FICTICIOS = 'Usuários fictícios de demonstração, sem senha.';
+
+/** Rótulo do perfil para a tela; perfil desconhecido não é repetido. */
+export const rotuloDoPerfil = (perfil) => (ehTexto(perfil) && Object.hasOwn(ROTULOS_DO_PERFIL, perfil) ? ROTULOS_DO_PERFIL[perfil] : 'Perfil indisponível');
+/** "Nome — Perfil" (topo das páginas). */
+export const rotuloDoUsuario = (u) => `${u.nome} — ${rotuloDoPerfil(u.perfil)}`;
+/** "Nome — Perfil, Setor" (opções da escolha). */
+export const rotuloDaEscolha = (u) => `${u.nome} — ${rotuloDoPerfil(u.perfil)}, ${u.setor}`;
+
+const textoDeUsuarioOk = (v, max) => ehTexto(v) && v.trim() !== '' && v.length <= max && !CONTROLE.test(v);
+
+function usuarioDaSessao(u) {
+  if (!ehObjeto(u) || Object.keys(u).sort().join(',') !== CAMPOS_DO_USUARIO) return null;
+  if (!ehTexto(u.usuarioId) || u.usuarioId.length > 60 || !PADRAO_ID.test(u.usuarioId)) return null;
+  if (!textoDeUsuarioOk(u.nome, 120) || !textoDeUsuarioOk(u.setor, 120)) return null;
+  if (!ehTexto(u.perfil) || !Object.hasOwn(ROTULOS_DO_PERFIL, u.perfil)) return null;
+  return { usuarioId: u.usuarioId, nome: u.nome, perfil: u.perfil, setor: u.setor };
+}
+
+/**
+ * Confere a resposta da sessão em formato fechado. Aceita a leitura (GET: usuario, usuarios e, só com usuário, token) e a
+ * entrada (POST: token e usuario). Devolve { usuario, usuarios, token } (usuarios = null na entrada) ou null.
+ */
+export function normalizarSessao(corpo) {
+  if (!ehObjeto(corpo)) return null;
+  const chaves = Object.keys(corpo).sort().join(',');
+  const temToken = Object.hasOwn(corpo, 'token');
+  if (temToken && (!ehTexto(corpo.token) || !PADRAO_TOKEN_SESSAO.test(corpo.token))) return null;
+  if (chaves === 'token,usuario') {
+    const usuario = usuarioDaSessao(corpo.usuario);
+    return usuario === null ? null : { usuario, usuarios: null, token: corpo.token };
+  }
+  if (chaves !== 'usuario,usuarios' && chaves !== 'token,usuario,usuarios') return null;
+  if (!Array.isArray(corpo.usuarios) || corpo.usuarios.length === 0 || corpo.usuarios.length > 20) return null;
+  const usuarios = corpo.usuarios.map(usuarioDaSessao);
+  if (usuarios.some((u) => u === null) || new Set(usuarios.map((u) => u.usuarioId)).size !== usuarios.length) return null;
+  const usuario = corpo.usuario === null ? null : usuarioDaSessao(corpo.usuario);
+  if (corpo.usuario !== null && usuario === null) return null;
+  if ((usuario !== null) !== temToken) return null;
+  if (usuario !== null && !usuarios.some((u) => u.usuarioId === usuario.usuarioId)) return null;
+  return { usuario, usuarios, token: temToken ? corpo.token : null };
+}
+
+/**
+ * Operações de sessão comuns aos dois clientes. `chamar(metodo, caminho, corpo, comToken)`; o token é lido e trocado só pelas
+ * funções `lerToken`/`definirToken` da closure do cliente.
+ */
+function operacoesDeSessao({ chamar, lerToken, definirToken, rota, mensagens }) {
+  async function recuperarSessao() {
+    const r = await chamar('GET', rota, undefined, false);
+    if (r.falhaDeRede) return { ok: false, mensagem: mensagens.rede };
+    if (r.status === 403) return { ok: false, mensagem: mensagens.acesso };
+    const s = r.ok ? normalizarSessao(r.corpo) : null;
+    if (s === null || s.usuarios === null) return { ok: false, mensagem: mensagens.falha };
+    definirToken(s.token);
+    return { ok: true, usuario: s.usuario, usuarios: s.usuarios };
+  }
+  return {
+    recuperarSessao,
+    /** Retoma a sessão já escolhida (sem escolher usuário). Sem usuário na sessão, falha com a orientação de escolha. */
+    async retomarSessao() {
+      const r = await recuperarSessao();
+      if (!r.ok) return r;
+      if (r.usuario === null) return { ok: false, semUsuario: true, mensagem: MENSAGEM_SEM_USUARIO };
+      return { ok: true };
+    },
+    /** Entra com um usuário selecionável (POST só com usuarioId). Um token novo substitui o anterior. */
+    async entrarComo(usuarioId) {
+      if (!ehTexto(usuarioId) || usuarioId.length > 60 || !PADRAO_ID.test(usuarioId)) return { ok: false, mensagem: MENSAGEM_ESCOLHA_USUARIO };
+      const r = await chamar('POST', rota, { usuarioId }, false);
+      if (r.falhaDeRede) return { ok: false, mensagem: mensagens.rede };
+      if (r.status === 403) return { ok: false, mensagem: mensagens.acesso };
+      if (r.status === 422) return { ok: false, mensagem: MENSAGEM_ESCOLHA_USUARIO };
+      const s = r.ok ? normalizarSessao(r.corpo) : null;
+      if (s === null || s.usuarios !== null) return { ok: false, mensagem: mensagens.falha };
+      definirToken(s.token);
+      return { ok: true, usuario: s.usuario };
+    },
+    /** Sai: envia DELETE com o token atual e só depois zera o token local (mesmo se o servidor recusar). */
+    async sair() {
+      const atual = lerToken();
+      if (atual === null) return { ok: true };
+      const r = await chamar('DELETE', rota, undefined, true);
+      if (lerToken() === atual) definirToken(null);
+      if (r.falhaDeRede) return { ok: false, mensagem: mensagens.rede };
+      return { ok: true };
+    },
+  };
+}
+
 // ---------- Cliente do endpoint administrativo ----------
 
 /**
  * Cria o cliente. `fetchImpl` é o `fetch` (injetado para teste). O token fica só na variável `token`, sem acesso externo.
  * Cada gravação só começa se a sessão existir e nenhuma outra estiver em andamento (sem envio duplicado).
  */
-export function criarClienteAdmin({ fetchImpl }) {
+export function criarClienteAdmin({ fetchImpl, aoPerderSessao } = {}) {
   let token = null;
   let gravando = false;
 
   async function chamar(metodo, caminho, corpo, { comToken = true, extras = {} } = {}) {
     const cabecalhos = { Accept: 'application/json', ...extras };
+    const tokenUsado = token;
     if (comToken) cabecalhos[CABECALHO_TOKEN] = token;
     const opcoes = { method: metodo, headers: cabecalhos, cache: 'no-store', credentials: 'omit', redirect: 'error' };
     if (corpo !== undefined) {
@@ -570,21 +670,33 @@ export function criarClienteAdmin({ fetchImpl }) {
     try {
       json = await resposta.json();
     } catch { /* corpo ausente ou inválido: tratado só pelo status */ }
+    // 401 com o token em uso: o usuário da sessão mudou (outra aba ou reinício). Zera o token e avisa a tela.
+    if (comToken && resposta.status === 401 && caminho !== ROTAS.sessao && tokenUsado !== null && token === tokenUsado) {
+      token = null;
+      if (typeof aoPerderSessao === 'function') aoPerderSessao();
+    }
     return { status: resposta.status, corpo: json, ok: resposta.status >= 200 && resposta.status < 300 };
   }
+  const sessao = operacoesDeSessao({
+    chamar: (metodo, caminho, corpo, comToken) => chamar(metodo, caminho, corpo, { comToken }),
+    lerToken: () => token,
+    definirToken: (novo) => { token = novo; },
+    rota: ROTAS.sessao,
+    mensagens: { rede: MENSAGENS.rede, acesso: mensagemDeErro(403, null), falha: MENSAGENS.sessao },
+  });
 
   return {
     sessaoPronta: () => token !== null,
     gravando: () => gravando,
 
-    /** Obtém o token da sessão (GET /__admin/sessao). */
-    async iniciarSessao() {
-      const r = await chamar('GET', ROTAS.sessao, undefined, { comToken: false });
-      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS.rede };
-      if (!r.ok || !ehObjeto(r.corpo) || !ehTexto(r.corpo.token) || !/^[0-9a-f]{64}$/.test(r.corpo.token)) return { ok: false, mensagem: r.status === 403 ? mensagemDeErro(403, r.corpo) : MENSAGENS.sessao };
-      token = r.corpo.token;
-      return { ok: true };
-    },
+    /** Lê a sessão (GET /__admin/sessao): usuário atual (ou null) e usuários selecionáveis; guarda o token, se houver. */
+    recuperarSessao: sessao.recuperarSessao,
+    /** Retoma a sessão já escolhida; sem usuário escolhido, falha com a orientação de escolher na Gestão de conteúdo. */
+    iniciarSessao: sessao.retomarSessao,
+    /** Entra com um usuário selecionável (POST só com usuarioId). */
+    entrarComo: sessao.entrarComo,
+    /** Sai: DELETE /__admin/sessao com o token atual e, depois, zera o token local. */
+    sair: sessao.sair,
 
     /** Carrega o catálogo e o estado da versão atual de cada serviço (apenas o campo "estado" do manifesto é usado). */
     async carregarCatalogo() {
@@ -1024,15 +1136,17 @@ export function mensagemDaGestao(status, corpo, contexto = 'geral') {
 }
 
 /**
- * Cliente da gestão por serviço. O token vem de GET /__admin/sessao ao entrar e fica só nesta variável (memória).
+ * Cliente da gestão por serviço. O token vem da sessão (POST /__admin/sessao ao escolher o usuário, ou GET para retomá-la) e
+ * fica só nesta variável (memória).
  * Gravações são uma por vez: com uma em andamento, a seguinte nem é enviada.
  */
-export function criarClienteGestao({ fetchImpl }) {
+export function criarClienteGestao({ fetchImpl, aoPerderSessao } = {}) {
   let token = null;
   let gravando = false;
 
   async function chamar(metodo, caminho, corpo, comToken = true) {
     const cabecalhos = { Accept: 'application/json' };
+    const tokenUsado = token;
     if (comToken) cabecalhos[CABECALHO_TOKEN] = token;
     const opcoes = { method: metodo, headers: cabecalhos, cache: 'no-store', credentials: 'omit', redirect: 'error' };
     if (corpo !== undefined) {
@@ -1047,8 +1161,20 @@ export function criarClienteGestao({ fetchImpl }) {
     }
     let json = null;
     try { json = await resposta.json(); } catch { /* sem corpo legível: vale só o status */ }
+    // 401 com o token em uso: o usuário da sessão mudou (outra aba ou reinício). Zera o token e avisa a tela.
+    if (comToken && resposta.status === 401 && caminho !== ROTAS_GESTAO.sessao && tokenUsado !== null && token === tokenUsado) {
+      token = null;
+      if (typeof aoPerderSessao === 'function') aoPerderSessao();
+    }
     return { status: resposta.status, corpo: json, ok: resposta.status >= 200 && resposta.status < 300 };
   }
+  const sessao = operacoesDeSessao({
+    chamar,
+    lerToken: () => token,
+    definirToken: (novo) => { token = novo; },
+    rota: ROTAS_GESTAO.sessao,
+    mensagens: { rede: MENSAGENS_GESTAO.rede, acesso: MENSAGENS_GESTAO.acessoLocal, falha: MENSAGENS_GESTAO.entrada },
+  });
   const rotaDoServico = (id, final) => `/__admin/servicos/${encodeURIComponent(id)}/${final}`;
   const idOk = (id) => ehTexto(id) && PADRAO_ID.test(id);
   const recusa = () => Promise.resolve({ ok: false, mensagem: MENSAGENS_GESTAO.generica });
@@ -1074,16 +1200,14 @@ export function criarClienteGestao({ fetchImpl }) {
   return {
     entrou: () => token !== null,
     gravando: () => gravando,
-    sair() { token = null; },
-
-    async entrar() {
-      const r = await chamar('GET', ROTAS_GESTAO.sessao, undefined, false);
-      if (r.falhaDeRede) return { ok: false, mensagem: MENSAGENS_GESTAO.rede };
-      if (r.status === 403) return { ok: false, mensagem: MENSAGENS_GESTAO.acessoLocal };
-      if (!r.ok || !ehObjeto(r.corpo) || !ehTexto(r.corpo.token) || !/^[0-9a-f]{64}$/.test(r.corpo.token)) return { ok: false, mensagem: MENSAGENS_GESTAO.entrada };
-      token = r.corpo.token;
-      return { ok: true };
-    },
+    /** Sai: DELETE /__admin/sessao com o token atual e, depois, zera o token local. */
+    sair: sessao.sair,
+    /** Lê a sessão: usuário atual (ou null) e usuários selecionáveis; guarda o token, se houver. */
+    recuperarSessao: sessao.recuperarSessao,
+    /** Retoma a sessão já escolhida (sem escolher usuário). */
+    entrar: sessao.retomarSessao,
+    /** Entra com um usuário selecionável (POST só com usuarioId). */
+    entrarComo: sessao.entrarComo,
 
     async carregarCatalogo() {
       if (token === null) return { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada };

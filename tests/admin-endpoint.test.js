@@ -8,6 +8,7 @@ import { hashConteudo } from '../services/admin/hash.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import {
   criarManipuladorAdmin, criarPluginAdminDev, CABECALHO_TOKEN, ROTA_SESSAO, ROTA_CATALOGO, LIMITE_RESPOSTA,
@@ -37,11 +38,23 @@ async function chamar(manipulador, { url = ROTA_CATALOGO, method = 'GET', header
   return { status: res.statusCode, corpo: corpo === null ? null : JSON.parse(corpo), textoBruto: corpo ?? '', cabecalhos, proximo };
 }
 
+/** Passo 8B: entra com um usuário selecionável (POST /__admin/sessao) e devolve a resposta. */
+async function entrarComo(manipulador, usuarioId = 'maria-silva') {
+  const buffer = Buffer.from(JSON.stringify({ usuarioId }));
+  const headers = { ...HEADERS_OK, 'content-type': 'application/json', 'content-length': String(buffer.length) };
+  const cabecalhos = {};
+  let corpo = null;
+  const res = { statusCode: 0, setHeader: (n, v) => { cabecalhos[n.toLowerCase()] = v; }, end: (t) => { corpo = t; } };
+  const req = Object.assign(Readable.from([buffer]), { url: ROTA_SESSAO, method: 'POST', headers, socket: { remoteAddress: '127.0.0.1', localPort: 5173 } });
+  await manipulador(req, res, () => {});
+  return { status: res.statusCode, corpo: corpo === null ? null : JSON.parse(corpo), textoBruto: corpo ?? '', cabecalhos };
+}
+const obterToken = async (m) => (await entrarComo(m)).corpo.token;
+
 const novo = (extra = {}) => criarManipuladorAdmin({ raiz: RAIZ, ...extra });
 async function comToken(extra = {}) {
   const m = novo(extra);
-  const { corpo } = await chamar(m, { url: ROTA_SESSAO });
-  return { m, token: corpo.token };
+  return { m, token: await obterToken(m) };
 }
 
 /** Cópia temporária (fora do repositório) com um "dado privado" fictício que o endpoint nunca pode ler. */
@@ -73,34 +86,39 @@ const instantaneo = (dir) => {
 
 // ---------- Sessão e token ----------
 
-test('AD1. /__admin/sessao entrega um token aleatório de 64 hex; a mesma sessão devolve o mesmo token; outra sessão, outro', async () => {
+test('AD1. (8B) GET /__admin/sessao sem usuário não cria token; a entrada (POST) entrega um token aleatório de 64 hex, que o GET devolve depois', async () => {
   const m = novo();
-  const a = await chamar(m, { url: ROTA_SESSAO });
+  const vazio = await chamar(m, { url: ROTA_SESSAO });
+  assert.equal(vazio.status, 200);
+  assert.deepEqual(Object.keys(vazio.corpo), ['usuario', 'usuarios']);
+  assert.equal(vazio.corpo.usuario, null);
+  assert.equal(vazio.cabecalhos['cache-control'], 'no-store');
+  assert.equal(vazio.cabecalhos['x-content-type-options'], 'nosniff');
+  assert.match(vazio.cabecalhos['content-type'], /^application\/json/);
+  const a = await entrarComo(m);
   assert.equal(a.status, 200);
   assert.match(a.corpo.token, /^[0-9a-f]{64}$/);
-  assert.deepEqual(Object.keys(a.corpo), ['token']);
   assert.equal(a.cabecalhos['cache-control'], 'no-store');
-  assert.equal(a.cabecalhos['x-content-type-options'], 'nosniff');
-  assert.match(a.cabecalhos['content-type'], /^application\/json/);
   assert.equal((await chamar(m, { url: ROTA_SESSAO })).corpo.token, a.corpo.token);
   const tokens = new Set();
-  for (let i = 0; i < 20; i += 1) tokens.add((await chamar(novo(), { url: ROTA_SESSAO })).corpo.token);
+  for (let i = 0; i < 20; i += 1) tokens.add(await obterToken(novo()));
   assert.equal(tokens.size, 20);
 });
 
-test('AD2. o token é criado só na primeira chamada de sessão, uma única vez, e vem do gerador injetado quando houver', async () => {
+test('AD2. (8B) o token só é criado na entrada (POST), uma vez por entrada, e vem do gerador injetado quando houver', async () => {
   let chamadas = 0;
   const fixo = 'ab'.repeat(32);
   const m = novo({ gerarToken: () => { chamadas += 1; return fixo; } });
   assert.equal(chamadas, 0, 'nada é gerado ao criar o manipulador');
   await chamar(m, { url: ROTA_CATALOGO, token: fixo });
-  assert.equal(chamadas, 0, 'rotas protegidas não geram token');
-  assert.equal((await chamar(m, { url: ROTA_SESSAO })).corpo.token, fixo);
+  await chamar(m, { url: ROTA_SESSAO });
+  assert.equal(chamadas, 0, 'rotas protegidas e a leitura da sessão não geram token');
+  assert.equal(await obterToken(m), fixo);
   await chamar(m, { url: ROTA_SESSAO });
   assert.equal(chamadas, 1);
   // Um gerador que devolva token fora do formato é recusado, sem vazar nada.
   const ruim = novo({ gerarToken: () => 'curto' });
-  const r = await chamar(ruim, { url: ROTA_SESSAO });
+  const r = await entrarComo(ruim);
   assert.equal(r.status, 500);
   assert.deepEqual(r.corpo, { erro: 'indisponivel' });
   assert.equal(r.textoBruto.includes('curto'), false);
@@ -109,7 +127,7 @@ test('AD2. o token é criado só na primeira chamada de sessão, uma única vez,
 test('AD3. rotas protegidas exigem o token: ausente, inválido e antes da sessão são recusados; o correto é aceito', async () => {
   const m = novo();
   assert.equal((await chamar(m, { url: ROTA_CATALOGO, token: 'a'.repeat(64) })).status, 401, 'sem sessão criada');
-  const { token } = (await chamar(m, { url: ROTA_SESSAO })).corpo;
+  const token = await obterToken(m);
   for (const rota of [ROTA_CATALOGO, ROTA_LAC]) {
     assert.equal((await chamar(m, { url: rota })).status, 401, `${rota} sem token`);
     for (const ruim of ['', 'x', 'a'.repeat(64), token.slice(1), `${token}0`, token.toUpperCase(), ` ${token}`, `${token} `, 'null', '0'.repeat(64)]) {
@@ -125,7 +143,7 @@ test('AD3. rotas protegidas exigem o token: ausente, inválido e antes da sessã
   }
 });
 
-test('AD3b. chamadas simultâneas a /__admin/sessao recebem todas o mesmo token, que depois acessa catálogo e versão atual', async () => {
+test('AD3b. (8B) leituras simultâneas de /__admin/sessao depois da entrada recebem todas o mesmo token, que depois acessa catálogo e versão atual', async () => {
   const saidas = [];
   const originais = {};
   for (const nivel of ['log', 'info', 'warn', 'error', 'debug']) {
@@ -141,13 +159,14 @@ test('AD3b. chamadas simultâneas a /__admin/sessao recebem todas o mesmo token,
     // Gerador injetado só para contar as criações: cada chamada devolveria um valor diferente, então
     // qualquer corrida na inicialização faria chamadas simultâneas receberem tokens distintos.
     const m = novo({ gerarToken: () => { geradas += 1; return crypto.randomBytes(32).toString('hex'); } });
+    await obterToken(m);
     sessoes = await Promise.all(Array.from({ length: 50 }, () => chamar(m, { url: ROTA_SESSAO })));
     token = sessoes[0].corpo.token;
     acessos = await Promise.all([chamar(m, { url: ROTA_CATALOGO, token }), chamar(m, { url: ROTA_LAC, token })]);
     erros = await Promise.all([
       chamar(m, { url: ROTA_CATALOGO }), chamar(m, { url: ROTA_CATALOGO, token: 'a'.repeat(64) }), chamar(m, { url: ROTA_LAC, token: token.slice(1) }),
       chamar(m, { url: ROTA_SESSAO, remoteAddress: '10.0.0.2' }), chamar(m, { url: ROTA_SESSAO, headers: { host: 'evil.example' } }),
-      chamar(m, { url: `${ROTA_SESSAO}?x=1` }), chamar(m, { url: ROTA_SESSAO, method: 'POST' }),
+      chamar(m, { url: `${ROTA_SESSAO}?x=1` }), chamar(m, { url: ROTA_SESSAO, method: 'PUT' }),
     ]);
   } finally {
     Object.assign(console, originais);
@@ -168,7 +187,7 @@ test('AD3b. chamadas simultâneas a /__admin/sessao recebem todas o mesmo token,
 test('AD4. o token de uma sessão não vale em outra instância (servidor reiniciado)', async () => {
   const { token } = await comToken();
   const outra = novo();
-  await chamar(outra, { url: ROTA_SESSAO });
+  await obterToken(outra);
   assert.equal((await chamar(outra, { url: ROTA_CATALOGO, token })).status, 401);
 });
 
@@ -183,7 +202,7 @@ test('AD5. o token não aparece em respostas de erro, em log nem em console, e o
   let token;
   try {
     const m = novo();
-    token = (await chamar(m, { url: ROTA_SESSAO })).corpo.token;
+    token = await obterToken(m);
     respostas = await Promise.all([
       chamar(m, { url: ROTA_CATALOGO }), chamar(m, { url: ROTA_CATALOGO, token: 'a'.repeat(64) }), chamar(m, { url: ROTA_CATALOGO, method: 'POST', token }),
       chamar(m, { url: `${ROTA_CATALOGO}?t=${token}`, token }), chamar(m, { url: '/__admin/outra', token }), chamar(m, { url: ROTA_LAC, remoteAddress: '10.0.0.2', token }),
@@ -257,10 +276,10 @@ test('AD8. valida a Origin: se enviada, deve coincidir com o host local da requi
 
 // ---------- Método, query, corpo e rotas ----------
 
-test('AD9. aceita somente GET: os demais métodos recebem 405 com Allow: GET, mesmo com token válido', async () => {
+test('AD9. aceita somente GET: os demais métodos recebem 405 com Allow: GET, mesmo com token válido (a sessão aceita também POST e DELETE: 8B)', async () => {
   const { m, token } = await comToken();
   for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE', 'get']) {
-    for (const url of [ROTA_SESSAO, ROTA_CATALOGO, ROTA_LAC]) {
+    for (const url of [ROTA_CATALOGO, ROTA_LAC]) {
       const r = await chamar(m, { url, method, token });
       assert.equal(r.status, 405, `${method} ${url}`);
       assert.equal(r.cabecalhos.allow, 'GET');
@@ -356,7 +375,7 @@ test('AD15. nenhuma decisão privada é exposta nem lida: o endpoint nunca toca 
   try {
     await comCopia(async ({ raiz }) => {
       const m = criarManipuladorAdmin({ raiz });
-      const { token } = (await chamar(m, { url: ROTA_SESSAO })).corpo;
+      const token = await obterToken(m);
       const respostas = [await chamar(m, { url: ROTA_CATALOGO, token }), await chamar(m, { url: ROTA_LAC, token }), await chamar(m, { url: '/__admin/data/admin-private/historico.jsonl', token })];
       for (const r of respostas) {
         assert.equal(r.textoBruto.includes('SEGREDO-FICTICIO'), false);
@@ -376,7 +395,7 @@ test('AD15. nenhuma decisão privada é exposta nem lida: o endpoint nunca toca 
 
 // ---------- Somente leitura, concorrência, limites e falhas ----------
 
-test('AD16. requisições simultâneas não alteram estado persistente: mesmo token, mesmas respostas, nenhuma escrita', async () => {
+test('AD16. requisições simultâneas não alteram estado persistente: mesmo token, mesmas respostas, nenhuma escrita (8B: leituras da sessão depois da entrada)', async () => {
   const escritas = [];
   let gravando = false; // só conta chamadas feitas enquanto as requisições são atendidas (não a preparação do teste)
   const originais = {};
@@ -389,6 +408,7 @@ test('AD16. requisições simultâneas não alteram estado persistente: mesmo to
       const antes = instantaneo(raiz);
       gravando = true;
       const m = criarManipuladorAdmin({ raiz });
+      await obterToken(m);
       const sessoes = await Promise.all(Array.from({ length: 30 }, () => chamar(m, { url: ROTA_SESSAO })));
       const token = sessoes[0].corpo.token;
       assert.ok(sessoes.every((s) => s.corpo.token === token), 'um único token para todas as chamadas simultâneas');
@@ -416,7 +436,7 @@ test('AD17. limites: resposta grande demais e arquivo grande demais viram erro g
   await comCopia(async ({ raiz }) => {
     fs.writeFileSync(path.join(raiz, ...V1, 'documentos.json'), `{"x":"${'a'.repeat(6 * 1024 * 1024)}"}`);
     const m2 = criarManipuladorAdmin({ raiz });
-    const t = (await chamar(m2, { url: ROTA_SESSAO })).corpo.token;
+    const t = await obterToken(m2);
     const r = await chamar(m2, { url: ROTA_LAC, token: t });
     assert.deepEqual(r.corpo, { erro: 'indisponivel' });
     assert.equal(r.textoBruto.includes('documentos'), false);
@@ -424,7 +444,7 @@ test('AD17. limites: resposta grande demais e arquivo grande demais viram erro g
   await comCopia(async ({ raiz }) => {
     fs.writeFileSync(path.join(raiz, ...V1, 'roteiro.md'), 'a'.repeat(1024 * 1024 + 1));
     const m2 = criarManipuladorAdmin({ raiz });
-    const t = (await chamar(m2, { url: ROTA_SESSAO })).corpo.token;
+    const t = await obterToken(m2);
     assert.deepEqual((await chamar(m2, { url: ROTA_LAC, token: t })).corpo, { erro: 'indisponivel' });
   });
 });
@@ -439,7 +459,7 @@ test('AD18. falhas de leitura devolvem 500 genérico, sem caminho interno nem co
   for (const [nome, preparar] of Object.entries(casos)) {
     await comCopia(async ({ raiz, pai }) => {
       const m = criarManipuladorAdmin({ raiz });
-      const { token } = (await chamar(m, { url: ROTA_SESSAO })).corpo;
+      const token = await obterToken(m);
       preparar({ raiz });
       for (const url of [ROTA_CATALOGO, ROTA_LAC]) {
         const r = await chamar(m, { url, token });
@@ -454,7 +474,7 @@ test('AD18. falhas de leitura devolvem 500 genérico, sem caminho interno nem co
     });
   }
   const semRaiz = criarManipuladorAdmin({ raiz: 'relativa/invalida' });
-  const s = (await chamar(semRaiz, { url: ROTA_SESSAO })).corpo.token;
+  const s = await obterToken(semRaiz);
   assert.deepEqual((await chamar(semRaiz, { url: ROTA_CATALOGO, token: s })).corpo, { erro: 'indisponivel' });
 });
 
@@ -465,7 +485,7 @@ test('AD19. pasta de versão que é link simbólico não é lida', async () => {
     fs.rmSync(path.join(raiz, ...V1), { recursive: true });
     fs.symlinkSync(fora, path.join(raiz, ...V1), 'junction');
     const m = criarManipuladorAdmin({ raiz });
-    const { token } = (await chamar(m, { url: ROTA_SESSAO })).corpo;
+    const token = await obterToken(m);
     const r = await chamar(m, { url: ROTA_LAC, token });
     assert.equal(r.status, 500);
     assert.deepEqual(r.corpo, { erro: 'indisponivel' });
@@ -498,9 +518,11 @@ test('AD21. o código só grava pelo cadastro transacional e usa node:crypto: se
   assert.doesNotMatch(codigo, /localStorage|sessionStorage|document\.cookie|Set-Cookie|process\.env|Date\.now|fetch\(|node:http|node:net/);
   assert.equal((codigo.match(/new Date\(\)/g) ?? []).length, 1, 'o relógio padrão é o único uso de Date e é injetável');
   assert.doesNotMatch(codigo, /services\/lac|'lac'|"lac"|conteudo-assistente\.json|fontes\.json|documentos\.json/);
-  assert.match(codigo, /crypto\.randomBytes\(32\)/);
-  assert.match(codigo, /crypto\.timingSafeEqual/);
+  // 8B: o token e a comparação em tempo constante ficam no módulo puro da sessão.
+  const sessao = lerTexto('services', 'admin', 'sessao.js');
+  assert.match(sessao, /crypto\.randomBytes\(32\)/);
+  assert.match(sessao, /crypto\.timingSafeEqual/);
   assert.doesNotMatch(codigo, /console\./);
   const imports = [...codigo.matchAll(/^import [^;]*? from '([^']+)';/gms)].map((m) => m[1]).sort();
-  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './edicao-fonte.js', './edicao-tema-servico.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './importacao-conteudo.js', './publicacao.js', './reutilizacao.js', './revisao-servico.js', './revisao.js', './saude.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
+  assert.deepEqual(imports, ['../../scripts/validate-services.js', '../versao-atual.js', './armazenamento.js', './cadastro-guiado.js', './cadastro.js', './conhecimento.js', './edicao-fonte.js', './edicao-tema-servico.js', './entradas-gravacao.js', './gestao-simples.js', './hash.js', './importacao-conteudo.js', './publicacao.js', './reutilizacao.js', './revisao-servico.js', './revisao.js', './saude.js', './sessao.js', './transacao.js', './versao.js', 'node:crypto', 'node:fs', 'node:os', 'node:path']);
 });

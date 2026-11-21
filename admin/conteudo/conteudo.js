@@ -10,9 +10,11 @@ import {
   AVISO_AUTORIZACAO, MENSAGENS_PUBLICACAO, TEXTO_CONFIRMAR_AUTORIZACAO, TEXTO_CONFIRMAR_PUBLICACAO, TEXTO_DIFERENCA_ETAPAS, botoesDePublicacao, frasePublicacao, linhasDoResumoDePublicacao,
   AVISO_MOTIVO_REVOGACAO, MENSAGEM_MOTIVO_OBRIGATORIO, TEXTO_CONFIRMAR_REVOGACAO,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
+  MENSAGEM_SEM_USUARIO, MENSAGEM_USUARIO_MUDOU, rotuloDoUsuario,
 } from '../admin-logic.js';
 
-const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos) });
+// Se o servidor recusar o token (o usuário da sessão mudou), a página volta ao estado sem usuário.
+const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos), aoPerderSessao: () => setTimeout(perderSessao, 0) });
 const $ = (id) => document.getElementById(id);
 
 let catalogo = null;
@@ -1280,13 +1282,37 @@ $('botao-trocar-servico').addEventListener('click', () => {
 });
 $('botao-nova-orientacao').addEventListener('click', abrirFormulario);
 
+
+// ---------- Usuário da sessão (login simulado, Passo 8B) ----------
+// O usuário é escolhido na Gestão de conteúdo; aqui só aparece "Nome — Perfil" e o link "Trocar usuário" para lá.
+function mostrarUsuario(usuario) {
+  const quem = $('sessao-usuario');
+  quem.textContent = usuario === null ? '' : rotuloDoUsuario(usuario);
+  quem.hidden = usuario === null;
+  $('sessao-trocar').hidden = usuario === null;
+  $('sem-usuario').hidden = usuario !== null;
+}
+
+/** O servidor recusou o token em uso (outro usuário entrou em outra aba ou o servidor reiniciou). */
+function perderSessao() {
+  mostrarUsuario(null);
+  mostrarStatus(MENSAGEM_USUARIO_MUDOU, 'erro');
+  atualizarPermissoes();
+}
+
 async function iniciar() {
   atualizarPermissoes();
   mostrarStatus('Preparando a sessão administrativa…');
-  const sessao = await cliente.iniciarSessao();
+  const sessao = await cliente.recuperarSessao();
   if (!sessao.ok) {
     preencherAssuntos();
     mostrarStatus(sessao.mensagem ?? MENSAGENS.sessao, 'erro');
+    return;
+  }
+  mostrarUsuario(sessao.usuario);
+  if (sessao.usuario === null) {
+    preencherAssuntos();
+    mostrarStatus(MENSAGEM_SEM_USUARIO, 'erro');
     return;
   }
   const r = await carregarCatalogo();

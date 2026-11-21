@@ -2,8 +2,20 @@ import { test, expect, semRolagemHorizontal, focoVisivel } from './base.js';
 
 const VAZAMENTOS = /[A-Za-z]:\\|\/Users\/|SEMA_Orienta|node_modules|X-Admin-Token|\bat \S+ \(|stack|ENOENT|EACCES|TypeError|undefined|\[object/i;
 
+// Passo 8B (login simulado): a página só verifica a saúde com um usuário na sessão. A sessão é criada pela API (só muda a
+// memória do servidor, nada é gravado em disco) e encerrada ao fim de cada teste.
+async function encerrarSessao(request) {
+  const corpo = await (await request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+
 test.describe('Saúde do sistema', () => {
-  test.beforeEach(async ({ page }) => {
+  test.afterEach(async ({ request }) => {
+    await encerrarSessao(request);
+  });
+
+  test.beforeEach(async ({ page, request }) => {
+    await request.post('/__admin/sessao', { data: { usuarioId: 'maria-silva' } });
     await page.goto('/admin/saude/');
     await expect(page.locator('#saude-lista li')).toHaveCount(9);
   });
@@ -49,13 +61,14 @@ test.describe('Saúde do sistema', () => {
 
   test('a navegação por Tab tem foco visível', async ({ page }) => {
     const alvos = [];
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press('Tab');
       const nome = await page.evaluate(() => document.activeElement?.textContent?.trim().slice(0, 40));
       alvos.push(nome);
       await expect.poll(() => focoVisivel(page), { message: `foco visível em "${nome}"` }).toBeTruthy();
     }
-    // A página tem exatamente cinco elementos focáveis, nesta ordem (os detalhes técnicos só entram depois de uma verificação); o sexto Tab sairia da página.
-    expect(alvos).toEqual(['Ir para o conteúdo', 'Gestão de conteúdo', 'Conteúdo para respostas', 'Saúde do sistema', 'Verificar novamente']);
+    // A página tem exatamente seis elementos focáveis, nesta ordem (com usuário na sessão aparece "Trocar usuário", Passo 8B; os detalhes
+    // técnicos só entram depois de uma verificação); o sétimo Tab sairia da página.
+    expect(alvos).toEqual(['Ir para o conteúdo', 'Gestão de conteúdo', 'Conteúdo para respostas', 'Saúde do sistema', 'Trocar usuário', 'Verificar novamente']);
   });
 });

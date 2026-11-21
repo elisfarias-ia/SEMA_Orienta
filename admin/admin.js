@@ -1,14 +1,17 @@
 // Área administrativa local (ambiente local). Só liga a lógica (admin-logic.js) ao DOM.
 // Regras: textos montados com textContent e createElement (nunca HTML em texto), sem armazenamento do navegador, sem cookies
-// e sem log. A chave da sessão fica dentro do cliente (memória): recarregar a página ou sair exige uma nova entrada.
+// e sem log. A chave da sessão fica dentro do cliente (memória). Login simulado (Passo 8B): ao abrir, a página lê a sessão do
+// servidor local; sem usuário escolhido, mostra a escolha entre os usuários fictícios; com usuário, entra direto.
 // Nada é gravado ao abrir a página; a entrada só lê a sessão e o catálogo.
 
 import {
-  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, criarClienteGestao, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
+  AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, AVISO_USUARIOS_FICTICIOS, criarClienteGestao, MENSAGEM_ESCOLHA_USUARIO, MENSAGEM_USUARIO_MUDOU,
+  rotuloDaEscolha, rotuloDoUsuario, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
   servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from './admin-logic.js';
 
-const cliente = criarClienteGestao({ fetchImpl: (...argumentos) => fetch(...argumentos) });
+// Se o servidor recusar a chave da sessão (outro usuário entrou em outra aba ou o servidor reiniciou), a tela volta à escolha.
+const cliente = criarClienteGestao({ fetchImpl: (...argumentos) => fetch(...argumentos), aoPerderSessao: () => setTimeout(perderSessao, 0) });
 const $ = (id) => document.getElementById(id);
 
 const CAMPOS = {
@@ -110,23 +113,57 @@ function fecharPaineis() {
 
 // ---------- Entrada e saída ----------
 
-async function entrar() {
-  if (ocupado) return;
-  const botao = $('botao-entrar');
-  ocupado = true;
-  botao.disabled = true;
-  mostrarStatus('Entrando…');
-  const sessao = await cliente.entrar();
-  const dados = sessao.ok ? await cliente.carregarCatalogo() : sessao;
-  ocupado = false;
-  if (!dados.ok) {
-    cliente.sair();
-    botao.disabled = false;
-    mostrarStatus(dados.mensagem, 'erro', true);
-    return;
-  }
-  catalogo = dados.catalogo;
+let usuarioAtual = null; // { usuarioId, nome, perfil, setor } da sessão
+let trocando = false; // a escolha foi reaberta por "Trocar usuário" (cancelar volta sem mudar)
+
+function mostrarErroEscolha(texto) {
+  const erro = $('escolha-erro');
+  erro.textContent = texto;
+  erro.hidden = texto === '';
+}
+
+/** Monta as opções a partir dos usuários devolvidos pelo servidor (textContent; nada de HTML em texto). */
+function montarEscolha(usuarios) {
+  const caixa = $('escolha-opcoes');
+  caixa.replaceChildren();
+  usuarios.forEach((u, i) => {
+    const linha = criar('div', 'campo campo--caixa');
+    const opcao = document.createElement('input');
+    opcao.type = 'radio';
+    opcao.name = 'usuario';
+    opcao.id = `usuario-${i + 1}`;
+    opcao.value = u.usuarioId;
+    opcao.addEventListener('change', () => mostrarErroEscolha(''));
+    const rotulo = criar('label', '', rotuloDaEscolha(u));
+    rotulo.htmlFor = opcao.id;
+    linha.append(opcao, rotulo);
+    caixa.append(linha);
+  });
+}
+
+function marcarEscolha(usuarioId) {
+  for (const opcao of document.querySelectorAll('input[name="usuario"]')) opcao.checked = opcao.value === usuarioId;
+}
+
+/** Mostra a escolha de usuário. Na troca, a gestão fica escondida até confirmar ou cancelar. */
+function mostrarEscolha({ troca = false } = {}) {
+  trocando = troca;
+  mostrarErroEscolha('');
+  marcarEscolha(troca && usuarioAtual !== null ? usuarioAtual.usuarioId : null);
+  $('gestao').hidden = true;
+  $('barra-sessao').hidden = true;
+  $('entrada').hidden = false;
+  $('botao-cancelar-troca').hidden = !troca;
+  $('botao-entrar').disabled = false;
+}
+
+function abrirGestao(usuario, dadosDoCatalogo) {
+  usuarioAtual = usuario;
+  trocando = false;
+  catalogo = dadosDoCatalogo;
+  $('sessao-usuario').textContent = rotuloDoUsuario(usuario);
   $('entrada').hidden = true;
+  $('botao-cancelar-troca').hidden = true;
   $('gestao').hidden = false;
   $('barra-sessao').hidden = false;
   mostrarVista('lista');
@@ -136,15 +173,47 @@ async function entrar() {
   const titulo = $('titulo-lista');
   titulo.setAttribute('tabindex', '-1');
   titulo.focus();
+}
+
+/** Escolha confirmada: entra com o usuário marcado (chave nova; a anterior deixa de valer) e carrega o catálogo. */
+async function entrar(evento) {
+  if (evento) evento.preventDefault();
+  if (ocupado) return;
+  const escolhido = document.querySelector('input[name="usuario"]:checked');
+  if (escolhido === null) {
+    mostrarErroEscolha(MENSAGEM_ESCOLHA_USUARIO);
+    $('escolha-usuario').focus();
+    return;
+  }
+  const botao = $('botao-entrar');
+  ocupado = true;
+  botao.disabled = true;
+  mostrarStatus('Entrando…');
+  const sessao = await cliente.entrarComo(escolhido.value);
+  if (sessao.ok) {
+    // O servidor já trocou o usuário: o topo passa a mostrar o novo e a troca termina, mesmo se o catálogo falhar depois.
+    usuarioAtual = sessao.usuario;
+    trocando = false;
+    $('sessao-usuario').textContent = rotuloDoUsuario(sessao.usuario);
+    $('botao-cancelar-troca').hidden = true;
+  }
+  const dados = sessao.ok ? await cliente.carregarCatalogo() : sessao;
+  ocupado = false;
+  if (!dados.ok) {
+    botao.disabled = false;
+    mostrarStatus(dados.mensagem, 'erro', true);
+    return;
+  }
+  limparTela();
+  abrirGestao(sessao.usuario, dados.catalogo);
   // Vindo de "Conteúdo para respostas": reabre o mesmo serviço (id validado na URL, nunca exibido).
   const idDaUrl = servicoDaUrl(window.location.search);
   const doCatalogo = idDaUrl === null ? undefined : servicosDaLista(catalogo, '').find((s) => s.id === idDaUrl);
   if (doCatalogo !== undefined) await abrirServico(doCatalogo);
 }
 
-function sair() {
-  if (ocupado) return;
-  cliente.sair();
+/** Limpa o estado da gestão (sem falar com o servidor). */
+function limparTela() {
   catalogo = null;
   servicoAtual = null;
   resultadoBusca = [];
@@ -163,12 +232,83 @@ function sair() {
   for (const dlg of [dlgImpacto, dlgEdicao]) if (dlg.open) dlg.close();
   $('informacoes-lista').replaceChildren();
   $('existente-lista').replaceChildren();
-  $('gestao').hidden = true;
-  $('barra-sessao').hidden = true;
-  $('entrada').hidden = false;
-  $('botao-entrar').disabled = false;
-  mostrarStatus('Você saiu da administração.');
+}
+
+async function sair() {
+  if (ocupado) return;
+  ocupado = true;
+  $('botao-sair').disabled = true;
+  const r = await cliente.sair();
+  ocupado = false;
+  $('botao-sair').disabled = false;
+  usuarioAtual = null;
+  limparTela();
+  mostrarEscolha();
+  mostrarStatus(r.ok ? 'Você saiu da administração.' : r.mensagem, r.ok ? 'info' : 'erro');
   $('botao-entrar').focus();
+}
+
+function trocarUsuario() {
+  if (ocupado || cliente.gravando()) return;
+  mostrarEscolha({ troca: true });
+  mostrarStatus('');
+  $('escolha-usuario').focus();
+}
+
+function cancelarTroca() {
+  if (ocupado || !trocando || usuarioAtual === null) return;
+  trocando = false;
+  mostrarErroEscolha('');
+  $('entrada').hidden = true;
+  $('botao-cancelar-troca').hidden = true;
+  $('gestao').hidden = false;
+  $('barra-sessao').hidden = false;
+  mostrarStatus('');
+  $('botao-trocar').focus();
+}
+
+/** O servidor recusou a chave em uso: outro usuário entrou (outra aba) ou o servidor reiniciou. Volta à escolha. */
+function perderSessao() {
+  ocupado = false;
+  usuarioAtual = null;
+  limparTela();
+  mostrarEscolha();
+  mostrarStatus(MENSAGEM_USUARIO_MUDOU, 'erro', true);
+}
+
+/** Ao abrir: lê a sessão do servidor local. Sem usuário, mostra a escolha; com usuário, entra direto. */
+async function iniciar() {
+  const botao = $('botao-entrar');
+  ocupado = true;
+  botao.disabled = true;
+  // A escolha só aparece depois de saber que não há usuário na sessão (evita mostrá-la e escondê-la em seguida).
+  $('entrada').hidden = true;
+  mostrarStatus('Verificando a sessão…');
+  const r = await cliente.recuperarSessao();
+  if (!r.ok) {
+    ocupado = false;
+    mostrarEscolha();
+    mostrarStatus(r.mensagem, 'erro');
+    return;
+  }
+  montarEscolha(r.usuarios);
+  if (r.usuario === null) {
+    ocupado = false;
+    mostrarEscolha();
+    mostrarStatus('');
+    return;
+  }
+  const dados = await cliente.carregarCatalogo();
+  ocupado = false;
+  if (!dados.ok) {
+    mostrarEscolha();
+    mostrarStatus(dados.mensagem, 'erro');
+    return;
+  }
+  abrirGestao(r.usuario, dados.catalogo);
+  const idDaUrl = servicoDaUrl(window.location.search);
+  const doCatalogo = idDaUrl === null ? undefined : servicosDaLista(catalogo, '').find((s) => s.id === idDaUrl);
+  if (doCatalogo !== undefined) await abrirServico(doCatalogo);
 }
 
 // ---------- Lista de serviços ----------
@@ -817,9 +957,12 @@ $('botao-editar-servico').addEventListener('click', (evento) => abrirEdicaoServi
 // ---------- Ligações ----------
 
 for (const aviso of document.querySelectorAll('.aviso-dados')) aviso.textContent = AVISO_DADOS_PESSOAIS;
-$('botao-entrar').addEventListener('click', entrar);
+$('escolha-aviso').textContent = AVISO_USUARIOS_FICTICIOS;
+$('form-entrada').addEventListener('submit', entrar);
+$('botao-trocar').addEventListener('click', trocarUsuario);
+$('botao-cancelar-troca').addEventListener('click', cancelarTroca);
 
-// Menu: o link da página atual não recarrega a tela (isso encerraria o acesso); só volta à lista de serviços.
+// Menu: o link da página atual não recarrega a tela; só volta à lista de serviços.
 for (const link of document.querySelectorAll('.navegacao__link--atual')) {
   link.addEventListener('click', (evento) => {
     evento.preventDefault();
@@ -827,17 +970,6 @@ for (const link of document.querySelectorAll('.navegacao__link--atual')) {
   });
 }
 
-// Quem chega pelo menu de outra página da administração já acessou: entra sem pedir de novo (como as outras páginas).
-{
-  let veioDoMenu = false;
-  try {
-    const origem = document.referrer === '' ? null : new URL(document.referrer);
-    veioDoMenu = origem !== null && origem.origin === window.location.origin && origem.pathname.startsWith('/admin/') && origem.pathname !== window.location.pathname;
-  } catch {
-    veioDoMenu = false;
-  }
-  if (veioDoMenu) entrar();
-}
 $('botao-sair').addEventListener('click', sair);
 $('botao-novo-servico').addEventListener('click', abrirNovoServico);
 $('novo-cancelar').addEventListener('click', cancelarNovoServico);
@@ -850,3 +982,5 @@ $('link-cancelar').addEventListener('click', () => fecharPainel('link'));
 $('form-texto').addEventListener('submit', enviarTexto);
 $('form-link').addEventListener('submit', enviarLink);
 $('form-busca').addEventListener('submit', buscarLinks);
+
+iniciar();
