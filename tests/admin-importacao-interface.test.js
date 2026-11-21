@@ -10,6 +10,10 @@ import {
   CABECALHO_TOKEN, ROTAS, ROTULOS_CANDIDATO, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, corpoDaImportacao, criarClienteAdmin,
   mensagemDaRevisao, previaDoTexto, resumirCandidatos, validarFormConhecimento,
 } from '../admin/admin-logic.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -26,7 +30,7 @@ function servidorFalso(respostas = {}) {
   const r = (status, corpo) => ({ status, json: async () => corpo });
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, ...opcoes, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
-    if (url === ROTAS.sessao) return r(200, { token: TOKEN });
+    if (url === ROTAS.sessao) return r(200, sessaoCom(TOKEN));
     const chave = `${opcoes.method} ${url}`;
     if (respostas[chave]) return respostas[chave](opcoes);
     return r(404, { erro: 'nao_encontrado' });

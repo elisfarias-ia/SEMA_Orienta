@@ -2,10 +2,14 @@
 // (`npm run dev`): o plugin usa apply: 'serve' e não há gancho de preview, então o build e o preview não o têm.
 //
 // Rotas de leitura (GET, sem query e sem corpo):
-//   /__admin/sessao                       -> entrega o token da sessão (criado na primeira chamada, só em memória)
+//   /__admin/sessao                       -> usuário da sessão, usuários selecionáveis e, só com sessão, o token (Passo 8B)
 //   /__admin/catalogo                     -> assuntos e serviços, com versão atual e publicada (exige token)
 //   /__admin/servicos/<id>/versao-atual   -> manifesto e arquivos modulares da versão atual (exige token)
 //   /__admin/saude                        -> saúde do sistema: capacidade e estado de cada componente (exige token)
+// Rota da sessão do login simulado (Sprint 8, Passo 8B; regras em sessao.js, sem HTTP lá):
+//   POST   /__admin/sessao  -> entra com { "usuarioId": "<texto>" } (JSON de até 1 KB; não exige token); token novo a cada entrada
+//   DELETE /__admin/sessao  -> sai (exige o token atual); 204
+//   Até o Passo 8C, o ator da sessão NÃO é repassado às gravações: elas continuam com o ator de demonstração.
 // Rotas de cadastro (POST, JSON de até 32 KB, exigem token):
 //   /__admin/assuntos                     -> cadastra um assunto (sempre ativo)
 //   /__admin/servicos                     -> cadastra um serviço (versão 1 em rascunho, tudo PENDENTE)
@@ -51,6 +55,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { criarArmazenamento } from './armazenamento.js';
+import { criarGerenciadorSessao } from './sessao.js';
 import { ARQUIVOS_DA_VERSAO, localizarVersaoAtual, NOME_DO_MANIFESTO } from '../versao-atual.js';
 import { executarTransacao } from './transacao.js';
 import {
@@ -126,12 +131,11 @@ const STATUS_DA_REVISAO = Object.freeze({
   entrada_invalida: 422, dados_invalidos: 422, base_invalida: 422, decisao_recusada: 422, hash_divergente: 422,
   nada_publicado: 409, motivo_invalido: 422,
 });
-const PADRAO_TOKEN = /^[0-9a-f]{64}$/;
 const PADRAO_ROTEIRO = /^services\/[a-z][a-z0-9-]*\/versoes\/v[1-9][0-9]*\/roteiro\.md$/;
 const PADRAO_TIPO_JSON = /^application\/json(\s*;\s*charset=utf-8)?$/i;
 const SEC_FETCH_PERMITIDOS = new Set(['same-origin', 'none']);
 
-const geradorPadrao = () => crypto.randomBytes(32).toString('hex');
+const LIMITE_CORPO_SESSAO = 1024;
 const sobPrefixo = (caminho) => caminho === PREFIXO_ADMIN || caminho.startsWith(`${PREFIXO_ADMIN}/`);
 
 /** Data local AAAA-MM-DD a partir de um Date (o relógio é injetável nos testes). */
@@ -204,13 +208,14 @@ function validadorDoArquivo(caminho, idServico) {
 }
 
 /**
- * Cria o manipulador (middleware). O token vive apenas nesta closure (memória do servidor de desenvolvimento).
+ * Cria o manipulador (middleware). A sessão (token e usuário) vive apenas no gerenciador desta closure (memória do servidor
+ * de desenvolvimento); reiniciar o servidor encerra a sessão.
  * Opções para os testes: `gerarToken`, `limiteResposta`, `agora` (relógio), `sistema` (módulo de arquivos usado nas gravações
  * reais), `diretorioTemporario`, `antesDeGravar` (gancho assíncrono dentro da trava) e `verificarFinal`.
  */
 export function criarManipuladorAdmin({
   raiz,
-  gerarToken = geradorPadrao,
+  gerarToken,
   limiteResposta = LIMITE_RESPOSTA,
   agora = () => new Date(),
   sistema = fs,
@@ -220,20 +225,13 @@ export function criarManipuladorAdmin({
   verificarInicial = (r) => validarServicos(r).erros,
   gerarIdBloco = () => `bc-${crypto.randomBytes(6).toString('hex')}`,
 } = {}) {
-  let token = null;
+  const sessao = criarGerenciadorSessao(gerarToken === undefined ? {} : { gerarToken });
   let escrevendo = false;
   const armazenamento = criarArmazenamento({ raiz, sistema });
   const gravadorEntradas = criarGravadorEntradas({ raiz, sistema, agora, verificarFinal });
   const servicoRevisao = criarServicoRevisao({ raiz, sistema, agora, verificarFinal, gerarIdBloco });
   const servicoPublicacao = criarServicoPublicacao({ raiz, sistema, agora, verificarFinal });
   const edicaoTema = criarEdicaoTema({ raiz, sistema, agora, verificarFinal });
-
-  const tokenValido = (recebido) => {
-    if (token === null || typeof recebido !== 'string' || !PADRAO_TOKEN.test(recebido)) return false;
-    const a = crypto.createHash('sha256').update(recebido).digest();
-    const b = crypto.createHash('sha256').update(token).digest();
-    return crypto.timingSafeEqual(a, b);
-  };
 
   const lerJson = (relativo) => {
     const r = armazenamento.lerJson(relativo);
@@ -717,10 +715,11 @@ export function criarManipuladorAdmin({
     const rotaEdicaoTema = PADRAO_ROTA_EDICAO_TEMA.exec(caminho);
     const rotaImportacao = PADRAO_ROTA_IMPORTACAO.exec(caminho);
     const rotaDeCadastro = caminho === ROTA_ASSUNTOS || caminho === ROTA_SERVICOS || caminho === ROTA_CADASTRO_GUIADO || caminho === ROTA_SERVICO_COM_TEMA || rotaDeFontes !== null || rotaDeConhecimentos !== null || rotaSimples !== null || rotaAcaoRevisao !== null || rotaPublicar !== null;
-    const metodosPermitidos = rotaImportacao !== null ? ['GET', 'POST'] : rotaEdicaoServico !== null || rotaEdicaoTema !== null ? ['GET', 'PATCH'] : rotaFonteItem !== null ? ['GET', 'PATCH', 'DELETE'] : rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
+    const rotaSessao = caminho === ROTA_SESSAO;
+    const metodosPermitidos = rotaSessao ? ['GET', 'POST', 'DELETE'] : rotaImportacao !== null ? ['GET', 'POST'] : rotaEdicaoServico !== null || rotaEdicaoTema !== null ? ['GET', 'PATCH'] : rotaFonteItem !== null ? ['GET', 'PATCH', 'DELETE'] : rotaDeConhecimento !== null ? ['PATCH', 'DELETE'] : [rotaDeCadastro ? 'POST' : 'GET'];
     if (!metodosPermitidos.includes(req.method)) return responder(405, { erro: 'metodo_nao_permitido' }, { Allow: metodosPermitidos.join(', ') });
     // Corpo JSON: POST de cadastro e PATCH de bloco. GET e DELETE não têm corpo.
-    const temCorpo = rotaDeCadastro || (rotaImportacao !== null && req.method === 'POST') || (rotaDeConhecimento !== null && req.method === 'PATCH') || (rotaFonteItem !== null && req.method === 'PATCH') || ((rotaEdicaoServico !== null || rotaEdicaoTema !== null) && req.method === 'PATCH');
+    const temCorpo = (rotaSessao && req.method === 'POST') || rotaDeCadastro || (rotaImportacao !== null && req.method === 'POST') || (rotaDeConhecimento !== null && req.method === 'PATCH') || (rotaFonteItem !== null && req.method === 'PATCH') || ((rotaEdicaoServico !== null || rotaEdicaoTema !== null) && req.method === 'PATCH');
     const tamanho = req.headers['content-length'];
     if (indice !== -1) return responder(400, { erro: 'requisicao_invalida' });
     if (!temCorpo && ((tamanho !== undefined && tamanho !== '0') || req.headers['transfer-encoding'] !== undefined)) {
@@ -728,15 +727,37 @@ export function criarManipuladorAdmin({
     }
 
     try {
-      if (caminho === ROTA_SESSAO) {
-        if (token === null) {
-          const novo = gerarToken();
-          if (typeof novo !== 'string' || !PADRAO_TOKEN.test(novo)) throw new Error('token');
-          token = novo;
+      if (rotaSessao) {
+        // Só chama o módulo da sessão; nada de corpo, token, nome ou usuarioId vai para log.
+        if (req.method === 'GET') {
+          const token = sessao.token();
+          return responderJson(token === null ? sessao.atual() : { ...sessao.atual(), token });
         }
-        return responderJson({ token });
+        if (req.method === 'DELETE') {
+          if (!sessao.sair(req.headers[CABECALHO_TOKEN]).ok) return responder(401, { erro: 'nao_autorizado' });
+          return responderResultado({ status: 204 });
+        }
+        if (typeof req.headers['content-type'] !== 'string' || !PADRAO_TIPO_JSON.test(req.headers['content-type'])) {
+          return responder(415, { erro: 'tipo_nao_suportado' });
+        }
+        if (tamanho !== undefined && !/^\d{1,10}$/.test(tamanho)) return responder(400, { erro: 'requisicao_invalida' });
+        if (tamanho !== undefined && Number(tamanho) > LIMITE_CORPO_SESSAO) return responder(413, { erro: 'corpo_grande_demais' }, { Connection: 'close' });
+        const lido = await lerCorpo(req, LIMITE_CORPO_SESSAO);
+        if (lido.excedeu) return responder(413, { erro: 'corpo_grande_demais' }, { Connection: 'close' });
+        let corpo;
+        try {
+          corpo = JSON.parse(lido.texto);
+        } catch {
+          return responder(400, { erro: 'requisicao_invalida' });
+        }
+        const formatoOk = corpo !== null && typeof corpo === 'object' && !Array.isArray(corpo)
+          && Object.keys(corpo).length === 1 && Object.hasOwn(corpo, 'usuarioId') && typeof corpo.usuarioId === 'string';
+        const r = formatoOk ? sessao.entrar(corpo.usuarioId) : { ok: false, erro: 'usuario_invalido' };
+        if (!r.ok && r.erro === 'indisponivel') return responder(500, { erro: 'indisponivel' });
+        if (!r.ok) return responder(422, { erro: 'dados_invalidos', campos: ['usuarioId'] });
+        return responderJson({ token: r.token, usuario: r.usuario });
       }
-      if (!tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
+      if (!sessao.tokenValido(req.headers[CABECALHO_TOKEN])) return responder(401, { erro: 'nao_autorizado' });
 
       const servicoDaRota = (rotaDeFontes ?? rotaDeConhecimentos ?? rotaDeConhecimento ?? rotaSimples ?? rotaInformacoes ?? rotaRevisao ?? rotaAcaoRevisao ?? rotaResumoPublicacao ?? rotaPublicar ?? rotaFonteItem ?? rotaFonteImpacto ?? rotaEdicaoServico ?? rotaImportacao)?.[1];
       if (servicoDaRota !== undefined && !lerJson('services/registry.json').servicos.some((s) => s.id === servicoDaRota)) {

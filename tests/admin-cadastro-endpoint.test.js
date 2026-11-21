@@ -39,6 +39,9 @@ async function enviar(manipulador, { url, method = 'POST', corpo, texto, headers
 }
 const get = (m, url, token) => enviar(m, { url, method: 'GET', token, tipo: null, texto: '', comTamanho: false });
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 /** Copia temporária de services/ (fora do repositório) com manipulador e token prontos. */
 async function comCopia(fn, opcoes = {}) {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-cadastro-endpoint-'));
@@ -47,7 +50,7 @@ async function comCopia(fn, opcoes = {}) {
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
-    const token = (await get(m, ROTA_SESSAO)).corpo.token;
+    const token = await obterToken(m);
     return await fn({ m, token, raiz, pai });
   } finally {
     fs.rmSync(pai, { recursive: true, force: true });
@@ -398,11 +401,13 @@ test('CE16. só POST nas rotas de cadastro (Allow: POST); query recusada; as rot
       }
       for (const url of [`${rota}?a=1`, `${rota}?`, `${rota}?token=${token}`]) assert.equal((await enviar(m, { url, corpo: ASSUNTO, token })).status, 400, url);
     }
-    for (const rota of [ROTA_SESSAO, ROTA_CATALOGO]) {
-      const r = await enviar(m, { url: rota, method: 'POST', corpo: {}, token });
-      assert.equal(r.status, 405);
-      assert.equal(r.cabecalhos.allow, 'GET');
-    }
+    const r = await enviar(m, { url: ROTA_CATALOGO, method: 'POST', corpo: {}, token });
+    assert.equal(r.status, 405);
+    assert.equal(r.cabecalhos.allow, 'GET');
+    // 8B: a sessão aceita GET, POST (entrar) e DELETE (sair); os demais métodos recebem 405.
+    const rs = await enviar(m, { url: ROTA_SESSAO, method: 'PUT', corpo: {}, token });
+    assert.equal(rs.status, 405);
+    assert.equal(rs.cabecalhos.allow, 'GET, POST, DELETE');
     assert.equal(retrato(raiz), antes);
   });
 });

@@ -504,7 +504,8 @@ textarea:focus-visible {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-input[type='checkbox'] {
+input[type='checkbox'],
+input[type='radio'] {
   width: 1.5rem;
   min-width: 1.5rem;
   height: 1.5rem;

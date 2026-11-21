@@ -40,6 +40,10 @@
         <a class="navegacao__link navegacao__link--atual" href="./" aria-current="page"><svg class="icone-menu" aria-hidden="true" focusable="false"><use href="#i-resposta"></use></svg>Conteúdo para respostas</a>
         <a class="navegacao__link" href="../saude/"><svg class="icone-menu" aria-hidden="true" focusable="false"><use href="#i-saude"></use></svg>Saúde do sistema</a>
       </nav>
+      <div class="barra-sessao" id="sessao-topo">
+        <p class="barra-sessao__quem" id="sessao-usuario" hidden></p>
+        <a class="botao botao--secundario" id="sessao-trocar" href="../" hidden>Trocar usuário</a>
+      </div>
     </header>
 
     <main id="principal" class="pagina pagina--larga" tabindex="-1">
@@ -49,6 +53,7 @@
       </div>
 
       <p id="status" class="status" role="status" aria-live="polite" tabindex="-1"></p>
+      <p id="sem-usuario" class="ajuda" hidden><a href="../">Ir para a Gestão de conteúdo</a></p>
 
       <section class="cartao introducao" aria-labelledby="titulo-passos">
         <span class="icone icone--grande" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg></span>

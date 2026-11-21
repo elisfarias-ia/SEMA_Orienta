@@ -36,12 +36,13 @@
         </div>
       </div>
       <div id="barra-sessao" class="barra-sessao" hidden>
-        <p class="barra-sessao__quem">Administração</p>
+        <p id="sessao-usuario" class="barra-sessao__quem">Administração</p>
         <nav class="navegacao barra-sessao__links" aria-label="Seções da administração">
           <a class="navegacao__link navegacao__link--atual" href="./" aria-current="page"><svg class="icone-menu" aria-hidden="true" focusable="false"><use href="#i-gestao"></use></svg>Gestão de conteúdo</a>
           <a class="navegacao__link" href="./conteudo/"><svg class="icone-menu" aria-hidden="true" focusable="false"><use href="#i-resposta"></use></svg>Conteúdo para respostas</a>
           <a class="navegacao__link" href="./saude/"><svg class="icone-menu" aria-hidden="true" focusable="false"><use href="#i-saude"></use></svg>Saúde do sistema</a>
         </nav>
+        <button type="button" class="botao botao--secundario" id="botao-trocar">Trocar usuário</button>
         <button type="button" class="botao botao--secundario" id="botao-sair">Sair</button>
       </div>
     </header>
@@ -59,8 +60,19 @@
         <div>
           <h2 id="titulo-entrada">Área administrativa</h2>
           <p class="introducao__texto">Aqui você cadastra serviços e as informações que o chatbot poderá usar depois de revisadas. Nada é publicado nesta área.</p>
-          <p class="introducao__texto">O acesso é feito neste computador, sem usuário e senha.</p>
-          <button type="button" class="botao" id="botao-entrar">Acessar administração</button>
+          <p class="introducao__texto">O acesso é feito neste computador, sem senha.</p>
+          <form id="form-entrada" novalidate>
+            <fieldset id="escolha-usuario" class="grupo-fontes" tabindex="-1" aria-describedby="escolha-aviso escolha-erro">
+              <legend>Escolha com qual usuário entrar</legend>
+              <div id="escolha-opcoes"></div>
+              <p id="escolha-aviso" class="ajuda"></p>
+              <p id="escolha-erro" class="erro" hidden></p>
+            </fieldset>
+            <div class="acoes-form">
+              <button type="submit" class="botao" id="botao-entrar">Acessar administração</button>
+              <button type="button" class="botao botao--secundario" id="botao-cancelar-troca" hidden>Cancelar</button>
+            </div>
+          </form>
         </div>
       </section>
 

@@ -65,6 +65,9 @@ async function enviar(m, { url, method = 'POST', corpo, token } = {}) {
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta) };
 }
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 /** Cópia temporária com a LAC publicada pelo caminho real (revisão, autorização e publicação) e o endpoint administrativo. */
 async function comLacPublicada(fn, { publicar = true } = {}) {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-revogacao-rota-'));
@@ -89,7 +92,7 @@ async function comLacPublicada(fn, { publicar = true } = {}) {
       assert.equal(pub.publicar('lac', { revisao: hash }).ok, true);
     }
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai });
-    const token = (await enviar(m, { url: ROTA_SESSAO, method: 'GET' })).corpo.token;
+    const token = await obterToken(m);
     const revogar = (corpo) => enviar(m, { url: '/__admin/servicos/lac/revogacao', corpo, token });
     const resumo = async () => (await enviar(m, { url: '/__admin/servicos/lac/publicacao/resumo', method: 'GET', token })).corpo;
     await fn({ raiz, pai, hash, revogar, resumo });

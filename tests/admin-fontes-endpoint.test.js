@@ -37,6 +37,9 @@ async function enviar(manipulador, { url, method = 'POST', corpo, texto, headers
 }
 const get = (m, url, token) => enviar(m, { url, method: 'GET', token, tipo: null, texto: '', comTamanho: false });
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 async function comCopia(fn, opcoes = {}) {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-fontes-endpoint-'));
   const raiz = path.join(pai, 'raiz');
@@ -44,7 +47,7 @@ async function comCopia(fn, opcoes = {}) {
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
-    const token = (await get(m, ROTA_SESSAO)).corpo.token;
+    const token = await obterToken(m);
     const revisao = async () => (await get(m, ROTA_VERSAO, token)).corpo.revisaoFontes;
     return await fn({ m, token, raiz, pai, revisao });
   } finally {

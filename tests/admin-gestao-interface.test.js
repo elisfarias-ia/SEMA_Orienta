@@ -10,6 +10,10 @@ import {
   CABECALHO_TOKEN, MENSAGENS_GESTAO, ROTAS_GESTAO, TIPOS_LINK, corpoDoLinkExistente, criarClienteGestao, mensagemDaGestao, pareceDadoPessoal,
   resolverTema, resumirInformacoes, resumirLinksExistentes, servicosDaLista, temasAtivos, validarEntradaTexto, validarLinkNovo, validarNovoServico,
 } from '../admin/admin-logic.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -38,7 +42,7 @@ function servidorFalso({ respostas = {}, portao = null } = {}) {
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, ...opcoes, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
     if (respostas[url]) return respostas[url](opcoes);
-    if (url === ROTAS_GESTAO.sessao) return resposta(200, { token: TOKEN });
+    if (url === ROTAS_GESTAO.sessao) return resposta(200, sessaoCom(TOKEN));
     if (opcoes.headers?.[CABECALHO_TOKEN] !== TOKEN) return resposta(401, { erro: 'nao_autorizado' });
     if (portao) await portao;
     if (url === ROTAS_GESTAO.catalogo) return resposta(200, CATALOGO);
@@ -156,10 +160,14 @@ test('G9. entrar lê só a sessão (sem token), depois o token vai em X-Admin-To
   assert.equal(chamadas[1].headers[CABECALHO_TOKEN], TOKEN);
   assert.equal(chamadas[1].credentials, 'omit');
   assert.equal(JSON.stringify(cliente).includes(TOKEN), false);
-  cliente.sair();
+  // 8B: sair envia DELETE /__admin/sessao com o token e só depois zera o token local.
+  await cliente.sair();
+  assert.equal(chamadas[2].url, ROTAS_GESTAO.sessao);
+  assert.equal(chamadas[2].method, 'DELETE');
+  assert.equal(chamadas[2].headers[CABECALHO_TOKEN], TOKEN);
   assert.equal(cliente.entrou(), false);
   assert.deepEqual(await cliente.carregarCatalogo(), { ok: false, mensagem: MENSAGENS_GESTAO.semEntrada });
-  assert.equal(chamadas.length, 2, 'depois de sair nada é enviado');
+  assert.equal(chamadas.length, 3, 'depois de sair nada é enviado');
 });
 
 test('G10. falhas ao entrar viram mensagem curta e nenhuma gravação acontece sem entrada', async () => {
@@ -229,7 +237,7 @@ test('G13. erros do servidor viram mensagens e campos; resposta inválida de suc
 
 // ---------- Estrutura, acessibilidade e segurança do código ----------
 
-test('G14. a tela abre com o botão Acessar administração, sem usuário nem senha, sem avisos de demonstração e com os controles pedidos', () => {
+test('G14. a tela abre com a escolha de usuário (fictício, sem senha) e o botão Acessar administração, sem avisos de demonstração no HTML e com os controles pedidos', () => {
   assert.match(HTML, /<h2 id="titulo-entrada">Área administrativa<\/h2>/);
   assert.match(HTML, />Acessar administração<\/button>/);
   assert.match(HTML, />Sair<\/button>/);
@@ -250,8 +258,12 @@ test('G14. a tela abre com o botão Acessar administração, sem usuário nem se
   assert.equal((HTML.match(/Não escreva dados pessoais/g) ?? []).length >= 2, true, 'aviso nas telas de texto e de link');
 });
 
-test('G15. sem radios, assistente, modo avançado, identificadores técnicos nem campos que o servidor define', () => {
-  assert.doesNotMatch(HTML, /type="radio"|<fieldset|checkpoint|wizard|avançad|Mais opções|<details/i);
+test('G15. sem radios, assistente, modo avançado, identificadores técnicos nem campos que o servidor define (8B: só a escolha de usuário é um grupo)', () => {
+  // 8B: a única exceção é o grupo da escolha de usuário (fieldset com legend; os rádios são montados pelo admin.js).
+  const inicioEscolha = HTML.indexOf('<form id="form-entrada"');
+  const semEscolha = HTML.slice(0, inicioEscolha) + HTML.slice(HTML.indexOf('</form>', inicioEscolha));
+  assert.equal((HTML.match(/<fieldset/g) ?? []).length, 1);
+  assert.doesNotMatch(semEscolha, /type="radio"|<fieldset|checkpoint|wizard|avançad|Mais opções|<details/i);
   assert.doesNotMatch(`${HTML}\n${JS}`, /\bv1\b|hashConteudo|statusValidacao|sigla|Identificador|termosEquivalentes/i);
   assert.doesNotMatch(HTML, /revisao/i, 'a revisão aparece só em linguagem comum, sem identificadores técnicos no HTML');
   assert.doesNotMatch(HTML, /name="(id|sigla|descricaoTema|termos[A-Za-z]*|revisao|status[A-Za-z]*|publicado)"/);

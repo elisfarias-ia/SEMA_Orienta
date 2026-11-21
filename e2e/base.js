@@ -1,5 +1,7 @@
-// Base dos testes E2E: todos são somente leitura. A rede é restrita ao servidor local e qualquer requisição que não
-// seja GET (por exemplo um POST administrativo) é bloqueada e faz o teste falhar.
+// Base dos testes E2E: nenhum grava em disco. A rede é restrita ao servidor local e qualquer requisição que não seja GET
+// (por exemplo um POST administrativo) é bloqueada e faz o teste falhar. Exceção (Passo 8B): e2e/admin.spec.js libera só
+// GET, POST e DELETE de /__admin/sessao, e e2e/saude.spec.js cria e encerra a sessão pela API; isso muda apenas a sessão
+// em memória do servidor de desenvolvimento, sem gravação em disco.
 import { test as base, expect } from '@playwright/test';
 
 const ORIGEM_LOCAL = `http://localhost:${process.env.E2E_PORTA ?? '5173'}`;

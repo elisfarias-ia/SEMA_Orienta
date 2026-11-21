@@ -42,6 +42,9 @@ async function enviar(manipulador, { url, method = 'POST', corpo, texto, headers
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), textoBruto: resposta ?? '', cabecalhos };
 }
 const get = (m, url, token) => enviar(m, { url, method: 'GET', token, tipo: null, texto: '', comTamanho: false });
+
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
 const apagar = (m, token, id) => enviar(m, { url: `${ROTA}/${id}`, method: 'DELETE', token, tipo: null, texto: '', comTamanho: false });
 const criar = (m, token, extra = {}, opcoes = {}) => enviar(m, { url: ROTA, corpo: { ...BLOCO, ...extra }, token, ...opcoes });
 const alterar = (m, token, id, extra = {}, opcoes = {}) => enviar(m, { url: `${ROTA}/${id}`, method: 'PATCH', corpo: { ...BLOCO, ...extra }, token, ...opcoes });
@@ -53,7 +56,7 @@ async function comCopia(fn, opcoes = {}) {
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
-    const token = (await get(m, ROTA_SESSAO)).corpo.token;
+    const token = await obterToken(m);
     return await fn({ m, token, raiz, pai });
   } finally {
     fs.rmSync(pai, { recursive: true, force: true });

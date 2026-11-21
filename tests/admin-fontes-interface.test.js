@@ -11,6 +11,10 @@ import {
   resumirFontes, mensagemDeErro, MENSAGENS, criarClienteAdmin,
 } from '../admin/admin-logic.js';
 import { conferirDist, NOMES_ADMINISTRATIVOS } from '../scripts/check-dist.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -29,7 +33,7 @@ function servidorFalso({ estado = 'rascunho', fontes, respostas = {}, portao = n
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, ...opcoes, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
     if (respostas[url]) return respostas[url](opcoes);
-    if (url === ROTAS.sessao) return r(200, { token: TOKEN });
+    if (url === ROTAS.sessao) return r(200, sessaoCom(TOKEN));
     if (opcoes.headers?.[CABECALHO_TOKEN] !== TOKEN) return r(401, { erro: 'nao_autorizado' });
     if (url === '/__admin/servicos/servico-ficticio/versao-atual' && opcoes.method === 'GET') {
       return r(200, { servicoId: 'servico-ficticio', versaoId: 'servico-ficticio-v1', manifesto: { estado: dados.estado }, revisaoFontes: dados.revisao, fontes: { fontes: dados.fontes }, roteiro: 'texto interno' });
@@ -258,8 +262,8 @@ test('FI10. envio duplicado de fonte é bloqueado enquanto há gravação em and
 
 test('FI12. o cliente administrativo só usa os métodos esperados e não usa APIs inseguras', () => {
   // A tela de cadastro (index.html e admin.js) não oferece edição nem exclusão; os blocos de conhecimento têm página própria (/admin/conteudo/).
-  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 6, 'cadastrar, gravarConhecimento (criar), na gestão por serviço: gravar e buscarLinks, a ação de revisão (enviarAcaoDeRevisao) e importarConteudo (5B3c)');
-  assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 6, 'gravarConhecimento (PATCH e DELETE), editarFonte, excluirFonte e, na gestão por serviço, editarTema e editarServico (5B3b)');
+  assert.equal((LOGICA.match(/'POST'/g) ?? []).length, 7, 'cadastrar, gravarConhecimento (criar), na gestão por serviço: gravar e buscarLinks, a ação de revisão (enviarAcaoDeRevisao), importarConteudo (5B3c) e entrarComo (8B)');
+  assert.equal((LOGICA.match(/'(PATCH|DELETE)'/g) ?? []).length, 7, 'gravarConhecimento (PATCH e DELETE), editarFonte, excluirFonte, na gestão por serviço, editarTema e editarServico (5B3b), e sair (DELETE da sessão, 8B)');
   assert.doesNotMatch(LOGICA, /['"`]PUT['"`]/);
   assert.match(LOGICA, /`\$\{ROTAS\.servicos\}\/\$\{encodeURIComponent\(contexto\.servicoId\)\}\/fontes`/);
   assert.doesNotMatch(`${JS}\n${LOGICA}`, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|document\.cookie|console\./);

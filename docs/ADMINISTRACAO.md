@@ -24,16 +24,18 @@ Existe apenas no servidor de desenvolvimento (`npm run dev`): o plugin usa `appl
 
 | Rota | Exige token | O que faz |
 |---|---|---|
-| `GET /__admin/sessao` | não | O token da sessão, criado na primeira chamada. |
+| `GET /__admin/sessao` | não | Usuário da sessão (ou `null`), usuários selecionáveis e, só com sessão, o token (Passo 8B). Não cria sessão. |
+| `POST /__admin/sessao` | não | Entra com `{ "usuarioId": "<texto>" }` (login simulado, Passo 8B); devolve `{ token, usuario }`. |
+| `DELETE /__admin/sessao` | sim | Sai: encerra a sessão (204). |
 | `GET /__admin/catalogo` | sim | Assuntos e serviços, com versão atual e versão publicada. |
 | `GET /__admin/servicos/<id>/versao-atual` | sim | Manifesto e arquivos modulares da versão atual (id de serviço cadastrado). |
 | `POST /__admin/assuntos` | sim | Cadastra um assunto (corpo: `nome` e `descricao`; o id é gerado pelo servidor). |
 | `POST /__admin/servicos` | sim | Cadastra um serviço (corpo: `assuntoId`, `nome`, `termosEquivalentes` e `sigla` opcional; o id é gerado pelo servidor). |
 | `POST /__admin/servicos/<id>/fontes` | sim | Cadastra uma fonte na versão atual do serviço, só se estiver em rascunho (corpo: `revisao` e os campos da fonte). |
 
-- **Token:** gerado com `node:crypto` (32 bytes aleatórios), mantido só em memória do servidor de desenvolvimento, enviado no cabeçalho `X-Admin-Token` e comparado de forma segura. Não é gravado, não vai para cookie, `localStorage` nem variável de ambiente, e nunca é registrado em log. Reiniciar o servidor invalida o token.
+- **Token:** gerado com `node:crypto` (32 bytes aleatórios) a cada entrada no login simulado (Passo 8B), mantido só em memória do servidor de desenvolvimento (`services/admin/sessao.js`), enviado no cabeçalho `X-Admin-Token` e comparado de forma segura. Não é gravado, não vai para cookie, `localStorage` nem variável de ambiente, e nunca é registrado em log. Reiniciar o servidor invalida o token.
 - **Origem:** só conexão local (`127.0.0.1` ou `::1`), `Host` local na porta do servidor, `Origin` (se enviada) igual ao host da requisição e requisição não cruzada entre sites. Sem CORS.
-- **Requisição:** as rotas de leitura aceitam só `GET`, sem corpo; as de cadastro, só `POST`. Query string, rotas desconhecidas, travessia de caminho e ids inválidos ou não cadastrados são recusados. Os erros são códigos genéricos, sem caminho, token ou conteúdo.
+- **Requisição:** as rotas de leitura aceitam só `GET`, sem corpo; as de cadastro, só `POST`. Exceção: a rota da sessão (`/__admin/sessao`, Passo 8B) aceita `GET`, `POST` (entrar, JSON de até 1 KB) e `DELETE` (sair). Query string, rotas desconhecidas, travessia de caminho e ids inválidos ou não cadastrados são recusados. Os erros são códigos genéricos, sem caminho, token ou conteúdo.
 - **Leitura:** não altera nada e **não lê `data/admin-private/`**. A resposta tem limite de 2 MB, e os arquivos lidos têm os limites do armazenamento.
 - **Escrita:** só as duas rotas de cadastro gravam, e somente dentro de `services/`. Não há edição, exclusão, decisão nem publicação.
 - **O token não é autenticação de pessoas.** Ele só impede que outro site aberto no navegador use o endpoint; quem tem acesso à máquina continua tendo acesso.
@@ -316,3 +318,30 @@ Modelo de entrada para copiar e preencher:
 - A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que continua sendo da CLABI.
 
 **Limites:** `git commit --no-verify` pula o hook local (o assistente é impedido pela regra A7, e a verificação no GitHub repete as regras em toda PR). A verificação no GitHub só impede o merge se a regra de proteção do branch `main` exigir que ela passe; isso é uma configuração do repositório no GitHub, feita pela pessoa responsável. O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).
+
+## Login simulado (Sprint 8, Passo 8B)
+
+Escolha entre os usuários fictícios Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI), **sem senha**. Não é autenticação: escolher um usuário não comprova identidade, e quem usa o computador pode escolher qualquer um.
+
+**Módulo `services/admin/sessao.js`** (puro, sem HTTP, no mesmo estilo de `atores.js` e `permissoes.js`): `criarGerenciadorSessao({ gerarToken })` devolve `atual()`, `token()`, `entrar(usuarioId)`, `sair(token)` e `tokenValido(token)`.
+
+- **Uma sessão atual única**, só em memória do servidor de desenvolvimento: `{ token, usuarioId, ator }` ou nenhuma. A sessão não guarda o nome; `atual()` busca o nome em `USUARIOS_SELECIONAVEIS`.
+- **Entrar** aceita só usuários selecionáveis (via `atorDoUsuario`): recusa o ator de demonstração, ids desconhecidos e valores que não sejam texto, sem mudar a sessão atual. Cada entrada gera um **token novo**, mesmo para o mesmo usuário; o anterior deixa de valer. Token do gerador fora de 64 hex → falha `indisponivel`, sem criar sessão.
+- **Sair** só com o token atual; com outro token, falha e a sessão continua.
+- **Conferência do token:** SHA-256 dos dois lados e `timingSafeEqual` (a lógica saiu de `admin-endpoint.js`).
+- Falhas no formato `{ ok: false, erro }`, sem repetir o valor recebido.
+
+**Contrato HTTP** (`admin-endpoint.js` só chama o módulo):
+
+| Pedido | Resposta |
+|---|---|
+| `GET /__admin/sessao` | 200 `{ usuario, usuarios }` sem sessão; `{ usuario, usuarios, token }` com sessão. Não cria token. |
+| `POST /__admin/sessao` | Só `Content-Type: application/json` (senão 415), corpo de até 1 KB (senão 413), exatamente `{ "usuarioId": "<texto>" }`. Campos extras, tipo errado, usuário desconhecido ou de demonstração → 422 `{ erro: 'dados_invalidos', campos: ['usuarioId'] }`, sem eco e sem mudar a sessão. JSON ilegível → 400. Sucesso → 200 `{ token, usuario }`. Não exige token. |
+| `DELETE /__admin/sessao` | Exige o token atual: 204. Sem token ou com token errado → 401 `nao_autorizado`, e a sessão continua. |
+| Outros métodos | 405 com `Allow: GET, POST, DELETE`. GET ou DELETE com corpo e qualquer query → 400. Origem não local → 403, antes de tudo. |
+
+Nada de corpo, token, nome ou `usuarioId` vai para log. Todas as outras rotas conferem o token pelo módulo.
+
+**Ciclo da sessão:** abrir `/admin/` lê a sessão (GET). Sem usuário, aparece a escolha ("Escolha com qual usuário entrar", com o aviso "Usuários fictícios de demonstração, sem senha."); "Acessar administração" sem escolha mostra o erro e leva o foco ao grupo. Com usuário, a página entra direto, e o topo mostra "Nome — Perfil" com os botões "Trocar usuário" (reabre a escolha; "Cancelar" volta sem mudar) e "Sair" (envia DELETE e só depois esquece o token). Recarregar mantém a sessão. "Conteúdo para respostas" e "Saúde do sistema" mostram o nome no topo e "Trocar usuário" como link para a gestão; sem usuário, orientam "Escolha o usuário na Gestão de conteúdo.". Como a sessão é única no servidor, entrar com outro usuário em outra aba invalida o token da primeira: na próxima chamada (401), a primeira aba mostra "O usuário da sessão mudou. Atualize a página." e volta ao estado de entrada. Reiniciar o servidor encerra a sessão.
+
+**Efeito colateral até o 8C:** o topo das páginas mostra o nome de quem entrou (por exemplo, "Maria Silva — Cadastrante"), mas os registros (histórico privado, decisões e manifesto da versão) **continuam com o ator de demonstração**: o ator da sessão ainda não é repassado às gravações, e nenhuma permissão por perfil é aplicada. Isso muda no 8C.

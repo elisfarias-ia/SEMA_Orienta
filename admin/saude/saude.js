@@ -2,9 +2,13 @@
 // funções de formatação de admin-logic.js; as regras e os estados vêm do endpoint GET /__admin/saude, sem duplicação aqui.
 // Só textContent e APIs seguras do DOM (nada de HTML montado como texto), sem armazenamento do navegador, sem cookies e sem log.
 
-import { CAPACIDADES_SAUDE, ESTADOS_SAUDE, criarClienteAdmin, formatarDataHoraBr, MENSAGENS, NOTA_NAO_IMPLEMENTADO, resumoDaSaude } from '../admin-logic.js';
+import {
+  CAPACIDADES_SAUDE, ESTADOS_SAUDE, criarClienteAdmin, formatarDataHoraBr, MENSAGEM_SEM_USUARIO, MENSAGEM_USUARIO_MUDOU, MENSAGENS, NOTA_NAO_IMPLEMENTADO, resumoDaSaude,
+  rotuloDoUsuario,
+} from '../admin-logic.js';
 
-const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos) });
+// Se o servidor recusar o token (o usuário da sessão mudou), a página volta ao estado sem usuário.
+const cliente = criarClienteAdmin({ fetchImpl: (...argumentos) => fetch(...argumentos), aoPerderSessao: () => setTimeout(perderSessao, 0) });
 const $ = (id) => document.getElementById(id);
 const criarData = (texto) => new Date(texto);
 let verificando = false;
@@ -66,11 +70,36 @@ async function verificar() {
 
 $('saude-verificar').addEventListener('click', verificar);
 
+
+// ---------- Usuário da sessão (login simulado, Passo 8B) ----------
+// O usuário é escolhido na Gestão de conteúdo; aqui só aparece "Nome — Perfil" e o link "Trocar usuário" para lá.
+function mostrarUsuario(usuario) {
+  const quem = $('sessao-usuario');
+  quem.textContent = usuario === null ? '' : rotuloDoUsuario(usuario);
+  quem.hidden = usuario === null;
+  $('sessao-trocar').hidden = usuario === null;
+  $('sem-usuario').hidden = usuario !== null;
+}
+
+/** O servidor recusou o token em uso (outro usuário entrou em outra aba ou o servidor reiniciou). */
+function perderSessao() {
+  mostrarUsuario(null);
+  mostrarStatus(MENSAGEM_USUARIO_MUDOU, 'erro');
+  $('saude-verificar').disabled = true;
+  $('saude-quando').textContent = 'Sem sessão: a verificação não está disponível.';
+}
+
 async function iniciar() {
   mostrarStatus('Preparando a sessão administrativa…');
-  const sessao = await cliente.iniciarSessao();
+  const sessao = await cliente.recuperarSessao();
   if (!sessao.ok) {
     mostrarStatus(sessao.mensagem ?? MENSAGENS.sessao, 'erro');
+    $('saude-quando').textContent = 'Sem sessão: a verificação não está disponível.';
+    return;
+  }
+  mostrarUsuario(sessao.usuario);
+  if (sessao.usuario === null) {
+    mostrarStatus(MENSAGEM_SEM_USUARIO, 'erro');
     $('saude-quando').textContent = 'Sem sessão: a verificação não está disponível.';
     return;
   }

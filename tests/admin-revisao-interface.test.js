@@ -12,6 +12,10 @@ import {
   pendenciasDaUrl, resumirImpacto, validarEdicaoDeFonte,
   explicarFontesPendentes, frasePendenciasParaConcluir, mensagemDaRevisao, resumirRevisao, servicoDaUrl, traduzirPendencia,
 } from '../admin/admin-logic.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -44,7 +48,7 @@ function servidorFalso(respostas = {}, portao = null) {
     chamadas.push({ url, metodo: opcoes.method, cabecalhos: opcoes.headers, corpoTexto: opcoes.body, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
     const chave = `${opcoes.method} ${url}`;
     if (respostas[chave]) return respostas[chave](opcoes);
-    if (url === '/__admin/sessao') return r(200, { token: TOKEN });
+    if (url === '/__admin/sessao') return r(200, sessaoCom(TOKEN));
     if (chave === `GET ${base}/revisao`) return r(200, REVISAO_API());
     if (opcoes.method === 'POST' && url.startsWith(base)) {
       if (portao) await portao;
@@ -377,7 +381,7 @@ test('EF5. cliente: GET do impacto, PATCH com a revisão atual, DELETE sem corpo
   const r = (status, corpo) => ({ status, json: async () => corpo });
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, metodo: opcoes.method, cabecalhos: opcoes.headers, corpoTexto: opcoes.body });
-    if (url === '/__admin/sessao') return r(200, { token: TOKEN });
+    if (url === '/__admin/sessao') return r(200, sessaoCom(TOKEN));
     if (url === base && opcoes.method === 'GET') return r(200, { forma: 'link', titulo: 'P', url: 'https://e.test/a', orgaoResponsavel: 'O', descricao: '', dataPublicacao: '', localizacao: '', revisao: 'r1', extra: 'ignorado' });
     if (url === `${base}/impacto`) return r(200, { informacoes: [{ titulo: 'Prazos', desfecho: 'continua' }], conteudoAntigo: { blocosDeTeste: 0, documentos: 1, perguntas: 0, camposDoServico: [] }, revisao: 'r1' });
     if (url === base && opcoes.method === 'PATCH') { await portao; return r(200, { revisao: 'r2', blocosReabertos: 2 }); }

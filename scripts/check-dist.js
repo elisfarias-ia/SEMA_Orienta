@@ -29,6 +29,9 @@ export const NOMES_ADMINISTRATIVOS = [
   'urlNormalizada', 'cadastrarFonte', 'validarFormFonte', 'corpoDaFonte', 'resumoDaFonte', 'carregarFontes',
   // Saúde do sistema: rota, verificações e textos.
   '/__admin/saude', 'verificarSaude', 'carregarSaude', 'normalizarSaude', 'formatarDataHoraBr', 'saude-verificar', 'Saúde do sistema', 'Verificar novamente',
+  // Usuários fictícios, matriz de permissões e login simulado (Sprint 8, Passos 8A e 8B): nomes, ids, módulos e textos da tela.
+  'Maria Silva', 'Carlos Silva', 'maria-silva', 'carlos-silva', 'USUARIOS_SELECIONAVEIS', 'atores.js', 'permissoes.js', 'sessao.js',
+  'Trocar usuário', 'normalizarSessao',
 ];
 
 // Servidor MCP local (scripts/mcp/): caminho, nome do servidor, ferramentas e pontos de entrada nunca podem estar no build.

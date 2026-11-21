@@ -10,8 +10,19 @@ const URL_A = 'https://exemplo.test/pagina-alfa';
 
 test.describe.configure({ mode: 'serial' });
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const opcaoMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / });
+const escolherMaria = (page) => opcaoMaria(page).check();
+
 async function entrar(page) {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
 }
@@ -39,22 +50,34 @@ async function preencherLink(page, { titulo, url, descricao = 'Página com as or
   await page.locator('#link-descricao').fill(descricao);
 }
 
-test('1. entrar e sair da demonstração: abrir não envia nada além de leitura e sair exige nova entrada', async ({ page }) => {
+test('1. (8B) entrar e sair: abrir só lê a sessão, entrar envia só o usuário escolhido e sair encerra a sessão no servidor', async ({ page }) => {
   const metodos = [];
-  page.on('request', (r) => { if (r.url().includes('/__admin/')) metodos.push(`${r.method()} ${new URL(r.url()).pathname}`); });
+  const corpos = [];
+  page.on('request', (r) => {
+    if (!r.url().includes('/__admin/')) return;
+    metodos.push(`${r.method()} ${new URL(r.url()).pathname}`);
+    if (r.method() !== 'GET') corpos.push(r.postData());
+  });
+  await encerrarSessao(page);
   await page.goto('/admin/');
   await expect(page.getByRole('heading', { level: 2, name: 'Área administrativa' })).toBeVisible();
-  expect(metodos, 'nada é pedido ao abrir').toEqual([]);
+  await expect(page.getByRole('group', { name: 'Escolha com qual usuário entrar' })).toBeVisible();
+  await expect(opcaoMaria(page)).toBeVisible();
+  expect(metodos, 'ao abrir, só a leitura da sessão').toEqual(['GET /__admin/sessao']);
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
-  await expect(page.getByText('Administração', { exact: true })).toBeVisible();
+  await expect(page.locator('#sessao-usuario')).toHaveText('Maria Silva — Cadastrante');
   expect(await page.locator('body').innerText()).not.toMatch(/demonstra|sem autenticação/i);
   await expect(page.getByRole('link', { name: 'Saúde do sistema' })).toHaveAttribute('href', './saude/');
-  expect(metodos).toEqual(['GET /__admin/sessao', 'GET /__admin/catalogo']);
+  expect(metodos).toEqual(['GET /__admin/sessao', 'POST /__admin/sessao', 'GET /__admin/catalogo']);
+  expect(corpos).toEqual([JSON.stringify({ usuarioId: 'maria-silva' })]);
   await botao(page, 'Sair').click();
   await expect(page.getByRole('button', { name: ENTRAR })).toBeFocused();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeHidden();
   await expect(status(page)).toContainText('saiu');
+  expect(metodos.at(-1)).toBe('DELETE /__admin/sessao');
+  expect(corpos.at(-1)).toBeNull();
 });
 
 test('2. serviço novo com tema novo e um texto', async ({ page }) => {
@@ -199,7 +222,9 @@ test('7. clique duplo grava uma única vez', async ({ page }) => {
 });
 
 test('8. teclado: Tab, Enter e Espaço, foco visível e sem armadilha', async ({ page }) => {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await expect(opcaoMaria(page)).toBeVisible();
   const focoVisivel = () => page.evaluate(() => {
     const e = document.activeElement;
     if (!e || e === document.body) return false;
@@ -207,8 +232,13 @@ test('8. teclado: Tab, Enter e Espaço, foco visível e sem armadilha', async ({
     return (c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) > 0) || (c.boxShadow && c.boxShadow !== 'none');
   });
   const nomeDoFoco = () => page.evaluate(() => document.activeElement?.textContent?.trim() || document.activeElement?.id || '');
-  // Primeiro Tab: link de pular; segundo: o botão de entrar.
+  // Primeiro Tab: link de pular; segundo: a escolha de usuário (Espaço marca); terceiro: o botão de entrar (8B).
   await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(opcaoMaria(page)).toBeFocused();
+  expect(await focoVisivel()).toBe(true);
+  await page.keyboard.press('Space');
+  await expect(opcaoMaria(page)).toBeChecked();
   await page.keyboard.press('Tab');
   expect(await nomeDoFoco()).toBe(ENTRAR);
   expect(await focoVisivel()).toBe(true);
@@ -254,15 +284,20 @@ test('9. 390 px: sem rolagem horizontal e alvos de toque de pelo menos 44 px', a
   const alvosPequenos = () => page.evaluate(() => {
     const pequenos = [];
     const visivel = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
-    for (const e of document.querySelectorAll('button, a.navegacao__link, select, input:not([type=checkbox]), textarea')) {
+    for (const e of document.querySelectorAll('button, a.navegacao__link, select, input:not([type=checkbox]):not([type=radio]), textarea')) {
       if (visivel(e) && e.getBoundingClientRect().height < 43.5) pequenos.push(`${e.tagName}#${e.id}:${Math.round(e.getBoundingClientRect().height)}`);
     }
     for (const l of document.querySelectorAll('label[for="link-oficial"]')) if (visivel(l) && l.getBoundingClientRect().height < 43.5) pequenos.push('label-oficial');
+    // 8B: os rádios da escolha de usuário são tocados pelo rótulo (como a caixa de seleção).
+    for (const l of document.querySelectorAll('label[for^="usuario-"]')) if (visivel(l) && l.getBoundingClientRect().height < 43.5) pequenos.push(`label-${l.htmlFor}`);
     return pequenos;
   });
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await expect(opcaoMaria(page)).toBeVisible();
   expect(await semRolagem(page)).toBe(true);
   expect(await alvosPequenos()).toEqual([]);
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
   expect(await semRolagem(page)).toBe(true);
@@ -281,11 +316,12 @@ test('9. 390 px: sem rolagem horizontal e alvos de toque de pelo menos 44 px', a
   await expect(page.locator('#informacoes-lista li').first()).toBeVisible();
 });
 
-test('10. recarregar exige nova entrada', async ({ page }) => {
+test('10. (8B) recarregar mantém a sessão e o usuário no topo', async ({ page }) => {
   await entrar(page);
   await page.reload();
-  await expect(page.getByRole('button', { name: ENTRAR })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeHidden();
+  await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
+  await expect(page.locator('#sessao-usuario')).toHaveText('Maria Silva — Cadastrante');
+  await expect(page.getByRole('button', { name: ENTRAR })).toBeHidden();
 });
 
 test('11. o chat público não devolve o conteúdo cadastrado na administração', async ({ page }) => {

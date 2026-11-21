@@ -9,6 +9,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRAR = 'Acessar administração';
 const TEMA = 'Tema Publicação Real';
@@ -36,7 +44,9 @@ function observarPosts(page) {
 const posts = (lista, final) => lista.filter((p) => p.caminho.endsWith(final));
 
 async function entrar(page) {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
 }
@@ -158,7 +168,9 @@ test('1. fluxo completo: autorizar e publicar, com diálogos diferentes, foco e 
   for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Concluir revisão$/, /^Autorizar publicação$/, /^Publicar$/, /^Incluir informação$/, /^Importar/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
   // o painel de /admin/ também mostra o estado
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await page.locator('#busca-servico').fill(d.nome);
   await page.getByRole('button', { name: new RegExp(d.nome) }).first().click();
