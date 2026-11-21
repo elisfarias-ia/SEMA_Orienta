@@ -3,6 +3,12 @@
 import { criarVersao, enviarParaValidacao } from '../services/admin/versao.js';
 import { registrarDecisaoMaterial, autorizarPublicacao, publicarVersao, revogarVersao } from '../services/admin/decisoes.js';
 
+// Sprint 8, Passo 8C: as gravações exigem o ator real. Maria Silva (Cadastrante) e Carlos Silva (Revisor) são usuários FICTÍCIOS
+// do login simulado (atores.js), sem nome aqui: Maria nas ações de cadastro e revisão de conteúdo; Carlos nas de validação,
+// autorização, publicação e revogação.
+export const MARIA = Object.freeze({ usuarioId: 'maria-silva', perfil: 'cadastrante', setor: 'CLABI' });
+export const CARLOS = Object.freeze({ usuarioId: 'carlos-silva', perfil: 'revisor', setor: 'CLABI' });
+
 /** Congela o valor em profundidade: qualquer tentativa de modificá-lo lança erro. */
 export function congelar(valor) {
   if (valor && typeof valor === 'object' && !Object.isFrozen(valor)) {

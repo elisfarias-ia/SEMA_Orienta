@@ -13,6 +13,21 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
+// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
+// revisão, que relê o usuário e reabre o serviço pela URL.
+async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
+  const r = await page.request.post('/__admin/sessao', { data: { usuarioId } });
+  expect(r.status()).toBe(200);
+  await page.reload();
+  await expect(page.locator('#sessao-usuario')).toHaveText(rotulo);
+  // O serviço precisa estar reaberto de verdade pela URL (o aria-busy="false" de #blocos já é o estado inicial do HTML).
+  await expect(page.locator('#servico-situacao')).toBeVisible();
+  await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
+  await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
+}
+const comoCarlos = (page) => trocarUsuarioNaRevisao(page, 'carlos-silva', 'Carlos Silva — Revisor');
+
 const ENTRAR = 'Acessar administração';
 const TEMA = 'Tema Revisão Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|sem_bloco_aceito|bloco_pendente|fonte_pendente|fonte_revogada|fonte_inexistente|entrada_invalida|revisao_divergente|versao_congelada|[0-9a-f]{64}|X-Admin-Token|\bbc-[0-9a-f]{6,}|\bv\d+\b/i;
@@ -243,6 +258,7 @@ test('5. conclusão válida, versão congelada sem ações nem publicação e no
   await revisarFonte(page, d.link);
   await revisarFonte(page, d.texto);
   await aceitar(page, 'Documentos exigidos');
+  await comoCarlos(page);
   const concluir = botao(page, 'Concluir revisão');
   await concluir.click();
   const dialogo = page.getByRole('dialog');

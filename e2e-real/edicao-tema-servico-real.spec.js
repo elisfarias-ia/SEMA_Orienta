@@ -13,6 +13,22 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
+// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
+// revisão, que relê o usuário e reabre o serviço pela URL.
+async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
+  const r = await page.request.post('/__admin/sessao', { data: { usuarioId } });
+  expect(r.status()).toBe(200);
+  await page.reload();
+  await expect(page.locator('#sessao-usuario')).toHaveText(rotulo);
+  // O serviço precisa estar reaberto de verdade pela URL (o aria-busy="false" de #blocos já é o estado inicial do HTML).
+  await expect(page.locator('#servico-situacao')).toBeVisible();
+  await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
+  await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
+}
+const comoCarlos = (page) => trocarUsuarioNaRevisao(page, 'carlos-silva', 'Carlos Silva — Revisor');
+const comoMaria = (page) => trocarUsuarioNaRevisao(page, 'maria-silva', 'Maria Silva — Cadastrante');
+
 const ACESSAR = 'Acessar administração';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|revisao_divergente|versao_congelada|ja_existe|[0-9a-f]{64}|X-Admin-Token|\bbc-[0-9a-f]{6,}|assuntoId|statusValidacao/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
@@ -200,9 +216,11 @@ test('5. versão concluída: Editar nome e tema fica indisponível com a orienta
   await criarServico(page, 'Serviço Edição Cinco', 'Tema Edição Cinco', { link: 'Link Cinco' });
   await irParaConteudo(page);
   await criarBlocoAceito(page, 'Conteúdo congelado cinco', 'Link Cinco');
+  await comoCarlos(page);
   await botao(page, 'Concluir revisão').click();
   await botao(page, 'Confirmar conclusão').click();
   await expect(status(page)).toContainText('Revisão concluída.');
+  await comoMaria(page);
   await voltarParaGestao(page);
   await expect(page.getByRole('heading', { level: 2, name: 'Serviço Edição Cinco' })).toBeVisible();
   await expect(botao(page, 'Editar nome e tema')).toBeDisabled();

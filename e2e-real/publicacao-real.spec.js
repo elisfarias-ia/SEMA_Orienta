@@ -17,6 +17,21 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
+// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
+// revisão, que relê o usuário e reabre o serviço pela URL.
+async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
+  const r = await page.request.post('/__admin/sessao', { data: { usuarioId } });
+  expect(r.status()).toBe(200);
+  await page.reload();
+  await expect(page.locator('#sessao-usuario')).toHaveText(rotulo);
+  // O serviço precisa estar reaberto de verdade pela URL (o aria-busy="false" de #blocos já é o estado inicial do HTML).
+  await expect(page.locator('#servico-situacao')).toBeVisible();
+  await expect(page.locator('#status')).toContainText('Serviço aberto para revisão.');
+  await expect(page.locator('#blocos')).toHaveAttribute('aria-busy', 'false');
+}
+const comoCarlos = (page) => trocarUsuarioNaRevisao(page, 'carlos-silva', 'Carlos Silva — Revisor');
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRAR = 'Acessar administração';
 const TEMA = 'Tema Publicação Real';
@@ -96,6 +111,7 @@ async function prepararConcluido(page, nome) {
   await page.locator('#aba-informacoes').click();
   await botao(page, 'Aceitar informação: Documentos exigidos').click();
   await expect(status(page)).toContainText('Informação aceita.');
+  await comoCarlos(page);
   await botao(page, 'Concluir revisão').click();
   await botao(page, 'Confirmar conclusão').click();
   await expect(status(page)).toContainText('Revisão concluída.');

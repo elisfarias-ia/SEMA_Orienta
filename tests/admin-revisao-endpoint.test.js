@@ -36,7 +36,7 @@ function retrato(raiz) {
 const RETRATO_REAL_ANTES = retrato(RAIZ);
 const EXISTIA_DATA = fs.existsSync(path.join(RAIZ, 'data'));
 
-async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost:5173' } = {}) {
+async function enviarBruto(m, { url, method = 'POST', corpo, token, host = 'localhost:5173' } = {}) {
   const buffer = method === 'GET' ? Buffer.alloc(0) : Buffer.from(JSON.stringify(corpo ?? {}));
   const headers = { host };
   if (method !== 'GET') { headers['content-type'] = 'application/json'; headers['content-length'] = String(buffer.length); }
@@ -46,6 +46,22 @@ async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost
   const res = { statusCode: 0, setHeader: () => {}, end: (t) => { resposta = t; } };
   await m(req, res, () => {});
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
+}
+
+// Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
+// é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
+const TOKEN_FIXO = 'c'.repeat(64);
+const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
+async function enviar(m, opcoes = {}) {
+  const { method = 'POST' } = opcoes;
+  if (method !== 'POST' || opcoes.token === undefined || !ROTA_DO_REVISOR.test(opcoes.url ?? '')) return enviarBruto(m, opcoes);
+  await entrarComo(m, 'carlos-silva');
+  try {
+    return await enviarBruto(m, opcoes);
+  } finally {
+    await entrarComo(m, 'maria-silva');
+  }
 }
 
 // Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
@@ -72,7 +88,7 @@ async function comCopia(fn, opcoes = {}) {
   c.blocos.push(bloco('bc-um', [MANUAL]));
   gravarJ(raiz, arq('conteudo-assistente.json'), c);
   try {
-    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
+    const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, gerarToken: () => TOKEN_FIXO, ...opcoes });
     const token = await obterToken(m);
     const ctx = {
       m, token, raiz,

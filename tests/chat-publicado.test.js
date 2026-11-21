@@ -16,6 +16,7 @@ import { gerarConteudoPublico, lerConteudoPublicado } from '../services/publicac
 import { arquivoPublicadoDoServico, criarPluginConteudoPublico, listarArquivosPublicados, PASTA_NO_DIST } from '../services/conteudo-publico-build.js';
 import { RESPOSTA_SEM_INFORMACAO_PUBLICADA, respostaIndisponivel, responderComConteudoPublicado, responderPergunta, validarConteudoPublicado } from '../src/assistant.js';
 import { conferirDist } from '../scripts/check-dist.js';
+import { CARLOS, MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -72,9 +73,9 @@ async function comCopia(fn) {
 function revisarEConcluir(raiz) {
   const rev = criarServicoRevisao({ raiz, agora: AGORA });
   const sit = () => rev.consultar('lac').situacao;
-  for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao }).ok, true);
-  for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao }).ok, true);
-  const r = rev.concluirRevisao('lac', { revisao: sit().revisao });
+  for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
+  for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
+  const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
   assert.equal(r.ok, true);
   return r.hash;
 }
@@ -83,8 +84,8 @@ const publicador = (raiz) => criarServicoPublicacao({ raiz, agora: AGORA });
 function publicar(raiz) {
   const revisao = revisarEConcluir(raiz);
   const pub = publicador(raiz);
-  assert.equal(pub.autorizar('lac', { revisao }).ok, true);
-  assert.equal(pub.publicar('lac', { revisao }).ok, true);
+  assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao }).ok, true);
+  assert.equal(pub.publicar('lac', { ator: CARLOS, revisao }).ok, true);
 }
 const dePublicado = (raiz) => validarConteudoPublicado(lerConteudoPublicado(raiz, 'lac'));
 const arquivoPublico = (raiz) => listar(path.join(raiz, 'services', 'lac', 'publico')).find((f) => /conteudo-[0-9a-f]{16}\.json$/.test(f));
@@ -109,7 +110,7 @@ test('CP2. versão em elaboração, validada ou autorizada nunca alimenta o chat
     assert.equal(gerado.ok, false);
     const revisao = revisarEConcluir(raiz);
     assert.equal(dePublicado(raiz), null, 'validada');
-    assert.equal(publicador(raiz).autorizar('lac', { revisao }).ok, true);
+    assert.equal(publicador(raiz).autorizar('lac', { ator: CARLOS, revisao }).ok, true);
     assert.equal(dePublicado(raiz), null, 'autorizada');
     assert.deepEqual(listarArquivosPublicados(raiz), []);
     assert.deepEqual(criarPluginConteudoPublico({ raiz }).transformIndexHtml(), []);

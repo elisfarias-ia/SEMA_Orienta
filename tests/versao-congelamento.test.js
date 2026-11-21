@@ -13,6 +13,7 @@ import { conferirHashDaVersaoEmDisco, lerArquivosDaVersao } from '../services/ad
 import { criarGravadorEntradas } from '../services/admin/entradas-gravacao.js';
 import { ACOES_DA_VERSAO, acoesPermitidas, conteudoEditavel, verificarAcao } from '../services/admin/fluxo.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { MARIA } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 16, 12, 0, 0);
@@ -103,7 +104,7 @@ test('C4. o hash inclui entradas.json: com e sem entrada o hash congelado é dif
   let semEntradas;
   await comCopia(({ raiz }) => { semEntradas = congelarVersaoDoServico({ raiz, servicoId: 'lac', agora: AGORA }).hash; });
   await comCopia(async ({ raiz }) => {
-    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação fictícia', texto: 'Texto fictício do 5A.' });
+    const g = await criarGravadorEntradas({ raiz, agora: AGORA }).gravarEntradaTexto('lac', { titulo: 'Orientação fictícia', texto: 'Texto fictício do 5A.' }, { ator: MARIA });
     assert.equal(g.ok, true);
     const r = congelarVersaoDoServico({ raiz, servicoId: 'lac', agora: AGORA });
     assert.equal(r.ok, true);
