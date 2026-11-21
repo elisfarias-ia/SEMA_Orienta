@@ -48,6 +48,9 @@ async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
 }
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 const lerJ = (raiz, ...p) => JSON.parse(fs.readFileSync(path.join(raiz, ...p), 'utf8'));
 const gravarJ = (raiz, p, d) => fs.writeFileSync(path.join(raiz, ...p), `${JSON.stringify(d, null, 2)}\n`);
 const arq = (nome) => ['services', 'lac', 'versoes', 'v1', nome];
@@ -70,7 +73,7 @@ async function comCopia(fn, opcoes = {}) {
   gravarJ(raiz, arq('conteudo-assistente.json'), c);
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
-    const token = (await enviar(m, { url: ROTA_SESSAO, method: 'GET' })).corpo.token;
+    const token = await obterToken(m);
     const ctx = {
       m, token, raiz,
       post: (rota, corpo) => enviar(m, { url: `/__admin/servicos/lac/${rota}`, corpo, token }),

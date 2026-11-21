@@ -5,6 +5,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const ENTRAR = 'Acessar administração';
 const TEMA = 'Tema Revisão Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|sem_bloco_aceito|bloco_pendente|fonte_pendente|fonte_revogada|fonte_inexistente|entrada_invalida|revisao_divergente|versao_congelada|[0-9a-f]{64}|X-Admin-Token|\bbc-[0-9a-f]{6,}|\bv\d+\b/i;
@@ -13,7 +21,9 @@ const status = (page) => page.locator('#status');
 const semRolagem = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 
 async function entrar(page) {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
 }
@@ -254,7 +264,9 @@ test('5. conclusão válida, versão congelada sem ações nem publicação e no
   await expect(page.locator('#blocos')).toContainText('Situação: Aceita');
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
   // o painel do serviço também mostra "Pronto para publicar" e esconde o cadastro
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ENTRAR }).click();
   await page.locator('#busca-servico').fill(d.nome);
   await page.getByRole('button', { name: new RegExp(d.nome) }).first().click();

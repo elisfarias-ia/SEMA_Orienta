@@ -12,6 +12,10 @@ import {
 } from '../admin/admin-logic.js';
 import { COMPONENTES, CAPACIDADES, ESTADOS } from '../services/admin/saude.js';
 import { conferirDist, NOMES_ADMINISTRATIVOS } from '../scripts/check-dist.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -93,7 +97,7 @@ function servidor({ saude = async () => ({ status: 200, json: async () => corpoD
   const chamadas = [];
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, ...opcoes });
-    if (url === ROTAS.sessao) return { status: 200, json: async () => ({ token: TOKEN }) };
+    if (url === ROTAS.sessao) return { status: 200, json: async () => sessaoCom(TOKEN) };
     if (opcoes.headers?.[CABECALHO_TOKEN] !== TOKEN) return { status: 401, json: async () => ({ erro: 'nao_autorizado' }) };
     if (url === ROTAS.saude) return saude(opcoes);
     return { status: 404, json: async () => ({ erro: 'nao_encontrado' }) };

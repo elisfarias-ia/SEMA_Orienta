@@ -19,7 +19,19 @@ function observar(page) {
   return lista;
 }
 
+// Passo 8B (login simulado): cada abertura garante sessão própria pela API (só muda a memória do servidor, nada é gravado em
+// disco), para o arquivo passar também rodando sozinho. Pela API, a entrada não aparece entre as requisições observadas da página.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+async function entrarComoMaria(page) {
+  await encerrarSessao(page);
+  await page.request.post('/__admin/sessao', { data: { usuarioId: 'maria-silva' } });
+}
+
 async function abrirLac(page) {
+  await entrarComoMaria(page);
   await page.goto('/admin/conteudo/?servico=lac');
   await expect(page.locator('#servico-situacao')).toBeVisible();
   await expect(page.locator('#fontes-revisao')).toHaveAttribute('aria-busy', 'false');

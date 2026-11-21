@@ -5,6 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const URL_LINK = 'https://exemplo.test/portal-tobiluz';
 const TEXTO_1 = 'Informação fictícia da orientação de demonstração sobre flurbo.';
@@ -40,7 +48,9 @@ async function perguntar(page, pergunta, esperadas) {
 }
 
 test('o chat responde só com a informação publicada pertinente; texto sem fonte e link só com a própria URL', async ({ page }) => {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: 'Acessar administração' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
   await page.locator('#busca-servico').fill(NOME_LAC);

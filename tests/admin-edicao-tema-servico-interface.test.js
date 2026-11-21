@@ -10,6 +10,10 @@ import {
   AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, CABECALHO_TOKEN, MENSAGEM_NOME_SERVICO_REPETIDO, MENSAGEM_NOME_TEMA_REPETIDO, MENSAGEM_REVISAO_DIVERGENTE, MENSAGEM_VERSAO_CONCLUIDA_PARA_EDITAR,
   criarClienteGestao, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema, mensagemDaEdicao, resumirEdicaoDoServico, resumirEdicaoDoTema, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema,
 } from '../admin/admin-logic.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -26,7 +30,7 @@ function servidorFalso(respostas) {
   const chamadas = [];
   const fetchImpl = async (url, opcoes) => {
     chamadas.push({ url, metodo: opcoes.method, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body), cabecalhos: opcoes.headers });
-    if (url === '/__admin/sessao') return { status: 200, json: async () => ({ token: TOKEN }) };
+    if (url === '/__admin/sessao') return { status: 200, json: async () => sessaoCom(TOKEN) };
     const r = respostas[`${opcoes.method} ${url}`];
     if (r === undefined) return { status: 404, json: async () => ({ erro: 'nao_encontrado' }) };
     return { status: r.status, json: async () => r.corpo };
@@ -156,7 +160,7 @@ test('EI7. cliente: erros do servidor viram mensagens fixas; segunda gravação 
   assert.deepEqual(await cliente.editarServico('servico-a', { nome: 'X' }, REVISAO, false), { ok: false, mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true });
   let liberar;
   const portao = new Promise((r) => { liberar = r; });
-  const lento = criarClienteGestao({ fetchImpl: async (url) => (url === '/__admin/sessao' ? { status: 200, json: async () => ({ token: TOKEN }) } : (await portao, { status: 200, json: async () => ({}) })) });
+  const lento = criarClienteGestao({ fetchImpl: async (url) => (url === '/__admin/sessao' ? { status: 200, json: async () => sessaoCom(TOKEN) } : (await portao, { status: 200, json: async () => ({}) })) });
   await lento.entrar();
   const primeira = lento.editarTema('tema-um', 'Novo nome', REVISAO);
   const segunda = await lento.editarTema('tema-um', 'Outro nome', REVISAO);

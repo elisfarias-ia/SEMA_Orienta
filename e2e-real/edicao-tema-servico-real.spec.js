@@ -5,6 +5,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const ACESSAR = 'Acessar administração';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|revisao_divergente|versao_congelada|ja_existe|[0-9a-f]{64}|X-Admin-Token|\bbc-[0-9a-f]{6,}|assuntoId|statusValidacao/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
@@ -24,7 +32,9 @@ function observar(page) {
 const so = (lista, metodo, final) => lista.filter((x) => x.metodo === metodo && x.caminho.includes(final));
 
 async function acessar(page) {
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: ACESSAR }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
 }

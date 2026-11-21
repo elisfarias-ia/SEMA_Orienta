@@ -3,9 +3,12 @@
 // ou que vá para a rede externa é bloqueada e faz o teste falhar.
 import { test as base, expect } from '@playwright/test';
 import { focoVisivel, semRolagemHorizontal } from './base.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
 
 const ORIGEM_LOCAL = `http://localhost:${process.env.E2E_PORTA ?? '5173'}`;
 const TOKEN = 'ab'.repeat(32);
+// Passo 8B: a sessão simulada já tem um usuário escolhido (fictício), no formato novo da leitura (GET).
+const SESSAO_SIMULADA = { usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token: TOKEN };
 const IDS_TECNICOS = /\bbc-[0-9a-f]{6,}|\bservico-ficticio\b|assunto-ficticio|\bf-um\b|\bf-dois\b|\bf-velha\b|hashConteudo|[0-9a-f]{64}|X-Admin-Token|teste_local|\brev-\d+\b|revisao_divergente|validado_materialmente/i;
 const FONTES = [
   { id: 'f-um', titulo: 'Fonte Um', tipo: 'pagina_oficial', vigencia: { situacao: 'nao_se_aplica' } },
@@ -62,7 +65,7 @@ const test = base.extend({
       const m = r.method();
       const json = (status, corpo) => rota.fulfill({ status, contentType: 'application/json', body: corpo === null ? '' : JSON.stringify(corpo) });
       const base = '/__admin/servicos/servico-ficticio';
-      if (p === '/__admin/sessao') return json(200, { token: TOKEN });
+      if (p === '/__admin/sessao') return json(200, SESSAO_SIMULADA);
       if (p === '/__admin/catalogo') {
         return json(200, {
           assuntos: [{ id: 'assunto-ficticio', nome: 'Assunto Fictício', descricao: 'Descrição.', ativo: true }],

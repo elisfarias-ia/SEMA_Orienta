@@ -7,6 +7,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOME_LAC = 'Licença por Adesão e Compromisso';
 const TEXTO = 'Informação fictícia de demonstração sobre zelmorante, usada só no teste de revogação.';
@@ -32,7 +40,9 @@ async function perguntar(page) {
 
 test('revogar pelo botão: confirmação com motivo obrigatório, situação "Publicação revogada" e o chat deixa de usar o conteúdo', async ({ page }) => {
   // 1. Publicar uma versão de teste (texto fictício, revisado, aceito, revisão concluída, autorizado e publicado pelas telas reais).
+  await encerrarSessao(page);
   await page.goto('/admin/');
+  await escolherMaria(page);
   await page.getByRole('button', { name: 'Acessar administração' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
   await page.locator('#busca-servico').fill(NOME_LAC);

@@ -12,6 +12,10 @@ import {
 } from '../admin/admin-logic.js';
 import config from '../vite.config.js';
 import { conferirDist, NOMES_ADMINISTRATIVOS } from '../scripts/check-dist.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -35,7 +39,7 @@ function servidorFalso({ assuntos, servicos, estados = {}, token = TOKEN, portao
   const fetchImpl = async (url, opcoes = {}) => {
     chamadas.push({ url, ...opcoes, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
     if (respostas[url]) return respostas[url](opcoes);
-    if (url === ROTAS.sessao) return resposta(200, { token });
+    if (url === ROTAS.sessao) return resposta(200, sessaoCom(token));
     if (opcoes.headers?.[CABECALHO_TOKEN] !== token) return resposta(401, { erro: 'nao_autorizado' });
     if (url === ROTAS.catalogo && opcoes.method === 'GET') return resposta(200, { assuntos: estado.assuntos, servicos: estado.servicos });
     const m = /^\/__admin\/servicos\/([^/]+)\/versao-atual$/.exec(url);
@@ -256,7 +260,7 @@ test('AI10. envio duplicado é bloqueado enquanto há gravação em andamento e 
   assert.equal(cliente.gravando(), false);
   assert.equal((await cliente.cadastrar('assunto', { ...corpo, nome: 'Terceiro' })).ok, true);
   // Liberação também após falha de rede e após erro do servidor.
-  const falha = criarClienteAdmin({ fetchImpl: async (url, o) => { if (url === ROTAS.sessao) return { status: 200, json: async () => ({ token: TOKEN }) }; throw new Error('rede'); } });
+  const falha = criarClienteAdmin({ fetchImpl: async (url, o) => { if (url === ROTAS.sessao) return { status: 200, json: async () => sessaoCom(TOKEN) }; throw new Error('rede'); } });
   await falha.iniciarSessao();
   assert.deepEqual(await falha.cadastrar('assunto', corpo), { ok: false, mensagem: MENSAGENS.rede });
   assert.equal(falha.gravando(), false);

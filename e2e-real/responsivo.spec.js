@@ -3,6 +3,14 @@
 // ampliado (150%), que foi o que fez a página ficar mais larga do que a tela (grade com coluna "auto").
 import { test, expect } from '@playwright/test';
 
+// Passo 8B (login simulado): a sessão é única no servidor e só existe em memória (nada é gravado em disco). Antes de abrir
+// /admin/, a sessão é encerrada para a escolha de usuário aparecer; depois, a usuária fictícia Maria Silva é marcada.
+async function encerrarSessao(page) {
+  const corpo = await (await page.request.get('/__admin/sessao')).json();
+  if (typeof corpo.token === 'string') await page.request.delete('/__admin/sessao', { headers: { 'X-Admin-Token': corpo.token } });
+}
+const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
+
 const ENTRAR = 'Acessar administração';
 const LONGO = 'ParagrafoSemEspacosMuitoLongoParaTestarQuebraDeLinhaEmTelasPequenasXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 const TELAS = [
@@ -82,10 +90,13 @@ for (const tela of TELAS) {
     test.use({ isMobile: tela.largura < 600, hasTouch: tela.largura < 600 });
     test('/admin/: entrada, lista, novo serviço e painéis de informação', async ({ page }) => {
       await prepararTela(page, tela);
+      await encerrarSessao(page);
       await page.goto('/admin/');
+      await expect(page.getByRole('radio', { name: /^Maria Silva — / })).toBeVisible(); // 8B: a escolha aparece depois de ler a sessão
       await ampliar(page, tela);
       await conferirSemCortes(page, 'entrada');
       await conferirTeclado(page, 'entrada', 4);
+      await escolherMaria(page);
       await page.getByRole('button', { name: ENTRAR }).click();
       await expect(page.getByRole('heading', { level: 2, name: 'Serviços' })).toBeVisible();
       await conferirSemCortes(page, 'lista');

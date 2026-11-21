@@ -11,6 +11,10 @@ import {
   botoesDePublicacao, criarClienteAdmin, criarClienteGestao, corpoDaPublicacao, dataDaRevisaoBr, frasePublicacao,
   linhasDoResumoDePublicacao, mensagemDaPublicacao, resumirPublicacao,
 } from '../admin/admin-logic.js';
+import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
+
+// Passo 8B: a sessão responde no formato novo (usuário escolhido, usuários selecionáveis e token).
+const sessaoCom = (token) => ({ usuario: { ...USUARIOS_SELECIONAVEIS[0] }, usuarios: USUARIOS_SELECIONAVEIS.map((u) => ({ ...u })), token });
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
@@ -26,7 +30,7 @@ function servidorFalso(respostas = {}) {
     chamadas.push({ url, metodo: opcoes.method, corpoTexto: opcoes.body, corpo: opcoes.body === undefined ? undefined : JSON.parse(opcoes.body) });
     const chave = `${opcoes.method} ${url}`;
     if (respostas[chave]) return respostas[chave](opcoes);
-    if (url === '/__admin/sessao') return r(200, { token: TOKEN });
+    if (url === '/__admin/sessao') return r(200, sessaoCom(TOKEN));
     if (chave === 'GET /__admin/servicos/servico-ficticio/publicacao/resumo') return r(200, RESUMO_API());
     if (chave === 'POST /__admin/servicos/servico-ficticio/autorizacao' || chave === 'POST /__admin/servicos/servico-ficticio/publicacao') return r(200, { estado: 'x', revisao: REVISAO });
     return r(404, { erro: 'nao_encontrado' });

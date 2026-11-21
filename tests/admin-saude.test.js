@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { verificarSaude, COMPONENTES, CAPACIDADES, ESTADOS } from '../services/admin/saude.js';
 import { criarManipuladorAdmin, CABECALHO_TOKEN, ROTA_SESSAO, ROTA_SAUDE } from '../services/admin/admin-endpoint.js';
@@ -220,9 +221,19 @@ async function chamar(m, { url = ROTA_SAUDE, method = 'GET', headers = { host: '
   return { status: res.statusCode, corpo: corpo === null ? null : JSON.parse(corpo), texto: corpo ?? '', cab };
 }
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+async function obterToken(m) {
+  const buffer = Buffer.from(JSON.stringify({ usuarioId: 'maria-silva' }));
+  const headers = { host: 'localhost:5173', 'content-type': 'application/json', 'content-length': String(buffer.length) };
+  let corpo = null;
+  const res = { statusCode: 0, setHeader: () => {}, end: (t) => { corpo = t; } };
+  await m(Object.assign(Readable.from([buffer]), { url: ROTA_SESSAO, method: 'POST', headers, socket: { remoteAddress: '127.0.0.1', localPort: 5173 } }), res, () => {});
+  return JSON.parse(corpo).token;
+}
+
 test('SH10. GET /__admin/saude com token devolve a saúde com no-store e relógio injetável', async () => {
   const m = criarManipuladorAdmin({ raiz: RAIZ, agora });
-  const token = (await chamar(m, { url: ROTA_SESSAO })).corpo.token;
+  const token = await obterToken(m);
   const r = await chamar(m, { token });
   assert.equal(r.status, 200);
   assert.equal(r.cab['cache-control'], 'no-store');
@@ -236,7 +247,7 @@ test('SH10. GET /__admin/saude com token devolve a saúde com no-store e relógi
 
 test('SH11. o endpoint exige token, origem local, só GET, sem query nem corpo; outras rotas seguem 404', async () => {
   const m = criarManipuladorAdmin({ raiz: RAIZ, agora });
-  const token = (await chamar(m, { url: ROTA_SESSAO })).corpo.token;
+  const token = await obterToken(m);
   assert.equal((await chamar(m)).status, 401);
   assert.equal((await chamar(m, { token: 'a'.repeat(64) })).status, 401);
   assert.deepEqual((await chamar(m, { token: token.slice(1) })).corpo, { erro: 'nao_autorizado' });
@@ -259,7 +270,7 @@ test('SH12. com a base quebrada o endpoint continua respondendo 200 com os estad
   await comCopia(async ({ raiz, pai }) => {
     fs.writeFileSync(path.join(raiz, 'services', 'registry.json'), '{ conteúdo-secreto-fictício');
     const m = criarManipuladorAdmin({ raiz, agora, diretorioTemporario: pai });
-    const token = (await chamar(m, { url: ROTA_SESSAO })).corpo.token;
+    const token = await obterToken(m);
     const r = await chamar(m, { token });
     assert.equal(r.status, 200);
     assert.equal(por(r.corpo, 'base_servicos_versoes').estado, 'indisponivel');
@@ -280,7 +291,7 @@ test('SH13. chamadas simultâneas não alteram a base, não deixam pasta tempor�
     await comCopia(async ({ raiz, pai }) => {
       const antes = retrato(raiz);
       const m = criarManipuladorAdmin({ raiz, agora, diretorioTemporario: pai });
-      const token = (await chamar(m, { url: ROTA_SESSAO })).corpo.token;
+      const token = await obterToken(m);
       const rs = await Promise.all(Array.from({ length: 20 }, () => chamar(m, { token })));
       assert.ok(rs.every((r) => r.status === 200));
       assert.equal(new Set(rs.map((r) => r.texto)).size, 1);

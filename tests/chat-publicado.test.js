@@ -46,6 +46,9 @@ async function enviar(m, { url, method = 'POST', corpo, token }) {
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta) };
 }
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 /** Cópia temporária de services/ com duas informações (link e texto cadastrado) em elaboração. */
 async function comCopia(fn) {
   const pai = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-orienta-chat-publicado-'));
@@ -54,7 +57,7 @@ async function comCopia(fn) {
   fs.cpSync(path.join(RAIZ, 'services'), path.join(raiz, 'services'), { recursive: true });
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai });
-    const token = (await enviar(m, { url: ROTA_SESSAO, method: 'GET' })).corpo.token;
+    const token = await obterToken(m);
     assert.equal((await enviar(m, { url: '/__admin/servicos/lac/entradas-texto', corpo: { titulo: 'Texto interno fictício', texto: TEXTO_ORIGINAL }, token })).status, 201);
     const idTexto = lerJ(raiz, ...arq('fontes.json')).fontes.find((f) => f.formaEntrada === 'texto').id;
     const c = lerJ(raiz, ...arq('conteudo-assistente.json'));

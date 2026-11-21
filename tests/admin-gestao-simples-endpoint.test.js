@@ -29,6 +29,9 @@ async function enviar(m, { url, method = 'POST', corpo, token, host = 'localhost
   return { status: res.statusCode, corpo: resposta === null ? null : JSON.parse(resposta), bruto: resposta ?? '' };
 }
 
+// Passo 8B: o token só existe depois de escolher um usuário selecionável (POST /__admin/sessao).
+const obterToken = async (m) => (await enviar(m, { url: ROTA_SESSAO, corpo: { usuarioId: 'maria-silva' } })).corpo.token;
+
 function hashDaPasta(dir) {
   const h = crypto.createHash('sha256');
   const andar = (d) => {
@@ -50,7 +53,7 @@ async function comCopia(fn, opcoes = {}) {
   const hashReal = hashDaPasta(path.join(RAIZ, 'services'));
   try {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai, ...opcoes });
-    const token = (await enviar(m, { url: ROTA_SESSAO, method: 'GET' })).corpo.token;
+    const token = await obterToken(m);
     const ctx = {
       m, token, raiz,
       post: (url, corpo) => enviar(m, { url, corpo, token }),
