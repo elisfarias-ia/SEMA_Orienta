@@ -12,6 +12,7 @@ import { criarManipuladorAdmin, CABECALHO_TOKEN, ROTA_SESSAO, ROTA_CATALOGO } fr
 import { USUARIOS_SELECIONAVEIS } from '../services/admin/atores.js';
 import { acoesDoPerfil } from '../services/admin/permissoes.js';
 import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
+import { enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 21, 12, 0, 0);
@@ -316,7 +317,7 @@ test('S13b. Passo 8C: revisão de fonte (com Maria) e autorização (com Carlos)
     const sit = () => rev.consultar('lac').situacao;
     for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao, ator: semNome(MARIA) }).ok, true);
     for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao, ator: semNome(MARIA) }).ok, true);
-    const concluida = rev.concluirRevisao('lac', { revisao: sit().revisao, ator: semNome(CARLOS) });
+    const concluida = enviarEValidar(rev, 'lac', sit().revisao, { revisor: semNome(CARLOS) });
     assert.equal(concluida.ok, true);
     // Maria (Cadastrante) não autoriza: 403 antes de ler o corpo, nada muda e a recusa é registrada.
     const manifestoAntes = fs.readFileSync(v1('versao.json'));

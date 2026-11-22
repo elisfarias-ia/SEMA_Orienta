@@ -168,11 +168,14 @@ A experiência principal de `/admin/` (só no `npm run dev`) é orientada por se
 | `POST /__admin/servicos/<id>/revisao/fontes` | Marca uma fonte como revisada (corpo: `fonteId`, `revisao`). Não publica nem acessa o link. |
 | `POST /__admin/servicos/<id>/revisao/blocos/aceitar` | Aceita um bloco de conhecimento (corpo: `blocoId`, `revisao`). |
 | `POST /__admin/servicos/<id>/revisao/blocos/rejeitar` | Remove um bloco de conhecimento em rascunho (corpo: `blocoId`, `revisao`). |
-| `POST /__admin/servicos/<id>/revisao/blocos/reabrir` | Reabre para correção um bloco aceito, só antes de concluir a revisão (corpo: `blocoId`, `revisao`). |
-| `POST /__admin/servicos/<id>/revisao/concluir` | Conclui a revisão: congela a versão, grava o hash e leva a "Pronto para publicar" (corpo: `revisao`). Não autoriza nem publica. |
+| `POST /__admin/servicos/<id>/revisao/blocos/reabrir` | Reabre para correção um bloco aceito, só antes de enviar para revisão (corpo: `blocoId`, `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/enviar` | Sprint 8, Passo 8D (Cadastrante): envia para revisão; congela a versão (hash e `enviadaEm`) e leva a "Em análise" (`em_validacao`); não grava decisão (corpo: `revisao`). |
+| `POST /__admin/servicos/<id>/revisao/validar` | Passo 8D (Revisor): valida materialmente a versão enviada e leva a "Pronto para publicar"; grava a decisão material (corpo: `revisao`). Não autoriza nem publica. |
+| `POST /__admin/servicos/<id>/revisao/ajustes` | Passo 8D (Revisor): pede ajustes (corpo: `revisao`, `motivo`) e leva a "Ajustes solicitados"; a correção é feita numa nova versão. O motivo fica só na decisão privada. |
+| `POST /__admin/servicos/<id>/revisao/concluir` | Removida no Passo 8D: responde 404 genérico. |
 | `POST /__admin/servicos/<id>/nova-versao` | Cria a nova versão a partir da atual congelada (corpo `{}`). A versão publicada anterior fica intacta. |
 
-O ator registrado no histórico privado é sempre "Servidor de demonstração" (não comprova identidade nem validação jurídica). Todas as gravações passam pela trava comum.
+O ator registrado no histórico privado é o usuário real da sessão (Maria Silva ou Carlos Silva, fictícios, desde o Sprint 8, Passo 8C; antes, o "Servidor de demonstração"), e não comprova identidade nem validação jurídica. Todas as gravações passam pela trava comum.
 
 ### Edição e exclusão de fontes (Sprint 5, Passo 5B3a)
 
@@ -192,11 +195,11 @@ Só na versão atual em elaboração; versão congelada exige nova versão. A fo
 
 `GET` e `POST` em `/__admin/servicos/<id>/importacao`: lista candidatos do conteúdo antigo e importa um item por vez como informação em elaboração com fonte ativa. Nunca aceita, revisa nem publica; o conteúdo antigo fica intacto e a LAC real não foi convertida.
 
-### Concluir, autorizar e publicar (Sprint 5, Passo 5C)
+### Enviar, validar, autorizar e publicar (Sprint 5, Passo 5C; Sprint 8, Passo 8D)
 
 | Rota (exigem token) | O que faz |
 |---|---|
-| `POST .../revisao/concluir` | Conclui a revisão e congela a versão. |
+| `POST .../revisao/enviar` e `POST .../revisao/validar` | Enviam para revisão (Cadastrante) e validam materialmente (Revisor); substituem o antigo `.../revisao/concluir` (removido no 8D). |
 | `POST /__admin/servicos/<id>/autorizacao` | Registra a autorização da publicação. |
 | `GET /__admin/servicos/<id>/publicacao/resumo` | Resumo do que será publicado. |
 | `POST /__admin/servicos/<id>/publicacao` | Publica em transação única com rollback. |
@@ -351,12 +354,24 @@ Nada de corpo, token, nome ou `usuarioId` vai para log. Todas as outras rotas co
 O perfil da sessão passa a decidir o que pode ser gravado, pela matriz de `services/admin/permissoes.js` (sem mudanças nela): **Cadastrante** (Maria Silva, fictícia) cadastra, edita, revisa fontes, aceita, rejeita e reabre informações, importa e cria nova versão; **Revisor** (Carlos Silva, fictício) conclui a revisão, autoriza, publica e revoga. Continua não sendo autenticação: qualquer pessoa no computador pode escolher qualquer usuário.
 
 - **Ator fixado por pedido:** cada pedido confere o token uma única vez (`sessao.atorDoToken`, em tempo constante) e guarda o ator até o fim. Se a sessão trocar enquanto o corpo é lido ou enquanto o pedido espera a trava, quem grava continua sendo quem fez o pedido.
-- **Permissão antes do corpo:** `services/admin/acoes-das-rotas.js` (puro) diz quais ações cada uma das 25 rotas que gravam exige; a sessão (`POST`/`DELETE /__admin/sessao`), a busca de links e as leituras não exigem nenhuma. Logo depois do token e da conferência do serviço (404), e antes de ler o corpo e de entrar na trava, o endpoint confere cada ação na matriz. Fora do perfil: **403 `{ "erro": "perfil_sem_permissao" }`**, com `Connection: close`, sem ler o corpo (um corpo grande demais também recebe 403, não 413).
+- **Permissão antes do corpo:** `services/admin/acoes-das-rotas.js` (puro) diz quais ações cada uma das 27 rotas que gravam exige (25 no 8C; no 8D, enviar, validar e ajustes substituíram concluir); a sessão (`POST`/`DELETE /__admin/sessao`), a busca de links e as leituras não exigem nenhuma. Logo depois do token e da conferência do serviço (404), e antes de ler o corpo e de entrar na trava, o endpoint confere cada ação na matriz. Fora do perfil: **403 `{ "erro": "perfil_sem_permissao" }`**, com `Connection: close`, sem ler o corpo (um corpo grande demais também recebe 403, não 413).
 - **Serviço inexistente:** nas rotas com serviço no caminho, um serviço que não está no registro recebe 404 `nao_encontrado` **antes** da conferência de perfil, e nenhuma negação é registrada. Isso só revela, localmente e para quem já tem o token, se o serviço existe.
-- **Pseudônimo até o 8D:** "Concluir revisão" exige a ação `validar_materialmente` (só o Revisor); o histórico continua registrando a ação como `concluir_revisao`. As ações da matriz que ainda não têm rota são `enviar_para_revisao` e `solicitar_ajustes`.
+- **Fim do pseudônimo (8D):** "Concluir revisão" deixou de existir. O envio para revisão (`enviar_para_revisao`, Cadastrante), a validação material (`validar_materialmente`, Revisor) e o pedido de ajustes (`solicitar_ajustes`, Revisor) têm rotas próprias; toda ação da matriz tem rota (`acoesSemRota()` vazio). Ver a seção "Envio, validação e ajustes (Sprint 8, Passo 8D)".
 - **Segunda barreira:** cada serviço que grava exige o ator e confere de novo o perfil (`resolverAtorDeGravacao` em `atores.js`): sem ator → `ator_ausente`; ator que não seja um usuário selecionável (inclusive o de demonstração) → `ator_invalido`; perfil sem a ação → `perfil_sem_permissao`. Não existe mais ator padrão (`ATOR_PADRAO` foi removido); o ator de demonstração vale só na leitura de registros antigos.
 - **Decisões:** na gravação nova (`validarRegistro(r, { nova: true })`), decisão material, autorização e revogação recusam ator com perfil Cadastrante; a leitura do histórico continua aceitando os registros antigos.
 - **Manifesto:** `validarResponsavelPublico(r, etapa)` aceita em validação, autorização, publicação e revogação só o perfil Revisor (CLABI) ou, nos manifestos antigos, o de demonstração; Cadastrante é recusado. O manifesto continua só com perfil e setor.
+
+### Envio, validação e ajustes (Sprint 8, Passo 8D)
+
+- **Enviar para revisão** (`enviarParaRevisao`, Cadastrante): só a versão atual em rascunho, sem pendências e com a `revisao` igual ao hash em disco; congela a versão (`hashConteudo` e `enviadaEm`), leva a `em_validacao` ("Em análise"), grava `responsaveis.envio` = { perfil, setor } e a ação `enviar_para_revisao` no histórico. Não grava decisão. Fora de rascunho: 409 `versao_congelada`.
+- **Validar materialmente** (`validarMaterialmente`, Revisor): só em `em_validacao`, com a `revisao` igual ao hash em disco e ao `hashConteudo` do manifesto e sem pendências; grava a decisão material (id `decisao-<versão>-<hash16>`), `responsaveis.validacao` e a ação `validar_materialmente`; leva a "Pronto para publicar".
+- **Solicitar ajustes** (`solicitarAjustes`, Revisor): só em `em_validacao`, com `{ revisao, motivo }`; o motivo segue a regra do motivo da revogação (obrigatório, até 500 caracteres, sem e-mail, telefone, CPF nem credencial; senão 422 `motivo_invalido`). Leva a `ajustes_solicitados` (sem saída: a Cadastrante cria nova versão), grava `responsaveis.ajustes` e a ação `solicitar_ajustes`. **O motivo fica só na decisão privada** (`observacao` em `data/admin-private/decisoes/`), nunca no manifesto, no histórico de ações, em resposta de gravação nem em log. A única leitura que o devolve é `GET .../revisao` (local, com token), em `motivoAjustes`, e só quando a versão está em ajustes solicitados; a página "Conteúdo para respostas" o mostra com `textContent`.
+- **Respostas:** 200 `{ revisao, estado }`; 403 `perfil_sem_permissao` antes de ler o corpo; 409 `revisao_divergente`, `versao_congelada`, `estado_invalido` (validar ou ajustes fora de `em_validacao`) e `operacao_em_andamento`; 422 `dados_invalidos`, `revisao_incompleta`, `hash_divergente`, `base_invalida`, `motivo_invalido` e `decisao_recusada`; 500 genérico. Decisão órfã de tentativa desfeita só é reaproveitada se for do mesmo tipo e do mesmo ator; de outro tipo, `historico_invalido` (500 genérico). **Limitação conhecida (pedido de ajustes):** se a primeira tentativa foi desfeita depois de gravar a decisão (falha na ação do histórico), a nova tentativa a reaproveita mesmo com outro motivo; fica o motivo da primeira tentativa, que é o que a consulta e a tela mostram (coberto em `tests/fluxo-revisao.test.js`, FR8).
+- **Manifesto:** `responsaveis.envio` (só Cadastrante, a única etapa desse perfil, a partir de `em_validacao`) e `responsaveis.ajustes` (só Revisor, só em `ajustes_solicitados`).
+- **Tela:** o cartão passa a "Revisão e validação", com "Enviar para revisão" (Cadastrante), "Validar materialmente" e "Solicitar ajustes" (Revisor), no bloqueio `aria-disabled` do 8C. Em análise não há "Criar nova versão"; com ajustes solicitados, aparecem o motivo e "Criar nova versão para editar". A validação pede confirmação com o aviso de que esta validação local não equivale à validação material da CLABI.
+- `concluir_revisao` só é aceito na LEITURA de registros antigos do histórico (`ACOES_SO_LEITURA`); nenhuma gravação nova pode usá-lo.
+- Comportamento coerente (não é falha): uma versão "Em análise" (`em_validacao`) ou com ajustes solicitados (`ajustes_solicitados`) pode ir ao Git sem que o hook de commit a barre, porque nesses estados não há validação nem publicação; `validado_materialmente` continua protegido pelo hook (regra B2), que não foi alterado.
+- Os roteiros de vídeo de `e2e-demo/` (fora do Git) ainda clicam em "Concluir revisão" e quebram com esta mudança; a atualização fica para um passo próprio.
 
 **Registros em `data/admin-private/`** (fora do Git; acréscimo com escrita atômica; nunca nome, título, URL, texto ou corpo):
 

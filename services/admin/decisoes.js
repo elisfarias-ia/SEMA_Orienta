@@ -150,6 +150,11 @@ export function registrarDecisaoMaterial(versao, historico, entrada) {
   const registro = { observacao: null, ...structuredCloneSeguro(entrada), tipo: TIPO_DECISAO_MATERIAL };
   const erros = validarRegistro(registro, { nova: true });
   if (erros.length) return falha('decisao_invalida', erros);
+  // Sprint 8, Passo 8D: o motivo dos ajustes (observacao) segue a regra do motivo da revogação na gravação nova: até 500 caracteres,
+  // sem e-mail, telefone, CPF ou credencial. Fica só no histórico privado.
+  if (registro.decisao === 'ajustes_solicitados' && (registro.observacao.length > LIMITE_MOTIVO || contemDadoSensivel(registro.observacao) || PADRAO_CPF.test(registro.observacao))) {
+    return falha('decisao_invalida', ['motivo dos ajustes deve ter até 500 caracteres, sem e-mail, telefone, CPF ou credencial']);
+  }
   const divergencia = conferirRegistro(versao, historico, registro);
   if (divergencia) return divergencia;
   const t = verificarTransicao(versao.estado, registro.decisao);

@@ -668,7 +668,7 @@ function operacoesDeSessao({ chamar, lerToken, definirToken, rota, mensagens }) 
 
 export const MENSAGEM_PERFIL_SEM_PERMISSAO = 'Esta ação não está disponível para o seu perfil.';
 
-/** Ação da matriz exigida por cada controle da tela (`data-permissao`). Concluir a revisão = validar materialmente até o 8D. */
+/** Ação da matriz exigida por cada controle da tela (`data-permissao`). Passo 8D: enviar (Cadastrante), validar e ajustes (Revisor). */
 export const ACAO_DO_CONTROLE = Object.freeze({
   // Conteúdo para respostas (data-acao dos botões).
   'revisar-fonte': 'revisar_fonte',
@@ -679,7 +679,9 @@ export const ACAO_DO_CONTROLE = Object.freeze({
   descartar: 'rejeitar_bloco',
   reabrir: 'reabrir_bloco',
   importar: 'importar_conteudo',
-  concluir: 'validar_materialmente',
+  enviar: 'enviar_para_revisao',
+  validar: 'validar_materialmente',
+  ajustes: 'solicitar_ajustes',
   'nova-versao': 'nova_versao',
   autorizar: 'autorizar_publicacao',
   publicar: 'publicar',
@@ -1451,7 +1453,22 @@ export function criarClienteGestao({ fetchImpl, aoPerderSessao } = {}) {
 // Lógica pura mais os trechos de cliente compartilhados pelas duas páginas ("Gestão de conteúdo"). Nunca exibe ids, hashes,
 // códigos internos nem nomes técnicos de estado: tudo vem de rótulos em linguagem comum. A publicação não existe nesta etapa.
 
-export const TEXTO_CONFIRMAR_CONCLUSAO = 'Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.';
+// Sprint 8, Passo 8D: "Concluir revisão" virou três ações. A Cadastrante envia para revisão; o Revisor valida materialmente ou
+// pede ajustes (com motivo). A validação aqui é de demonstração e não equivale à validação material da CLABI.
+export const TEXTO_CONFIRMAR_ENVIO = 'Depois de enviar, esta versão não poderá mais ser editada e aguardará a análise do Revisor. Para fazer novas alterações, será necessário criar uma nova versão.';
+export const TEXTO_CONFIRMAR_VALIDACAO = 'Validar materialmente registra que o conteúdo desta versão foi conferido. Não publica nada: depois ainda é preciso autorizar e, em seguida, publicar.';
+export const AVISO_VALIDACAO_LOCAL = 'Esta é uma validação de demonstração, feita no ambiente local. Ela não equivale à validação material da CLABI.';
+export const TEXTO_CONFIRMAR_AJUSTES = 'Solicitar ajustes devolve esta versão para correção. Ela não volta a ser editada: a correção é feita numa nova versão, criada pelo perfil Cadastrante.';
+export const AVISO_MOTIVO_AJUSTES = 'Informe o que precisa ser ajustado, sem nomes nem outros dados pessoais. O sistema recusa os formatos comuns de e-mail, telefone, CPF e senha; um número de processo ou protocolo com 10 ou 11 dígitos seguidos também é recusado, por parecer telefone.';
+export const MENSAGEM_MOTIVO_AJUSTES_OBRIGATORIO = 'Informe o motivo dos ajustes.';
+export const LIMITE_MOTIVO_AJUSTES = 500;
+export const AVISO_EM_ANALISE = 'Esta versão foi enviada para revisão e aguarda a análise do Revisor. Ela está bloqueada para edição.';
+export const AVISO_AJUSTES_SOLICITADOS = 'O Revisor pediu ajustes nesta versão. Ela está bloqueada para edição: para corrigir, crie uma nova versão.';
+export const MENSAGENS_REVISAO = Object.freeze({
+  enviada: 'Versão enviada para revisão. Ela está bloqueada para edição e aguarda a análise do Revisor.',
+  validada: 'Validação material registrada (demonstração). A versão está pronta para autorizar a publicação; o conteúdo ainda não está disponível ao cidadão.',
+  ajustes: 'Ajustes solicitados. Para corrigir, o perfil Cadastrante cria uma nova versão.',
+});
 export const MENSAGEM_REVISAO_DIVERGENTE = 'O conteúdo mudou. Os dados foram atualizados; confira e tente de novo.';
 const ROTULO_PADRAO_SITUACAO = 'Situação indisponível';
 const ACOES_REVISAO = Object.freeze({
@@ -1459,7 +1476,9 @@ const ACOES_REVISAO = Object.freeze({
   'bloco-aceitar': 'revisao/blocos/aceitar',
   'bloco-rejeitar': 'revisao/blocos/rejeitar',
   'bloco-reabrir': 'revisao/blocos/reabrir',
-  concluir: 'revisao/concluir',
+  enviar: 'revisao/enviar',
+  validar: 'revisao/validar',
+  ajustes: 'revisao/ajustes',
   'nova-versao': 'nova-versao',
   autorizar: 'autorizacao',
   publicar: 'publicacao',
@@ -1475,17 +1494,17 @@ export function rotuloSituacaoDaFonte(f) {
   if (f.excluida) return 'Excluída';
   if (f.revogada) return 'Revogada';
   if (f.revisada) return 'Revisado';
-  // Fonte que nenhum bloco usa pode ficar sem revisão: não é pendência para concluir.
+  // Fonte que nenhum bloco usa pode ficar sem revisão: não é pendência para enviar.
   return f.usadaPorBloco === false ? 'Ainda não revisada' : 'Revisão pendente';
 }
 export const rotuloSituacaoDoBloco = (aceito) => (aceito ? 'Aceita' : 'Em elaboração');
 
-/** Resumo em uma frase: só blocos pendentes e fontes usadas por eles contam como pendência para concluir. */
+/** Resumo em uma frase: só blocos pendentes e fontes usadas por eles contam como pendência para enviar à revisão. */
 export function frasePendenciasParaConcluir(resumo) {
   const n = resumo.pendenciasParaConcluir;
-  const pendencias = n === 0 ? 'Nenhuma pendência para concluir.' : n === 1 ? '1 pendência para concluir.' : `${n} pendências para concluir.`;
+  const pendencias = n === 0 ? 'Nenhuma pendência para enviar à revisão.' : n === 1 ? '1 pendência para enviar à revisão.' : `${n} pendências para enviar à revisão.`;
   const nao = resumo.fontesNaoUsadas;
-  const naoUsadas = nao > 0 ? ` ${nao === 1 ? '1 documento ou link ainda não é usado por nenhuma informação' : `${nao} documentos ou links ainda não são usados por nenhuma informação`}; isso não impede a conclusão.` : '';
+  const naoUsadas = nao > 0 ? ` ${nao === 1 ? '1 documento ou link ainda não é usado por nenhuma informação' : `${nao} documentos ou links ainda não são usados por nenhuma informação`}; isso não impede o envio.` : '';
   return `${pendencias} Informações aceitas: ${resumo.informacoesAceitas}.${naoUsadas}`;
 }
 
@@ -1500,7 +1519,7 @@ export function traduzirPendencia(p) {
     case 'fonte_revogada': return `O documento ou link${nome} foi revogado e não pode mais ser usado.`;
     case 'fonte_inexistente': return `A informação${nome} usa um documento ou link que não existe mais. Edite a informação.`;
     case 'entrada_invalida': return 'Há um dado inválido neste serviço. Procure a equipe responsável.';
-    default: return 'Há uma pendência a resolver antes de concluir a revisão.';
+    default: return 'Há uma pendência a resolver antes de enviar para revisão.';
   }
 }
 
@@ -1525,6 +1544,9 @@ export function resumirRevisao(corpo) {
   const pendenciasDetalhe = corpo.pendencias.filter(ehObjeto).map((p) => ({ codigo: ehTexto(p.codigo) ? p.codigo : '', id: idSeguro(p.id) ? p.id : null, titulo: textoCurto(p.titulo), frase: traduzirPendencia(p) }));
   const pendencias = pendenciasDetalhe.map((p) => p.frase);
   const editavel = corpo.editavel === true;
+  // Etapa da revisão em linguagem da tela (8D), nunca exibida como nome técnico: elaboracao, analise, ajustes ou concluida.
+  const estado = corpo.estadoVersao;
+  const etapa = editavel ? 'elaboracao' : estado === 'em_validacao' ? 'analise' : estado === 'ajustes_solicitados' ? 'ajustes' : 'concluida';
   return {
     revisao: corpo.revisao,
     rotulo: textoCurto(corpo.rotulo, 60) || ROTULO_PADRAO_SITUACAO,
@@ -1541,7 +1563,14 @@ export function resumirRevisao(corpo) {
     blocos,
     pendencias,
     pendenciasDetalhe,
-    podeConcluir: corpo.podeConcluir === true && editavel,
+    etapa,
+    podeEnviar: corpo.podeEnviar === true && editavel,
+    podeValidar: corpo.podeValidar === true && etapa === 'analise',
+    podeSolicitarAjustes: corpo.podeSolicitarAjustes === true && etapa === 'analise',
+    // Nova versão: só depois de uma decisão (ajustes ou validação em diante); nunca em elaboração nem em análise.
+    podeNovaVersao: etapa === 'ajustes' || etapa === 'concluida',
+    // Motivo dos ajustes (só em ajustes solicitados): texto do servidor, exibido com textContent.
+    motivoAjustes: etapa === 'ajustes' ? textoCurto(corpo.motivoAjustes, LIMITE_MOTIVO_AJUSTES) || null : null,
   };
 }
 
@@ -1562,15 +1591,18 @@ export function mensagemDaRevisao(status, corpo) {
   if (status === 409) {
     if (erro === 'revisao_divergente') return { mensagem: MENSAGEM_REVISAO_DIVERGENTE, recarregar: true };
     if (erro === 'operacao_em_andamento') return { mensagem: 'Outra gravação está em andamento. Aguarde alguns segundos e tente de novo.' };
-    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi concluída e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'versao_congelada') return { mensagem: 'Esta versão já foi enviada para revisão e não pode mais ser editada. Os dados foram atualizados.', recarregar: true };
+    if (erro === 'estado_invalido') return { mensagem: 'Esta versão não está mais em análise. Os dados foram atualizados.', recarregar: true };
     if (erro === 'ja_importado') return { mensagem: 'Este conteúdo já foi importado. Os dados foram atualizados.', recarregar: true };
     if (erro === 'fonte_ja_revisada') return { mensagem: 'Este documento ou link já foi revisado. Os dados foram atualizados.', recarregar: true };
     if (erro === 'bloco_ja_aceito') return { mensagem: 'Esta informação já foi aceita. Os dados foram atualizados.', recarregar: true };
-    if (erro === 'estado_nao_permite_nova_versao') return { mensagem: 'Ainda não é possível criar uma nova versão. Conclua a revisão antes.', recarregar: true };
+    if (erro === 'estado_nao_permite_nova_versao' || erro === 'validacao_em_andamento') return { mensagem: 'Ainda não é possível criar uma nova versão: espere a decisão do Revisor sobre esta versão.', recarregar: true };
     return { mensagem: 'Não foi possível concluir. Nada foi alterado.', recarregar: true };
   }
   if (status === 422) {
-    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências. Resolva-as antes de concluir a revisão.', recarregar: true };
+    if (erro === 'revisao_incompleta') return { mensagem: 'Ainda há pendências. Resolva-as antes de enviar para revisão.', recarregar: true };
+    if (erro === 'motivo_invalido') return { mensagem: `Informe um motivo de até ${LIMITE_MOTIVO_AJUSTES} caracteres, sem e-mail, telefone, CPF ou senha. Nada foi alterado.`, campo: 'motivo' };
+    if (erro === 'hash_divergente') return { mensagem: 'A conferência do conteúdo não permitiu continuar. Nada foi alterado; procure a equipe responsável.', recarregar: true };
     if (erro === 'fonte_pendente') return { mensagem: 'Marque antes como revisados os documentos ou links usados por esta informação.', recarregar: true };
     if (erro === 'fonte_revogada') return { mensagem: 'Um dos documentos ou links foi revogado e não pode ser usado.', recarregar: true };
     if (erro === 'bloco_sem_fonte') return { mensagem: 'Esta informação não tem documento ou link. Edite e escolha uma fonte antes de aceitar.', recarregar: true };
@@ -1596,7 +1628,7 @@ export async function lerRevisaoDoServico(chamar, servicoId, mensagemRede) {
 }
 
 /**
- * Grava uma ação da revisão (sempre POST JSON). `acao`: fonte, bloco-aceitar, bloco-rejeitar, bloco-reabrir, concluir ou nova-versao.
+ * Grava uma ação da revisão (sempre POST JSON). `acao`: fonte, bloco-aceitar, bloco-rejeitar, bloco-reabrir, enviar, validar, ajustes ou nova-versao.
  * Para nova-versao o corpo é exatamente `{}`; nas demais, `corpo` já traz a `revisao` atual.
  */
 export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensagemRede) {
@@ -1608,14 +1640,14 @@ export async function enviarAcaoDeRevisao(chamar, servicoId, acao, corpo, mensag
 }
 
 // ---------- Autorizar e publicar (Passo 5C) ----------
-// Três etapas distintas: revisar (conferir e concluir), autorizar (registrar a decisão; nada vira público) e publicar (disponibilizar
+// Etapas distintas: revisar e enviar (Cadastrante), validar (Revisor), autorizar (registrar a decisão; nada vira público) e publicar (disponibilizar
 // ao cidadão). Nada aqui mostra hash, ids ou códigos internos.
 
-export const TEXTO_DIFERENCA_ETAPAS = 'Revisar é conferir as informações e os documentos e concluir a revisão. Autorizar é registrar que esta versão pode ser publicada, sem disponibilizá-la. Publicar é disponibilizar o conteúdo ao cidadão no chatbot.';
+export const TEXTO_DIFERENCA_ETAPAS = 'Revisar é conferir as informações e os documentos e enviar a versão para revisão. Validar é o Revisor confirmar o conteúdo enviado ou pedir ajustes. Autorizar é registrar que esta versão pode ser publicada, sem disponibilizá-la. Publicar é disponibilizar o conteúdo ao cidadão no chatbot.';
 export const AVISO_AUTORIZACAO = 'A próxima ação disponibilizará conteúdo ao cidadão.';
 export const TEXTO_CONFIRMAR_AUTORIZACAO = 'Autorizar registra a decisão de que esta versão pode ser publicada. Ainda não publica nada: o chatbot continua sem este conteúdo até a publicação, que é uma ação à parte.';
 export const TEXTO_CONFIRMAR_PUBLICACAO = 'Ao publicar, as informações desta versão passam a ser usadas pelo chatbot nas respostas ao cidadão. A versão publicada não poderá mais ser editada; para alterar, será necessário criar uma nova versão.';
-export const AVISO_CONCLUIR_NAO_PUBLICA = 'Concluir a revisão não publica nada. Depois dela ainda é preciso autorizar e, em seguida, publicar.';
+export const AVISO_ENVIO_NAO_PUBLICA = 'Enviar para revisão não publica nada. Depois do envio, o Revisor valida e ainda é preciso autorizar e, em seguida, publicar.';
 export const MENSAGENS_PUBLICACAO = Object.freeze({
   autorizada: 'Publicação autorizada. O conteúdo ainda não está disponível ao cidadão: use "Publicar" quando quiser disponibilizá-lo.',
   publicada: 'Versão publicada. O conteúdo já está disponível ao cidadão. Para alterar, crie uma nova versão.',
@@ -1675,13 +1707,13 @@ export function linhasDoResumoDePublicacao(r) {
 /** Frase do estado de publicação para o painel (sem termos internos). */
 export function frasePublicacao(r) {
   const itens = `${plural(r.informacoesAceitas, 'informação aceita', 'informações aceitas')}, ${plural(r.links, 'link', 'links')} e ${plural(r.textos, 'texto', 'textos')}`;
-  const dataBase = r.dataRevisao === null ? '' : ` Revisão concluída em ${r.dataRevisao}.`;
+  const dataBase = r.dataRevisao === null ? '' : ` Enviada para revisão em ${r.dataRevisao}.`;
   const data = r.etapa === 'publicado' && r.dataPublicacao !== null ? ` Publicado em ${r.dataPublicacao}.` : dataBase;
   switch (r.etapa) {
     case 'publicado': return `Publicado. Esta versão (${r.versao}) já está disponível ao cidadão e não pode mais ser editada.${data} ${itens}.`;
     case 'revogado': return `Publicação revogada. Esta versão (${r.versao}) não está mais disponível ao cidadão e não volta a ser publicada.${r.dataRevogacao === null ? '' : ` Revogada em ${r.dataRevogacao}.`} Para publicar de novo, crie uma nova versão.`;
     case 'publicar': return `Publicação autorizada, mas ainda não publicada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
-    case 'autorizar': return `Revisão concluída; a publicação ainda não foi autorizada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
+    case 'autorizar': return `Validação material registrada; a publicação ainda não foi autorizada. O conteúdo não está disponível ao cidadão.${data} ${itens}.`;
     default: return 'Autorizar ou publicar não está disponível agora. Recarregue a página; se continuar assim, procure a equipe responsável.';
   }
 }
@@ -1752,8 +1784,16 @@ export function servicoDaUrl(busca) {
 
 export const TEXTO_CONFIRMAR_EXCLUSAO_FONTE = 'Este item não aparecerá mais na gestão. O histórico será preservado.';
 export const TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO = 'A exclusão será aplicada ao chatbot após a publicação desta versão.';
-export const FRASE_SEM_INFORMACAO_ACEITA = 'Inclua e aceite pelo menos uma informação para concluir a revisão.';
-export const PASSOS_PARA_RESOLVER = Object.freeze(['Incluir ou editar uma informação.', 'Relacionar ao menos uma fonte ativa.', 'Revisar a fonte usada.', 'Aceitar a informação.', 'Concluir a revisão.']);
+export const FRASE_SEM_INFORMACAO_ACEITA = 'Inclua e aceite pelo menos uma informação para enviar para revisão.';
+export const PASSOS_PARA_RESOLVER = Object.freeze(['Incluir ou editar uma informação.', 'Relacionar ao menos uma fonte ativa.', 'Revisar a fonte usada.', 'Aceitar a informação.', 'Enviar para revisão.']);
+
+/** Frase do painel para a versão em análise ou com ajustes solicitados (Passo 8D); null nas demais etapas. Sem o motivo. */
+export function fraseDaEtapaDeRevisao(r) {
+  if (!ehObjeto(r)) return null;
+  if (r.etapa === 'analise') return AVISO_EM_ANALISE;
+  if (r.etapa === 'ajustes') return AVISO_AJUSTES_SOLICITADOS;
+  return null;
+}
 export const AVISO_EDITAR_FONTE = 'Ao salvar, esta fonte volta para revisão e as informações aceitas que a usam voltam para Em elaboração.';
 export const MENSAGEM_URL_DUPLICADA = 'Já existe outro link com este endereço neste serviço.';
 const CAMPOS_FORMULARIO_FONTE = Object.freeze({ link: ['titulo', 'url', 'orgaoResponsavel', 'descricao', 'dataPublicacao', 'localizacao'], texto: ['titulo', 'texto'] });

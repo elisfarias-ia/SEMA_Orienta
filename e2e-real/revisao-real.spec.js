@@ -13,7 +13,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D: validar, pedir ajustes, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); o envio para revisão e as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -94,7 +94,7 @@ async function criarBloco(page, titulo, fonte) {
   await conferirCoerencia(page);
 }
 
-/** Um só número em todo lugar: resumo, selo, lista de pendências e botão de concluir dizem a mesma coisa. */
+/** Um só número em todo lugar: resumo, selo, lista de pendências e botão de enviar para revisão dizem a mesma coisa. */
 async function conferirCoerencia(page) {
   const resumo = await page.locator('#situacao-resumo').innerText();
   const m = /^(Nenhuma|\d+) pendência/.exec(resumo);
@@ -103,7 +103,7 @@ async function conferirCoerencia(page) {
   await expect(page.locator('#pendencias li')).toHaveCount(n);
   if (n > 0) await expect(page.locator('#situacao-selo')).toBeVisible();
   else await expect(page.locator('#situacao-selo')).toBeHidden();
-  await expect(page.locator('#botao-concluir')).toBeVisible({ visible: n === 0 });
+  await expect(page.locator('#botao-enviar')).toBeVisible({ visible: n === 0 });
   return { n, resumo };
 }
 const fonteDa = (page, titulo) => page.locator('#fontes-revisao li').filter({ hasText: titulo });
@@ -137,7 +137,7 @@ const posts = (lista, final) => lista.filter((p) => p.caminho.endsWith(final));
 test('1. serviço com fontes e informação pendentes: painel, situação, pendências e nada técnico na tela', async ({ page }) => {
   const d = await criarServicoComFontes(page, 'Serviço Rev Zeta');
   await expect(page.locator('#painel-situacao')).toContainText('Revisão pendente');
-  await expect(page.locator('#painel-resumo')).toHaveText('1 pendência para concluir. Informações aceitas: 0. 2 documentos ou links ainda não são usados por nenhuma informação; isso não impede a conclusão.');
+  await expect(page.locator('#painel-resumo')).toHaveText('1 pendência para enviar à revisão. Informações aceitas: 0. 2 documentos ou links ainda não são usados por nenhuma informação; isso não impede o envio.');
   await expect(page.getByRole('button', { name: /publicar/i })).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
   await irParaRevisao(page);
@@ -148,7 +148,7 @@ test('1. serviço com fontes e informação pendentes: painel, situação, pend�
   await expect(page.locator('#servico-situacao')).toContainText('Revisão pendente');
   await expect(fonteDa(page, d.link)).toContainText('Tipo: Link');
   await expect(fonteDa(page, d.link)).toContainText('Situação: Ainda não revisada');
-  await expect(page.locator('#situacao-resumo')).toHaveText('1 pendência para concluir. Informações aceitas: 0. 2 documentos ou links ainda não são usados por nenhuma informação; isso não impede a conclusão.');
+  await expect(page.locator('#situacao-resumo')).toHaveText('1 pendência para enviar à revisão. Informações aceitas: 0. 2 documentos ou links ainda não são usados por nenhuma informação; isso não impede o envio.');
   await expect(page.locator('#cartao-form')).toBeHidden();
   await expect(page.locator('#servico-compacto')).toBeVisible();
   await expect(page.locator('#selecao-completa')).toBeHidden();
@@ -159,13 +159,13 @@ test('1. serviço com fontes e informação pendentes: painel, situação, pend�
   const bloco = blocoDa(page, 'Como solicitar');
   await expect(bloco).toContainText('Situação: Em elaboração');
   await expect(fonteDa(page, d.link)).toContainText('Situação: Revisão pendente');
-  await expect(page.locator('#situacao-resumo')).toHaveText('3 pendências para concluir. Informações aceitas: 0. 1 documento ou link ainda não é usado por nenhuma informação; isso não impede a conclusão.');
+  await expect(page.locator('#situacao-resumo')).toHaveText('3 pendências para enviar à revisão. Informações aceitas: 0. 1 documento ou link ainda não é usado por nenhuma informação; isso não impede o envio.');
   await expect(page.getByRole('button', { name: 'Aceitar informação: Como solicitar', exact: true })).toBeDisabled();
   await expect(bloco).toContainText(`Para aceitar esta informação, marque antes como revisado: "${d.link}".`);
-  await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para enviar para revisão.');
   await expect(page.locator('#pendencias')).toContainText('A informação "Como solicitar" ainda não foi aceita nem excluída.');
   await expect(page.locator('#pendencias')).toContainText(`O documento ou link "${d.link}" ainda não foi revisado.`);
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
   await expect(page.getByRole('button', { name: /publicar/i })).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
 });
@@ -230,27 +230,27 @@ test('3. descartar informação em elaboração exige confirmação própria', a
   expect(posts(enviados, '/blocos/rejeitar')).toHaveLength(1);
 });
 
-test('4. pendências impedem a conclusão e nada é concluído', async ({ page }) => {
+test('4. pendências impedem o envio para revisão e nada é enviado', async ({ page }) => {
   const enviados = observarPosts(page);
   const d = await criarServicoComFontes(page, 'Serviço Rev Iota');
   await irParaRevisao(page);
   await criarBloco(page, 'Etapas do pedido', d.link);
-  // informação em elaboração e fonte usada sem revisão: a conclusão fica indisponível
+  // informação em elaboração e fonte usada sem revisão: o envio fica indisponível
   await expect(page.locator('#pendencias')).toContainText(`O documento ou link "${d.link}" ainda não foi revisado.`);
   await expect(page.locator('#pendencias')).toContainText('A informação "Etapas do pedido" ainda não foi aceita nem excluída.');
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
   await revisarFonte(page, d.link);
   await expect(page.locator('#pendencias-resumo')).toContainText('Faltam resolver 2 pendências');
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
-  expect(posts(enviados, '/concluir')).toHaveLength(0);
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
+  expect(posts(enviados, '/revisao/enviar')).toHaveLength(0);
   await aceitar(page, 'Etapas do pedido');
   await expect(page.locator('#pendencias')).toBeEmpty();
   await expect(page.locator('#pendencias-resumo')).toContainText('Nenhuma pendência');
-  await expect(botao(page, 'Concluir revisão')).toBeVisible();
+  await expect(botao(page, 'Enviar para revisão')).toBeVisible();
   await expect(page.locator('#conclusao-explicacao')).toContainText('fica bloqueado para edição');
 });
 
-test('5. conclusão válida, versão congelada sem ações nem publicação e nova versão enviando {}', async ({ page }) => {
+test('5. (8D) envio por Maria e validação por Carlos, versão congelada sem ações nem publicação e nova versão enviando {}', async ({ page }) => {
   const enviados = observarPosts(page);
   const d = await criarServicoComFontes(page, 'Serviço Rev Kapa');
   await irParaRevisao(page);
@@ -258,25 +258,34 @@ test('5. conclusão válida, versão congelada sem ações nem publicação e no
   await revisarFonte(page, d.link);
   await revisarFonte(page, d.texto);
   await aceitar(page, 'Documentos exigidos');
-  await comoCarlos(page);
-  const concluir = botao(page, 'Concluir revisão');
-  await concluir.click();
+  const enviar = botao(page, 'Enviar para revisão');
+  await enviar.click();
   const dialogo = page.getByRole('dialog');
-  await expect(dialogo).toContainText('Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.');
+  await expect(dialogo).toContainText('Depois de enviar, esta versão não poderá mais ser editada e aguardará a análise do Revisor. Para fazer novas alterações, será necessário criar uma nova versão.');
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
-  await expect(concluir).toBeFocused();
-  expect(posts(enviados, '/concluir')).toHaveLength(0);
-  await concluir.click();
-  await page.getByRole('button', { name: 'Confirmar conclusão', exact: true }).click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await expect(enviar).toBeFocused();
+  expect(posts(enviados, '/revisao/enviar')).toHaveLength(0);
+  await enviar.click();
+  await page.getByRole('button', { name: 'Confirmar envio', exact: true }).click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
   await expect(status(page)).toBeFocused();
-  expect(posts(enviados, '/concluir')).toHaveLength(1);
-  expect(JSON.parse(posts(enviados, '/concluir')[0].texto)).toEqual({ revisao: expect.any(String) });
+  expect(posts(enviados, '/revisao/enviar')).toHaveLength(1);
+  expect(JSON.parse(posts(enviados, '/revisao/enviar')[0].texto)).toEqual({ revisao: expect.any(String) });
+  await expect(page.locator('#servico-situacao')).toContainText('Em análise');
+  await expect(botao(page, 'Criar nova versão para editar')).toBeHidden();
+  await comoCarlos(page);
+  await botao(page, 'Validar materialmente').click();
+  await expect(page.getByRole('dialog')).toContainText('não equivale à validação material da CLABI');
+  await page.getByRole('button', { name: 'Confirmar validação', exact: true }).click();
+  await expect(status(page)).toContainText('Validação material registrada');
+  expect(posts(enviados, '/revisao/validar')).toHaveLength(1);
+  expect(JSON.parse(posts(enviados, '/revisao/validar')[0].texto)).toEqual({ revisao: expect.any(String) });
+  expect(posts(enviados, '/concluir')).toHaveLength(0);
   // congelada: sem ações de edição, revisão, aceite, descarte, reabertura, cadastro nem publicação
   await expect(page.locator('#servico-situacao')).toContainText('Pronto para publicar');
   await expect(page.locator('#situacao-edicao')).toContainText('bloqueados');
   await expect(page.locator('#cartao-form')).toBeHidden();
-  for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Concluir revisão$/, /^Conferir antes/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+  for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Enviar para revisão$/, /^Validar materialmente$/, /^Solicitar ajustes$/, /^Conferir antes/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
   await expect(page.locator('#blocos')).toContainText('Situação: Aceita');
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
   // o painel do serviço também mostra "Pronto para publicar" e esconde o cadastro
@@ -410,7 +419,7 @@ test('9. 390 px e texto a 150% e 200%: sem rolagem horizontal, nada cortado e al
   await page.keyboard.press('Escape');
   await page.goto(page.url());
   await expect(page.locator('#servico-situacao')).toBeVisible();
-  await expect(page.locator('#botao-concluir')).toBeHidden();
+  await expect(page.locator('#botao-enviar')).toBeHidden();
 });
 
 test('11. cadastro de texto sem descrição nem órgão: a requisição real leva só título e texto', async ({ page }) => {
@@ -515,7 +524,7 @@ test('14. depois de cada ação a lista, a situação e as contagens são atuali
   expect(depoisDeCriar).not.toBe(antes);
   await revisarFonte(page, d.link);
   await aceitar(page, 'Primeira orientação');
-  await expect(page.locator('#situacao-resumo')).toContainText('Nenhuma pendência para concluir. Informações aceitas: 1.');
+  await expect(page.locator('#situacao-resumo')).toContainText('Nenhuma pendência para enviar à revisão. Informações aceitas: 1.');
   await expect(page.locator('#pendencias-resumo')).toContainText('Nenhuma pendência');
   await expect(page.locator('#situacao-selo')).toBeHidden();
   await page.getByRole('button', { name: 'Reabrir para correção: Primeira orientação', exact: true }).click();

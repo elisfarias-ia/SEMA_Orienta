@@ -13,7 +13,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D (só troca de usuário): validar, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -35,6 +35,18 @@ const TEXTO_2 = 'Informação fictícia do link de demonstração sobre tobiluz.
 const NOME_LAC = 'Licença por Adesão e Compromisso';
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
+async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
+  await comoCarlos(page);
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
+}
 
 test.afterAll(() => {
   const copia = path.join(process.env.SEMA_REAL_COPIA, 'services');
@@ -97,10 +109,7 @@ test('o chat responde só com a informação publicada pertinente; texto sem fon
     await botao(page, `Aceitar informação: ${tema}`).click();
     await expect(status(page)).toContainText('Informação aceita.');
   }
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   await botao(page, 'Autorizar publicação').click();
   await botao(page, 'Confirmar autorização').click();
   await expect(status(page)).toContainText('Publicação autorizada.');

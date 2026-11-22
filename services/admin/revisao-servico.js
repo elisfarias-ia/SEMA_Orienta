@@ -11,7 +11,8 @@ import fs from 'node:fs';
 import { criarArmazenamento } from './armazenamento.js';
 import { calcularHashDaVersao } from './conteudo-versao.js';
 import { congelarVersao } from './congelamento.js';
-import { registrarDecisaoMaterial } from './decisoes.js';
+import { LIMITE_MOTIVO, registrarDecisaoMaterial, TIPO_DECISAO_MATERIAL } from './decisoes.js';
+import { contemDadoSensivel, PADRAO_CPF } from './cadastro.js';
 import { registroDoAtor, resolverAtorDeGravacao, responsavelPublico } from './atores.js';
 import { criarHistoricoRevisao } from './historico-revisao.js';
 import { criarNovaVersaoDoServico } from './nova-versao.js';
@@ -66,7 +67,8 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     try {
       const c = carregar(servicoId);
       if (!c.ok) return c;
-      return { ok: true, situacao: situacaoDaRevisao({ servicoId, manifesto: c.atual.manifesto, arquivos: c.atual.arquivos, revisao: c.hash }) };
+      const motivoAjustes = motivoDosAjustes(servicoId, c.atual.manifesto);
+      return { ok: true, situacao: situacaoDaRevisao({ servicoId, manifesto: c.atual.manifesto, arquivos: c.atual.arquivos, revisao: c.hash, motivoAjustes }) };
     } catch {
       return falha('indisponivel');
     }
@@ -300,14 +302,45 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     });
   }
 
+  /** Motivo do registro de ajustes desta versão (histórico privado), só para a consulta local. null se não houver ou não puder ser lido. */
+  function motivoDosAjustes(servicoId, manifesto) {
+    if (manifesto.estado !== 'ajustes_solicitados') return null;
+    const d = historico.listarDecisoes(servicoId);
+    if (!d.ok) return null;
+    const r = d.registros.find((x) => x.tipo === TIPO_DECISAO_MATERIAL && x.decisao === 'ajustes_solicitados' && x.versaoId === manifesto.id && x.hashConteudo === manifesto.hashConteudo);
+    return r !== undefined && typeof r.observacao === 'string' ? r.observacao : null;
+  }
+
+  /** Transação comum que grava só o manifesto e, na conferência final, a decisão (se houver) e a ação no histórico privado. */
+  function gravarManifesto({ servicoId, versaoId, pasta, hash, manifestoNovo, decisao = null, acao, ator }) {
+    let motivo = null;
+    const r = executarTransacao({
+      raiz,
+      sistema,
+      passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoNovo, novo: false, validar: (d) => validarVersao(d) }],
+      verificar: () => {
+        const erros = verificarFinal(raiz);
+        if (erros.length > 0) return erros;
+        if (hashEmDisco(servicoId, versaoId) !== hash) return ['hash_divergente'];
+        if ((decisao !== null && !historico.registrarDecisao(servicoId, decisao).ok)
+          || !historico.registrarAcao(servicoId, { versaoId, hashConteudo: hash, acao, ator }).ok) {
+          motivo = 'historico_indisponivel';
+          return ['historico'];
+        }
+        return [];
+      },
+    });
+    return r.ok ? { ok: true, versaoId, hash, estado: manifestoNovo.estado } : mapearFalha(r, motivo);
+  }
+
   /**
-   * Conclui a revisão numa única transação: confere a base, monta o conteúdo canônico, calcula o hash, registra a decisão
-   * material, congela a versão (hash gravado) e leva-a a validado_materialmente ("Pronto para publicar"). Não autoriza nem publica.
+   * Envia a versão para revisão (Sprint 8, Passo 8D; Cadastrante), numa única transação: confere a base e as pendências, calcula o
+   * hash do conteúdo canônico, congela a versão (hash e enviadaEm) e leva-a de rascunho a em_validacao ("Em análise"). Não grava
+   * decisão: validar ou pedir ajustes é do Revisor. O manifesto ganha só { perfil, setor } de quem enviou (responsaveis.envio).
    */
-  function concluirRevisao(servicoId, { revisao, ator } = {}) {
+  function enviarParaRevisao(servicoId, { revisao, ator } = {}) {
     try {
-      // Pseudônimo até o Passo 8D: concluir exige validar_materialmente (Revisor); o histórico continua com concluir_revisao.
-      const quem = resolverAtorDeGravacao(ator, 'validar_materialmente');
+      const quem = resolverAtorDeGravacao(ator, 'enviar_para_revisao');
       if (!quem.ok) return falha(quem.erro);
       const c = carregar(servicoId);
       if (!c.ok) return c;
@@ -317,52 +350,76 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
       const pendencias = avaliarPendencias(arquivos, servicoId);
       if (pendencias.length > 0) return falha('revisao_incompleta', { pendencias });
       if (verificarFinal(raiz).length > 0) return falha('base_invalida');
-
-      const data = dataLocal(agora());
-      const congelada = congelarVersao(manifesto, arquivos, data);
+      const congelada = congelarVersao(manifesto, arquivos, dataLocal(agora()));
       if (!congelada.ok) return falha(congelada.erro);
       if (congelada.hash !== c.hash) return falha('hash_divergente');
-      const decisoes = historico.listarDecisoes(servicoId);
-      if (!decisoes.ok) return decisoes;
-      // Se uma tentativa anterior foi desfeita depois de gravar a decisão (mesma versão e mesmo hash), ela é reaproveitada.
-      const idDecisao = `decisao-${manifesto.id}-${c.hash.slice(0, 16)}`;
-      const existente = decisoes.registros.find((x) => x.id === idDecisao);
-      if (existente && !(existente.tipo === 'decisao_material' && existente.versaoId === manifesto.id && existente.hashConteudo === c.hash
-        && existente.decisao === 'validado_materialmente' && registroDoAtor(existente, quem.ator))) {
-        return falha('historico_invalido');
-      }
-      const jaRegistrada = existente !== undefined;
-      const decisao = registrarDecisaoMaterial(congelada.versao, decisoes.registros.filter((x) => x.id !== idDecisao), {
-        id: idDecisao,
-        versaoId: manifesto.id,
-        hashConteudo: c.hash,
-        ator: quem.ator,
-        data,
-        decisao: 'validado_materialmente',
-        observacao: null,
-      });
-      if (!decisao.ok) return falha('decisao_recusada');
-      // O manifesto (que vai para o Git) guarda só perfil e setor de quem validou; a auditoria completa fica em data/admin-private/.
-      const manifestoValidado = { ...decisao.versao, responsaveis: { ...(decisao.versao.responsaveis ?? {}), validacao: responsavelPublico(quem.ator) } };
+      const manifestoNovo = { ...congelada.versao, responsaveis: { ...(congelada.versao.responsaveis ?? {}), envio: responsavelPublico(quem.ator) } };
+      return gravarManifesto({ servicoId, versaoId: manifesto.id, pasta, hash: c.hash, manifestoNovo, acao: 'enviar_para_revisao', ator: quem.ator });
+    } catch {
+      return falha('indisponivel');
+    }
+  }
 
-      let motivo = null;
-      const r = executarTransacao({
-        raiz,
-        sistema,
-        passos: [{ caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoValidado, novo: false, validar: (d) => validarVersao(d) }],
-        verificar: () => {
-          const erros = verificarFinal(raiz);
-          if (erros.length > 0) return erros;
-          if (hashEmDisco(servicoId, manifesto.id) !== c.hash) return ['hash_divergente'];
-          if ((!jaRegistrada && !historico.registrarDecisao(servicoId, decisao.registro).ok)
-            || !historico.registrarAcao(servicoId, { versaoId: manifesto.id, hashConteudo: c.hash, acao: 'concluir_revisao', ator: quem.ator }).ok) {
-            motivo = 'historico_indisponivel';
-            return ['historico'];
-          }
-          return [];
-        },
-      });
-      return r.ok ? { ok: true, versaoId: manifesto.id, hash: c.hash, estado: decisao.versao.estado } : mapearFalha(r, motivo);
+  /** Motivo dos ajustes aceitável (mesma regra do motivo da revogação): texto não vazio, até 500 caracteres, sem dado sensível. */
+  const motivoAceitavel = (m) => typeof m === 'string' && m.trim() !== '' && m.length <= LIMITE_MOTIVO && !contemDadoSensivel(m) && !PADRAO_CPF.test(m);
+
+  /**
+   * Decisão do Revisor sobre a versão enviada (em_validacao): validar materialmente ou pedir ajustes. Exige que a revisão recebida,
+   * o hash em disco e o hash do manifesto sejam o mesmo; grava a decisão material (id decisao-<versão>-<hash16>), o responsável
+   * público da etapa e a ação no histórico. Uma decisão órfã (de tentativa desfeita) só é reaproveitada se for do mesmo tipo e ator;
+   * de outro tipo, a ação é recusada (historico_invalido).
+   */
+  function decidir(servicoId, { revisao, ator, decisao, observacao, etapa, acao }) {
+    const quem = resolverAtorDeGravacao(ator, acao);
+    if (!quem.ok) return falha(quem.erro);
+    const c = carregar(servicoId);
+    if (!c.ok) return c;
+    const { manifesto, arquivos, pasta } = c.atual;
+    if (manifesto.estado !== 'em_validacao') return falha('estado_invalido');
+    if (c.hash !== revisao) return falha('revisao_divergente');
+    if (manifesto.hashConteudo !== c.hash) return falha('hash_divergente');
+    if (decisao === 'ajustes_solicitados' && !motivoAceitavel(observacao)) return falha('motivo_invalido');
+    if (decisao === 'validado_materialmente') {
+      const pendencias = avaliarPendencias(arquivos, servicoId);
+      if (pendencias.length > 0) return falha('revisao_incompleta', { pendencias });
+    }
+    if (verificarFinal(raiz).length > 0) return falha('base_invalida');
+    const decisoes = historico.listarDecisoes(servicoId);
+    if (!decisoes.ok) return decisoes;
+    const idDecisao = `decisao-${manifesto.id}-${c.hash.slice(0, 16)}`;
+    const existente = decisoes.registros.find((x) => x.id === idDecisao);
+    if (existente && !(existente.tipo === TIPO_DECISAO_MATERIAL && existente.versaoId === manifesto.id && existente.hashConteudo === c.hash
+      && existente.decisao === decisao && registroDoAtor(existente, quem.ator))) {
+      return falha('historico_invalido');
+    }
+    const d = registrarDecisaoMaterial(manifesto, decisoes.registros.filter((x) => x.id !== idDecisao), {
+      id: idDecisao, versaoId: manifesto.id, hashConteudo: c.hash, ator: quem.ator, data: dataLocal(agora()), decisao, observacao,
+    });
+    if (!d.ok) return falha(decisao === 'ajustes_solicitados' && d.erro === 'decisao_invalida' ? 'motivo_invalido' : 'decisao_recusada');
+    // O manifesto (que vai para o Git) guarda só perfil e setor; a auditoria completa e o motivo ficam em data/admin-private/.
+    const manifestoNovo = { ...d.versao, responsaveis: { ...(d.versao.responsaveis ?? {}), [etapa]: responsavelPublico(quem.ator) } };
+    return gravarManifesto({
+      servicoId, versaoId: manifesto.id, pasta, hash: c.hash, manifestoNovo, decisao: existente === undefined ? d.registro : null, acao, ator: quem.ator,
+    });
+  }
+
+  /** em_validacao -> validado_materialmente ("Pronto para publicar"), pelo Revisor. Não autoriza nem publica. */
+  function validarMaterialmente(servicoId, { revisao, ator } = {}) {
+    try {
+      return decidir(servicoId, { revisao, ator, decisao: 'validado_materialmente', observacao: null, etapa: 'validacao', acao: 'validar_materialmente' });
+    } catch {
+      return falha('indisponivel');
+    }
+  }
+
+  /**
+   * em_validacao -> ajustes_solicitados, pelo Revisor, com motivo obrigatório. O motivo fica SÓ na decisão privada (observacao):
+   * nunca no manifesto, no histórico de ações, no resultado desta função nem em log. A correção é feita numa nova versão.
+   */
+  function solicitarAjustes(servicoId, { revisao, motivo, ator } = {}) {
+    try {
+      const observacao = typeof motivo === 'string' ? motivo.trim() : motivo;
+      return decidir(servicoId, { revisao, ator, decisao: 'ajustes_solicitados', observacao, etapa: 'ajustes', acao: 'solicitar_ajustes' });
     } catch {
       return falha('indisponivel');
     }
@@ -414,7 +471,9 @@ export function criarServicoRevisao({ raiz, sistema = fs, agora = () => new Date
     listarCandidatosDeImportacao,
     importarConteudo: importarConteudoDoServico,
     editarServico: editarServicoDoServico,
-    concluirRevisao,
+    enviarParaRevisao,
+    validarMaterialmente,
+    solicitarAjustes,
     criarNovaVersao,
   };
 }

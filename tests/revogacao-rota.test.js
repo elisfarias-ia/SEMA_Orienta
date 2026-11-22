@@ -18,7 +18,7 @@ import { lerConteudoPublicado } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
 import { conferirDist } from '../scripts/check-dist.js';
 import { botoesDePublicacao, frasePublicacao, mensagemDaPublicacao, resumirPublicacao } from '../admin/admin-logic.js';
-import { CARLOS, MARIA } from './admin-auxiliar.js';
+import { CARLOS, MARIA, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -69,7 +69,8 @@ async function enviarBruto(m, { url, method = 'POST', corpo, token } = {}) {
 // Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
 // é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
 const TOKEN_FIXO = 'c'.repeat(64);
-const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+// Passo 8D: validar e pedir ajustes também são do Revisor; o envio para revisão é da Cadastrante (sessão padrão, Maria).
+const ROTA_DO_REVISOR = /\/(revisao\/validar|revisao\/ajustes|autorizacao|publicacao|revogacao)$/;
 const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
 async function enviar(m, opcoes = {}) {
   const { method = 'POST' } = opcoes;
@@ -101,7 +102,7 @@ async function comLacPublicada(fn, { publicar = true } = {}) {
       const sit = () => rev.consultar('lac').situacao;
       for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
       for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
-      const concluida = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
+      const concluida = enviarEValidar(rev, 'lac', sit().revisao);
       assert.equal(concluida.ok, true);
       hash = concluida.hash;
       const pub = criarServicoPublicacao({ raiz, agora: AGORA });

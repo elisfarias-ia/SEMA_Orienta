@@ -2,7 +2,9 @@
 // (admin-logic.js) ao DOM. Regras: somente textContent e APIs seguras do DOM, sem armazenamento do navegador, sem cookies e sem log;
 // o token fica dentro do cliente (memória); ids, hashes, origem, ambiente, estados internos e datas ISO nunca aparecem; nada é
 // gravado ao abrir a página: toda gravação exige ação explícita (e confirmação quando é irreversível), uma por vez.
-// Autorizar e publicar são ações separadas, depois de concluir a revisão; cada uma pede confirmação própria e envia uma única requisição.
+// Revisão e validação (Sprint 8, Passo 8D): a Cadastrante envia a versão para revisão; o Revisor valida materialmente ou pede
+// ajustes (com motivo obrigatório). Autorizar e publicar são ações separadas, depois da validação; cada uma pede confirmação
+// própria e envia uma única requisição.
 // Revogar (Sprint 7) só aparece com a versão publicada e pede confirmação com motivo obrigatório.
 // Permissões (Sprint 8, Passo 8C): controles que o perfil da sessão não pode usar ficam focáveis, com aria-disabled="true", clique
 // bloqueado e uma descrição do perfil que faz a ação. A tela só ajuda: o servidor confere o perfil antes de gravar.
@@ -11,6 +13,7 @@ import {
   corpoDaImportacao, corpoDoConhecimento, criarClienteAdmin, FRASE_SEM_CANDIDATOS, MENSAGEM_IMPORTADA, TEXTO_IMPORTACAO, explicarFontesPendentes, frasesConteudoAntigo, fraseBlocosReabertos, pendenciasDaUrl, PASSOS_PARA_RESOLVER, validarEdicaoDeFonte, frasePendenciasParaConcluir, MENSAGENS, resumoDoConhecimento,
   AVISO_AUTORIZACAO, MENSAGENS_PUBLICACAO, TEXTO_CONFIRMAR_AUTORIZACAO, TEXTO_CONFIRMAR_PUBLICACAO, TEXTO_DIFERENCA_ETAPAS, botoesDePublicacao, frasePublicacao, linhasDoResumoDePublicacao,
   AVISO_MOTIVO_REVOGACAO, MENSAGEM_MOTIVO_OBRIGATORIO, TEXTO_CONFIRMAR_REVOGACAO,
+  AVISO_AJUSTES_SOLICITADOS, AVISO_EM_ANALISE, AVISO_MOTIVO_AJUSTES, AVISO_VALIDACAO_LOCAL, MENSAGEM_MOTIVO_AJUSTES_OBRIGATORIO, MENSAGENS_REVISAO,
   rotuloEstado, servicoDaUrl, validarFormConhecimento,
   MENSAGEM_SEM_USUARIO, MENSAGEM_USUARIO_MUDOU, rotuloDoUsuario,
   ACAO_DO_CONTROLE, aplicarPermissoesDoPerfil, instalarBloqueioDePerfil,
@@ -372,10 +375,10 @@ function renderizarBlocos() {
   raiz.append(lista);
 }
 
-/** Cartão "Autorizar e publicar": aparece só com a versão bloqueada; mostra só o botão da etapa em que a versão está. */
+/** Cartão "Autorizar e publicar": aparece só depois da validação material; mostra só o botão da etapa em que a versão está. */
 function renderizarPublicacao() {
   const cartao = $('cartao-publicacao');
-  cartao.hidden = contexto === null || revisao === null || !revisao.congelada;
+  cartao.hidden = contexto === null || revisao === null || revisao.etapa !== 'concluida';
   if (cartao.hidden) return;
   const b = botoesDePublicacao(publicacao, false);
   $('publicacao-diferenca').textContent = TEXTO_DIFERENCA_ETAPAS;
@@ -391,21 +394,31 @@ function renderizarConclusao() {
   lista.replaceChildren();
   cartao.hidden = contexto === null || revisao === null;
   if (cartao.hidden) return;
+  // Etapas (8D): em elaboração (pendências e "Enviar para revisão"), em análise ("Validar materialmente" e "Solicitar ajustes",
+  // sem nova versão), ajustes solicitados (motivo e nova versão) e validada ou além (nova versão; publicação no cartão seguinte).
   const bloqueada = revisao.congelada;
+  const analise = revisao.etapa === 'analise';
+  const ajustes = revisao.etapa === 'ajustes';
   $('conclusao-pendencias-bloco').hidden = bloqueada;
   $('conclusao-pronta').hidden = !bloqueada;
-  $('botao-concluir').hidden = bloqueada || !revisao.podeConcluir;
-  $('botao-nova-versao').hidden = !bloqueada;
+  $('botao-enviar').hidden = bloqueada || !revisao.podeEnviar;
+  $('botao-validar').hidden = !analise || !revisao.podeValidar;
+  $('botao-ajustes').hidden = !analise || !revisao.podeSolicitarAjustes;
+  $('botao-nova-versao').hidden = !revisao.podeNovaVersao;
   $('conclusao-explicacao').hidden = bloqueada;
-  $('nova-versao-explicacao').hidden = !bloqueada;
+  $('nova-versao-explicacao').hidden = !revisao.podeNovaVersao;
+  const motivo = $('ajustes-motivo');
+  motivo.hidden = !(ajustes && revisao.motivoAjustes !== null);
+  motivo.textContent = ajustes && revisao.motivoAjustes !== null ? `Motivo dos ajustes: ${revisao.motivoAjustes}` : '';
   if (bloqueada) {
-    $('conclusao-pronta').textContent = `Situação: ${revisao.rotulo}. Esta versão está bloqueada para edição.`;
+    const aviso = analise ? AVISO_EM_ANALISE : ajustes ? AVISO_AJUSTES_SOLICITADOS : 'Esta versão está bloqueada para edição.';
+    $('conclusao-pronta').textContent = `Situação: ${revisao.rotulo}. ${aviso}`;
     return;
   }
   if (revisao.pendencias.length === 0) {
-    $('pendencias-resumo').textContent = 'Nenhuma pendência. Você já pode concluir a revisão.';
+    $('pendencias-resumo').textContent = 'Nenhuma pendência. Você já pode enviar para revisão.';
   } else {
-    $('pendencias-resumo').textContent = revisao.pendencias.length === 1 ? 'Falta resolver 1 pendência para concluir a revisão:' : `Faltam resolver ${revisao.pendencias.length} pendências para concluir a revisão:`;
+    $('pendencias-resumo').textContent = revisao.pendencias.length === 1 ? 'Falta resolver 1 pendência para enviar para revisão:' : `Faltam resolver ${revisao.pendencias.length} pendências para enviar para revisão:`;
     for (const p of revisao.pendenciasDetalhe) {
       const li = criar('li', 'pendencia', p.frase);
       li.tabIndex = -1;
@@ -826,7 +839,8 @@ $('importacao-fechar').addEventListener('click', fecharImportacao);
 
 /**
  * Envia uma ação da revisão com a `revisao` atual (exceto a nova versão, que envia `{}`). Bloqueia cliques repetidos, recarrega os
- * dados em caso de divergência e leva o foco à mensagem do resultado. `aoTerminarEnvio` fecha o diálogo que originou a ação.
+ * dados em caso de divergência e leva o foco à mensagem do resultado. `aoTerminarEnvio(r)` recebe o resultado e fecha o diálogo
+ * que originou a ação (pode mantê-lo aberto, como nos ajustes com motivo recusado). Devolve o resultado (ou undefined se nada foi enviado).
  */
 async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio = () => {}, foco = null) {
   if (cliente.gravando() || ocupado || contexto === null || revisao === null) return;
@@ -840,7 +854,7 @@ async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio =
   let r;
   try {
     r = await promessa.catch(() => ({ ok: false, mensagem: 'Não foi possível concluir a ação agora. Tente de novo.' }));
-    aoTerminarEnvio();
+    aoTerminarEnvio(r);
     if (r.ok) {
       const atualizado = await carregarServico(servicoId);
       ocupado = false;
@@ -857,7 +871,7 @@ async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio =
       }
       const focou = focarItem(alvo);
       mostrarStatus(`${mensagemDeSucesso}${atualizado.ok ? '' : ' Os dados não puderam ser atualizados; recarregue a página.'}`, 'info', !focou);
-      return;
+      return r;
     }
     if (r.recarregar) await carregarServico(servicoId);
   } finally {
@@ -865,6 +879,7 @@ async function executarRevisao(acao, extra, mensagemDeSucesso, aoTerminarEnvio =
     atualizarPermissoes();
   }
   mostrarStatus(r.mensagem, 'erro', true);
+  return r;
 }
 
 /** Diálogo simples de confirmação (Voltar / Confirmar). Mantém-se aberto durante o envio, para evitar clique duplo. */
@@ -892,10 +907,13 @@ function ligarDialogo(dlg, voltar, confirmarBtn, aoConfirmar) {
     dlg.removeAttribute('aria-busy');
     confirmarBtn.removeAttribute('aria-busy');
     // Se nada foi enviado (por exemplo, outra gravação em andamento), o diálogo não pode ficar preso: reabilita e devolve o foco.
+    // Se a confirmação levou o foco a um campo do próprio diálogo (motivo vazio ou recusado), o foco fica nele.
     if (dlg.open) {
       voltar.disabled = false;
       confirmarBtn.disabled = false;
-      voltar.focus();
+      const ativo = document.activeElement;
+      const noCampo = ativo !== null && ativo !== voltar && ativo !== confirmarBtn && dlg.contains(ativo);
+      if (!noCampo) voltar.focus();
     }
   });
   return (origem) => {
@@ -923,13 +941,61 @@ function pedirDescarte(bloco, gatilho) {
   abrirDescarte(gatilho);
 }
 
-const abrirConclusao = ligarDialogo($('dialogo-conclusao'), $('conclusao-voltar'), $('conclusao-confirmar'), async (fechar) => {
-  await executarRevisao('concluir', {}, 'Revisão concluída. A versão está pronta para publicar e não pode mais ser editada.', fechar);
+// Enviar para revisão (Cadastrante): reaproveita o diálogo da antiga conclusão.
+const abrirEnvio = ligarDialogo($('dialogo-conclusao'), $('conclusao-voltar'), $('conclusao-confirmar'), async (fechar) => {
+  await executarRevisao('enviar', {}, MENSAGENS_REVISAO.enviada, fechar);
+});
+$('botao-enviar').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || !revisao.podeEnviar) return;
+  abrirEnvio(evento.currentTarget);
 });
 
-$('botao-concluir').addEventListener('click', (evento) => {
-  if (ocupado || cliente.gravando() || revisao === null || !revisao.podeConcluir) return;
-  abrirConclusao(evento.currentTarget);
+// Validar materialmente (Revisor): confirmação com o aviso de que esta validação local não equivale à validação material da CLABI.
+const abrirValidacao = ligarDialogo($('dialogo-validacao'), $('validacao-voltar'), $('validacao-confirmar'), async (fechar) => {
+  await executarRevisao('validar', {}, MENSAGENS_REVISAO.validada, fechar);
+});
+$('botao-validar').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || !revisao.podeValidar) return;
+  $('validacao-aviso').textContent = AVISO_VALIDACAO_LOCAL;
+  abrirValidacao(evento.currentTarget);
+});
+
+// Solicitar ajustes (Revisor): motivo obrigatório, como na revogação. Sem motivo, nada é enviado e o diálogo continua aberto.
+// O conteúdo do motivo (tamanho, sem e-mail, telefone, CPF ou credencial) é conferido pelo servidor; o motivo nunca vai para log.
+const campoMotivoAjustes = $('ajustes-motivo-campo');
+const erroMotivoAjustes = $('ajustes-motivo-erro');
+function mostrarErroDoMotivoAjustes(mensagem) {
+  erroMotivoAjustes.textContent = mensagem;
+  erroMotivoAjustes.hidden = mensagem === '';
+  if (mensagem === '') campoMotivoAjustes.removeAttribute('aria-invalid');
+  else campoMotivoAjustes.setAttribute('aria-invalid', 'true');
+}
+const abrirAjustes = ligarDialogo($('dialogo-ajustes'), $('ajustes-voltar'), $('ajustes-confirmar'), async (fechar) => {
+  const motivo = campoMotivoAjustes.value.trim();
+  if (motivo === '') {
+    mostrarErroDoMotivoAjustes(MENSAGEM_MOTIVO_AJUSTES_OBRIGATORIO);
+    campoMotivoAjustes.focus();
+    return;
+  }
+  mostrarErroDoMotivoAjustes('');
+  // Motivo recusado pelo servidor (campo "motivo"): o diálogo continua aberto, com o texto digitado, o erro junto ao campo e o foco nele.
+  const motivoRecusado = (r) => r !== undefined && r !== null && r.ok === false && r.campo === 'motivo';
+  const r = await executarRevisao('ajustes', { motivo }, MENSAGENS_REVISAO.ajustes, (res) => {
+    if (motivoRecusado(res)) return;
+    fechar();
+    campoMotivoAjustes.value = '';
+  });
+  if (motivoRecusado(r) && $('dialogo-ajustes').open) {
+    mostrarErroDoMotivoAjustes(r.mensagem);
+    campoMotivoAjustes.focus();
+  }
+});
+$('botao-ajustes').addEventListener('click', (evento) => {
+  if (ocupado || cliente.gravando() || revisao === null || !revisao.podeSolicitarAjustes) return;
+  $('ajustes-motivo-ajuda').textContent = AVISO_MOTIVO_AJUSTES;
+  campoMotivoAjustes.value = '';
+  mostrarErroDoMotivoAjustes('');
+  abrirAjustes(evento.currentTarget);
 });
 // Autorizar e publicar: diálogos distintos, cada um com o resumo da versão. A revisão enviada é a lida por último (nunca exibida).
 function preencherResumo(listaId) {
@@ -1218,7 +1284,7 @@ async function carregarServico(servicoId) {
     return r;
   }
   revisao = rev.ok ? rev : null;
-  publicacao = pub.ok && revisao !== null && revisao.congelada ? pub : null;
+  publicacao = pub.ok && revisao !== null && revisao.etapa === 'concluida' ? pub : null;
   const editavel = r.editavel && (revisao === null || revisao.editavel);
   const mantidaEdicao = editando !== null && editavel && r.blocos.some((b) => b.id === editando && b.editavel);
   const outroServico = contexto === null || contexto.servicoId !== servicoId;
@@ -1341,7 +1407,7 @@ async function iniciar() {
 }
 
 // Passo 8C: ação de cada controle fixo da página e bloqueio dos controles fora do perfil (antes de qualquer outro clique).
-for (const id of ['botao-concluir', 'botao-nova-versao', 'botao-autorizar', 'botao-publicar', 'botao-revogar']) {
+for (const id of ['botao-enviar', 'botao-validar', 'botao-ajustes', 'botao-nova-versao', 'botao-autorizar', 'botao-publicar', 'botao-revogar']) {
   const botao = $(id);
   if (Object.hasOwn(ACAO_DO_CONTROLE, botao.dataset.acao)) botao.dataset.permissao = ACAO_DO_CONTROLE[botao.dataset.acao];
 }

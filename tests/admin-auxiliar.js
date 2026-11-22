@@ -56,3 +56,27 @@ export function ate(estado) {
   r = revogarVersao(v, h, base(v, { id: 'revogacao-1', data: '2026-01-15', motivo: 'Motivo fictício de revogação.' }));
   return { v: congelar(r.versao), h: congelar(r.historico) };
 }
+
+// Sprint 8, Passo 8D: auxiliares que encapsulam a validação material usada como PREPARAÇÃO (para publicar, autorizar, revogar,
+// nova versão, edição bloqueada etc.): a Cadastrante envia para revisão e o Revisor valida (antes, um só passo, "concluir").
+
+/**
+ * Pelo serviço de revisão (Passo 8D): Maria (Cadastrante) envia para revisão e Carlos (Revisor) valida materialmente.
+ * Retorna o resultado da validação ({ ok, versaoId, hash, estado }) ou a falha do envio.
+ */
+export function enviarEValidar(rev, servicoId, revisao, { cadastrante = MARIA, revisor = CARLOS } = {}) {
+  const enviada = rev.enviarParaRevisao(servicoId, { ator: cadastrante, revisao });
+  if (!enviada.ok) return enviada;
+  return rev.validarMaterialmente(servicoId, { ator: revisor, revisao: enviada.hash });
+}
+
+/**
+ * Pela rota (Passo 8D): recebe a função `post(rota, corpo)` do próprio arquivo de teste (que já troca a sessão para Carlos nas
+ * rotas do Revisor; o envio vai com a sessão padrão, Maria) e o prefixo da rota, se ela usar o caminho completo. POST
+ * revisao/enviar e, se der certo, POST revisao/validar com a revisão devolvida. Retorna a resposta da validação ou a do envio.
+ */
+export async function enviarEValidarPelaRota(post, revisao, { prefixo = '' } = {}) {
+  const enviada = await post(`${prefixo}revisao/enviar`, { revisao });
+  if (enviada.status !== 200) return enviada;
+  return post(`${prefixo}revisao/validar`, { revisao: enviada.corpo.revisao });
+}

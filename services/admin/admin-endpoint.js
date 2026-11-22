@@ -33,8 +33,13 @@
 //   POST /__admin/servicos/<id>/revisao/fontes           -> revisa uma fonte (não publica)
 //   POST /__admin/servicos/<id>/revisao/blocos/aceitar   -> aceita um bloco de conhecimento (não publica)
 //   POST /__admin/servicos/<id>/revisao/blocos/rejeitar  -> remove um bloco de conhecimento em rascunho
-//   POST /__admin/servicos/<id>/revisao/blocos/reabrir   -> reabre um bloco aceito para correção (só antes de concluir a revisão)
-//   POST /__admin/servicos/<id>/revisao/concluir         -> congela a versão (hash) e leva a "Pronto para publicar"; não autoriza nem publica
+//   POST /__admin/servicos/<id>/revisao/blocos/reabrir   -> reabre um bloco aceito para correção (só antes de enviar para revisão)
+//   POST /__admin/servicos/<id>/revisao/enviar           -> Cadastrante envia para revisão: congela a versão (hash) e leva a "Em análise" (8D)
+//   POST /__admin/servicos/<id>/revisao/validar          -> Revisor valida materialmente: "Pronto para publicar"; não autoriza nem publica (8D)
+//   POST /__admin/servicos/<id>/revisao/ajustes          -> Revisor pede ajustes com motivo { revisao, motivo }; o motivo só vai ao histórico
+//                                                           privado, nunca a resposta de gravação nem a log (8D)
+//   (a antiga .../revisao/concluir foi removida no Passo 8D: responde 404 logo depois da conferência de origem local, antes do
+//   método e do token; outros caminhos inexistentes podem receber 405 ou 401 antes do 404)
 //   POST /__admin/servicos/<id>/nova-versao              -> nova versão a partir da atual congelada
 //   GET  /__admin/servicos/<id>/publicacao/resumo        -> resumo da versão (número, data, quantidades, se pode autorizar/publicar); sem hash nem ids (5C)
 //   POST /__admin/servicos/<id>/autorizacao              -> autoriza a publicação (validado_materialmente -> autorizado_publicacao); revisão no corpo ou em X-Revisao (5C)
@@ -124,13 +129,17 @@ const PADRAO_REVISAO_CABECALHO = /^[0-9a-f]{64}$/;
 const PADRAO_ROTA_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/revisao$/;
 const PADRAO_ROTA_RESUMO_PUBLICACAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/publicacao\/resumo$/;
 const PADRAO_ROTA_PUBLICAR = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(autorizacao|publicacao|revogacao)$/;
-const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/blocos\/reabrir|revisao\/concluir|nova-versao)$/;
+const PADRAO_ROTA_ACAO_REVISAO = /^\/__admin\/servicos\/([a-z][a-z0-9-]*)\/(revisao\/fontes|revisao\/blocos\/aceitar|revisao\/blocos\/rejeitar|revisao\/blocos\/reabrir|revisao\/enviar|revisao\/validar|revisao\/ajustes|nova-versao)$/;
+// Sprint 8, Passo 8D: a rota antiga de "concluir revisão" não existe mais; responde 404 genérico (antes do método e do token).
+const PADRAO_ROTA_CONCLUIR_REMOVIDA = /^\/__admin\/servicos\/[a-z][a-z0-9-]*\/revisao\/concluir$/;
 const ACAO_DA_ROTA = Object.freeze({
   'revisao/fontes': 'revisar_fonte',
   'revisao/blocos/aceitar': 'aceitar_bloco',
   'revisao/blocos/rejeitar': 'rejeitar_bloco',
   'revisao/blocos/reabrir': 'reabrir_bloco',
-  'revisao/concluir': 'concluir_revisao',
+  'revisao/enviar': 'enviar_para_revisao',
+  'revisao/validar': 'validar_materialmente',
+  'revisao/ajustes': 'solicitar_ajustes',
   'nova-versao': 'nova_versao',
 });
 const STATUS_DA_REVISAO = Object.freeze({
@@ -748,7 +757,10 @@ export function criarManipuladorAdmin({
       case 'aceitar_bloco': return respostaDaRevisao(servicoRevisao.aceitarBloco(servicoId, comAtor));
       case 'rejeitar_bloco': return respostaDaRevisao(servicoRevisao.rejeitarBloco(servicoId, comAtor));
       case 'reabrir_bloco': return respostaDaRevisao(servicoRevisao.reabrirBloco(servicoId, comAtor));
-      case 'concluir_revisao': return respostaDaRevisao(servicoRevisao.concluirRevisao(servicoId, comAtor));
+      case 'enviar_para_revisao': return respostaDaRevisao(servicoRevisao.enviarParaRevisao(servicoId, comAtor));
+      case 'validar_materialmente': return respostaDaRevisao(servicoRevisao.validarMaterialmente(servicoId, comAtor));
+      // O motivo vai só ao serviço (histórico privado); a resposta tem só { revisao, estado } ou o código do erro.
+      case 'solicitar_ajustes': return respostaDaRevisao(servicoRevisao.solicitarAjustes(servicoId, comAtor));
       default: return respostaDaRevisao(servicoRevisao.criarNovaVersao(servicoId, { ator }), 201);
     }
   }
@@ -795,6 +807,7 @@ export function criarManipuladorAdmin({
     };
 
     if (!origemPermitida(req)) return responder(403, { erro: 'acesso_somente_local' });
+    if (PADRAO_ROTA_CONCLUIR_REMOVIDA.test(caminho)) return responder(404, { erro: 'nao_encontrado' });
     const rotaDeFontes = PADRAO_ROTA_FONTES.exec(caminho);
     const rotaDeConhecimentos = PADRAO_ROTA_CONHECIMENTOS.exec(caminho);
     const rotaDeConhecimento = PADRAO_ROTA_CONHECIMENTO.exec(caminho);

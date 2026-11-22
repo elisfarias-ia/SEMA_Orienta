@@ -17,7 +17,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D (só troca de usuário): validar, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -39,6 +39,19 @@ const TEMA = 'Tema Publicação Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado_publicacao|estado_invalido|revisao_divergente|hash_divergente|historico_incompativel|conteudo_excluido_citado|sem_informacao_aceita|versao_congelada|[0-9a-f]{64}|X-Admin-Token|X-Revisao|\bbc-[0-9a-f]{6,}/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
+async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
+  await comoCarlos(page);
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
+}
+
 const dlgAutorizar = (page) => page.locator('#dialogo-autorizacao');
 const dlgPublicar = (page) => page.locator('#dialogo-publicacao');
 
@@ -111,10 +124,7 @@ async function prepararConcluido(page, nome) {
   await page.locator('#aba-informacoes').click();
   await botao(page, 'Aceitar informação: Documentos exigidos').click();
   await expect(status(page)).toContainText('Informação aceita.');
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   await expect(page.locator('#cartao-publicacao')).toBeVisible();
   return d;
 }
@@ -181,7 +191,7 @@ test('1. fluxo completo: autorizar e publicar, com diálogos diferentes, foco e 
   await expect(page.locator('#publicacao-estado')).toContainText(/Publicado em \d{2}\/\d{2}\/\d{4}/);
   await expect(page.locator('#situacao-publicacao')).toHaveText('Publicado');
   await expect(botao(page, 'Criar nova versão para editar')).toBeVisible();
-  for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Concluir revisão$/, /^Autorizar publicação$/, /^Publicar$/, /^Incluir informação$/, /^Importar/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+  for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Enviar para revisão$/, /^Validar materialmente$/, /^Solicitar ajustes$/, /^Autorizar publicação$/, /^Publicar$/, /^Incluir informação$/, /^Importar/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toMatch(TECNICO);
   // o painel de /admin/ também mostra o estado
   await encerrarSessao(page);

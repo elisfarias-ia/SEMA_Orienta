@@ -13,7 +13,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D (só troca de usuário): validar, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -34,6 +34,19 @@ const TEMA = 'Tema Fonte Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|fonte_em_uso|fonte_pendente|revisao_divergente|versao_congelada|url_duplicada|excluidaEm|[0-9a-f]{64}|X-Admin-Token|X-Revisao|\bbc-[0-9a-f]{6,}/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
+async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
+  await comoCarlos(page);
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
+}
+
 const dlg = (page) => page.locator('#dialogo-editar-fonte');
 const fonteDa = (page, titulo) => page.locator('#fontes-revisao li.bloco').filter({ hasText: titulo });
 const blocoDa = (page, titulo) => page.locator('#blocos li.bloco').filter({ hasText: titulo });
@@ -244,7 +257,7 @@ test('4. editar fonte revisada: aviso antes de salvar, volta para revisão, info
   await expect(blocoDa(page, 'Prazos de análise')).toContainText('Situação: Em elaboração');
   expect(await conferirCoerencia(page)).toBeGreaterThan(0);
   await expect(page.locator('#servico-situacao')).toContainText('Revisão pendente');
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
   // revisar e aceitar de novo zera as pendências
   await revisarFonte(page, 'Link Usado');
   await emInfos(page);
@@ -403,10 +416,7 @@ test('8. versão congelada sem Editar/Excluir; na nova versão a exclusão vale 
   await emInfos(page);
   await botao(page, 'Aceitar informação: Conteúdo congelado').click();
   await expect(blocoDa(page, 'Conteúdo congelado')).toContainText('Situação: Aceita');
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   for (const nome of [/^Editar fonte/, /^Excluir fonte/, /^Marcar como revisado/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
   await comoMaria(page);
   await expect(botao(page, 'Criar nova versão para editar')).toBeVisible();
@@ -445,7 +455,7 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   // foco na primeira pendência, com a frase exata e a ação direta
   const primeira = page.locator('#pendencias li').first();
   await expect(primeira).toBeFocused();
-  await expect(primeira).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  await expect(primeira).toContainText('Inclua e aceite pelo menos uma informação para enviar para revisão.');
   await expect(page.locator('#passos-pendencias li')).toHaveCount(5);
   await expect(page.locator('#passos-pendencias')).toContainText('Aceitar a informação.');
   await page.getByRole('button', { name: 'Incluir informação (resolver pendência)' }).click();
@@ -475,10 +485,10 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   await expect(botao(page, 'Resolver pendências')).toBeHidden();
   await expect(page.locator('#passos-pendencias')).toBeHidden();
   await expect(page.locator('#situacao-selo')).toBeHidden();
-  await expect(botao(page, 'Concluir revisão')).toBeVisible();
+  await expect(botao(page, 'Enviar para revisão')).toBeVisible();
   // de volta ao painel: sem pendências, sem "Resolver pendências"
   await irGestao(page).click();
-  await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para concluir.');
+  await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para enviar à revisão.');
   await expect(page.getByRole('link', { name: 'Resolver pendências' })).toBeHidden();
 });
 

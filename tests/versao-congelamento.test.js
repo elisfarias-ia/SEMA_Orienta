@@ -188,7 +188,7 @@ test('C7. rollback: falha ao gravar o manifesto ou recusa da conferência final 
 });
 
 test('C8. tabela pura de ações: revisão, autorização e publicação são ações separadas, nos estados certos', () => {
-  assert.deepEqual(acoesPermitidas('rascunho'), ['concluir_revisao']);
+  assert.deepEqual(acoesPermitidas('rascunho'), ['enviar_para_revisao']);
   assert.deepEqual(acoesPermitidas('em_validacao'), ['solicitar_ajustes', 'validar_materialmente']);
   assert.deepEqual(acoesPermitidas('validado_materialmente'), ['autorizar_publicacao', 'nova_versao']);
   assert.deepEqual(acoesPermitidas('autorizado_publicacao'), ['publicar', 'nova_versao']);
@@ -198,12 +198,13 @@ test('C8. tabela pura de ações: revisão, autorização e publicação são a�
   assert.deepEqual(acoesPermitidas('inventado'), []);
   assert.deepEqual(verificarAcao('publicar', 'rascunho'), { permitida: false, para: null, motivo: 'acao_nao_permitida_no_estado' });
   assert.deepEqual(verificarAcao('autorizar_publicacao', 'em_validacao'), { permitida: false, para: null, motivo: 'acao_nao_permitida_no_estado' });
-  assert.deepEqual(verificarAcao('concluir_revisao', 'rascunho'), { permitida: true, para: 'em_validacao', motivo: null });
+  assert.deepEqual(verificarAcao('enviar_para_revisao', 'rascunho'), { permitida: true, para: 'em_validacao', motivo: null });
+  assert.equal(verificarAcao('concluir_revisao', 'rascunho').motivo, 'acao_desconhecida', 'Passo 8D: concluir_revisao saiu da tabela');
   assert.equal(verificarAcao('voar', 'rascunho').motivo, 'acao_desconhecida');
   assert.equal(verificarAcao('publicar', 'x').motivo, 'estado_de_origem_desconhecido');
   assert.ok(Object.isFrozen(ACOES_DA_VERSAO) && Object.isFrozen(ACOES_DA_VERSAO.publicar.de));
   // Nenhuma ação de revisão leva direto a publicado.
-  for (const a of ['concluir_revisao', 'solicitar_ajustes', 'validar_materialmente', 'autorizar_publicacao']) assert.notEqual(ACOES_DA_VERSAO[a].para, 'publicado');
+  for (const a of ['enviar_para_revisao', 'solicitar_ajustes', 'validar_materialmente', 'autorizar_publicacao']) assert.notEqual(ACOES_DA_VERSAO[a].para, 'publicado');
 });
 
 test('C9. a LAC real não foi alterada por nenhum teste deste arquivo', () => {

@@ -2,8 +2,9 @@
 //
 // Cada ação pertence a exatamente UM perfil: o Cadastrante cadastra, edita, revisa e envia para revisão; o Revisor valida
 // materialmente, solicita ajustes, autoriza, publica e revoga. O perfil de demonstração não tem nenhuma ação.
-// A matriz AINDA NÃO é usada pelas rotas nem pelas telas: a aplicação nas gravações é o Passo 8C.
-// "concluir_revisao" (nome legado da ação que leva a versão para validação) não entra aqui; o 8C/8D decide seu destino.
+// A matriz é aplicada nas rotas e nas gravações desde o Passo 8C.
+// "concluir_revisao" (nome antigo, Sprints 5 a 8C) não entra aqui: no Passo 8D ele deu lugar a enviar_para_revisao,
+// validar_materialmente e solicitar_ajustes, e só continua aceito na LEITURA de registros antigos do histórico.
 
 const lista = (...perfis) => Object.freeze(perfis);
 const CADASTRANTE = lista('cadastrante');

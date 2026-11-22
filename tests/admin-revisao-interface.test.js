@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  CABECALHO_TOKEN, MENSAGEM_REVISAO_DIVERGENTE, TEXTO_CONFIRMAR_CONCLUSAO, criarClienteAdmin, criarClienteGestao,
+  CABECALHO_TOKEN, MENSAGEM_REVISAO_DIVERGENTE, TEXTO_CONFIRMAR_ENVIO, criarClienteAdmin, criarClienteGestao,
+  ACAO_DO_CONTROLE, AVISO_AJUSTES_SOLICITADOS, AVISO_EM_ANALISE, AVISO_MOTIVO_AJUSTES, AVISO_VALIDACAO_LOCAL, MENSAGENS_REVISAO, TEXTO_CONFIRMAR_AJUSTES, TEXTO_CONFIRMAR_VALIDACAO, fraseDaEtapaDeRevisao,
   AVISO_EDITAR_FONTE, PASSOS_PARA_RESOLVER, TEXTO_CONFIRMAR_EXCLUSAO_FONTE, TEXTO_EXCLUSAO_APLICADA_NA_PUBLICACAO, fraseBlocosReabertos, frasesConteudoAntigo, mensagemDaFonte,
   pendenciasDaUrl, resumirImpacto, validarEdicaoDeFonte,
   explicarFontesPendentes, frasePendenciasParaConcluir, mensagemDaRevisao, resumirRevisao, servicoDaUrl, traduzirPendencia,
@@ -37,7 +38,7 @@ const REVISAO_API = (extra = {}) => ({
   ],
   blocos: [{ id: 'bc-aaaaaaaaaaaa', titulo: 'Como iniciar', aceito: false, fontesPendentes: ['f-um'], podeAceitar: false, podeReabrir: false, podeRejeitar: true }],
   pendencias: [{ codigo: 'bloco_pendente', id: 'bc-aaaaaaaaaaaa', titulo: 'Como iniciar' }, { codigo: 'fonte_pendente', id: 'f-um', titulo: 'Portal Um' }],
-  podeConcluir: false, ...extra,
+  podeEnviar: false, ...extra,
 });
 
 function servidorFalso(respostas = {}, portao = null) {
@@ -67,24 +68,26 @@ test('RV1. resumirRevisao: linguagem comum, sem ids de estado, sem texto origina
   assert.equal(r.revisaoPendente, true);
   assert.deepEqual(r.fontes.map((f) => [f.rotuloForma, f.situacao]), [['Link', 'Revisão pendente'], ['Texto informado', 'Revisado']]);
   assert.equal(r.blocos[0].situacao, 'Em elaboração');
-  // Fonte que nenhum bloco usa: "Ainda não revisada" (não é pendência para concluir); usada e pendente: "Revisão pendente".
+  // Fonte que nenhum bloco usa: "Ainda não revisada" (não é pendência para enviar); usada e pendente: "Revisão pendente".
   const naoUsada = resumirRevisao(REVISAO_API({ fontes: [{ id: 'f-nu', titulo: 'Sem uso', forma: 'link', revisada: false, revogada: false, usadaPorBloco: false, podeRevisar: true }, { id: 'f-u', titulo: 'Em uso', forma: 'link', revisada: false, revogada: false, usadaPorBloco: true, podeRevisar: true }] }));
   assert.deepEqual(naoUsada.fontes.map((f) => f.situacao), ['Ainda não revisada', 'Revisão pendente']);
   // O resumo usa só pendenciasParaConcluir (= tamanho da lista de impedimentos), nunca soma outros números.
   assert.equal(r.resumo.pendenciasParaConcluir, r.pendencias.length);
-  assert.equal(frasePendenciasParaConcluir(r.resumo), '2 pendências para concluir. Informações aceitas: 0.');
-  assert.match(frasePendenciasParaConcluir({ pendenciasParaConcluir: 3, informacoesAceitas: 1, fontesNaoUsadas: 2 }), /3 pendências para concluir\. Informações aceitas: 1\. 2 documentos ou links ainda não são usados.*não impede a conclusão/);
+  assert.equal(frasePendenciasParaConcluir(r.resumo), '2 pendências para enviar à revisão. Informações aceitas: 0.');
+  assert.match(frasePendenciasParaConcluir({ pendenciasParaConcluir: 3, informacoesAceitas: 1, fontesNaoUsadas: 2 }), /3 pendências para enviar à revisão\. Informações aceitas: 1\. 2 documentos ou links ainda não são usados.*não impede o envio/);
   assert.doesNotMatch(frasePendenciasParaConcluir({ pendenciasParaConcluir: 0, informacoesAceitas: 1, fontesNaoUsadas: 0 }), /usados|impede/);
   assert.equal(resumirRevisao(REVISAO_API({ revisaoPendente: false })).revisaoPendente, true, 'o selo segue a lista de pendências, não um campo isolado');
   assert.equal(resumirRevisao(REVISAO_API({ pendencias: [], revisaoPendente: true })).revisaoPendente, false);
   assert.equal(resumirRevisao(REVISAO_API({ fontes: [{ id: 'f-x', titulo: 'Velha', forma: 'link', revisada: true, revogada: true }] })).fontes[0].situacao, 'Revogada');
   assert.equal(resumirRevisao(REVISAO_API({ blocos: [{ id: 'bc-bbbbbbbbbbbb', titulo: 'Pronta', aceito: true, fontesPendentes: [], podeReabrir: true }] })).blocos[0].situacao, 'Aceita');
   assert.doesNotMatch(JSON.stringify(r), /TEXTO-ORIGINAL-SECRETO/);
-  assert.equal(r.podeConcluir, false);
-  assert.equal(resumirRevisao(REVISAO_API({ podeConcluir: true })).podeConcluir, true);
-  const pronta = resumirRevisao(REVISAO_API({ rotulo: 'Pronto para publicar', revisaoPendente: false, editavel: false, podeConcluir: true }));
+  assert.equal(r.podeEnviar, false);
+  assert.equal(r.podeConcluir, undefined, 'Passo 8D: podeConcluir não existe mais');
+  assert.equal(resumirRevisao(REVISAO_API({ podeEnviar: true })).podeEnviar, true);
+  assert.equal(r.etapa, 'elaboracao');
+  const pronta = resumirRevisao(REVISAO_API({ estadoVersao: 'validado_materialmente', rotulo: 'Pronto para publicar', revisaoPendente: false, editavel: false, podeEnviar: true, podeValidar: true }));
   assert.equal(pronta.congelada, true);
-  assert.equal(pronta.podeConcluir, false, 'versão congelada nunca oferece concluir');
+  assert.deepEqual([pronta.etapa, pronta.podeEnviar, pronta.podeValidar, pronta.podeNovaVersao], ['concluida', false, false, true], 'versão congelada nunca oferece enviar');
   for (const ruim of [null, [], {}, REVISAO_API({ revisao: '' }), REVISAO_API({ fontes: 'x' }), REVISAO_API({ resumo: null })]) assert.equal(resumirRevisao(ruim), null);
 });
 
@@ -94,7 +97,7 @@ test('RV2. traduzirPendencia: cada código vira frase comum, sem o código técn
   assert.equal(new Set(frases).size, codigos.length, 'frases distintas');
   for (const f of frases) assert.doesNotMatch(f, TECNICO);
   assert.match(frases[1], /"Item X"/);
-  assert.equal(traduzirPendencia({ codigo: 'sem_bloco_aceito' }), 'Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  assert.equal(traduzirPendencia({ codigo: 'sem_bloco_aceito' }), 'Inclua e aceite pelo menos uma informação para enviar para revisão.');
   assert.match(traduzirPendencia(null), /pendência/);
 });
 
@@ -110,6 +113,7 @@ test('RV4. mensagemDaRevisao: textos curtos por código, divergência recarrega 
   assert.equal(m.mensagem, MENSAGEM_REVISAO_DIVERGENTE);
   assert.equal(m.recarregar, true);
   const codigos = [[409, 'versao_congelada'], [409, 'fonte_ja_revisada'], [409, 'bloco_ja_aceito'], [409, 'operacao_em_andamento'], [409, 'estado_nao_permite_nova_versao'],
+    [409, 'estado_invalido'], [422, 'motivo_invalido'], [422, 'hash_divergente'],
     [422, 'revisao_incompleta'], [422, 'fonte_pendente'], [422, 'fonte_revogada'], [422, 'bloco_nao_aceitavel'], [422, 'bloco_nao_aceito'], [422, 'bloco_sem_fonte'],
     [422, 'entrada_invalida'], [422, 'dados_invalidos'], [422, 'base_invalida'], [404, 'nao_encontrado'], [500, 'indisponivel'], [500, 'historico_indisponivel'], [500, 'desfazer_incompleto']];
   for (const [status, erro] of codigos) {
@@ -155,7 +159,9 @@ test('RV7. gravarRevisao: rota certa para cada ação, JSON, revisão enviada e 
     ['bloco-aceitar', { blocoId: 'bc-aaaaaaaaaaaa', revisao: 'r1' }, `${base}/revisao/blocos/aceitar`],
     ['bloco-rejeitar', { blocoId: 'bc-aaaaaaaaaaaa', revisao: 'r1' }, `${base}/revisao/blocos/rejeitar`],
     ['bloco-reabrir', { blocoId: 'bc-aaaaaaaaaaaa', revisao: 'r1' }, `${base}/revisao/blocos/reabrir`],
-    ['concluir', { revisao: 'r1' }, `${base}/revisao/concluir`],
+    ['enviar', { revisao: 'r1' }, `${base}/revisao/enviar`],
+    ['validar', { revisao: 'r1' }, `${base}/revisao/validar`],
+    ['ajustes', { revisao: 'r1', motivo: 'Motivo fictício.' }, `${base}/revisao/ajustes`],
   ];
   for (const [acao, corpo, rota] of casos) {
     const r = await c.gravarRevisao(acao, 'servico-ficticio', corpo);
@@ -174,6 +180,8 @@ test('RV7. gravarRevisao: rota certa para cada ação, JSON, revisão enviada e 
   assert.equal(ultima.corpoTexto, '{}', 'corpo exatamente {}');
   assert.equal(ultima.cabecalhos['Content-Type'], 'application/json');
   assert.equal((await c.gravarRevisao('publicar-tudo', 'servico-ficticio', {})).ok, false, 'só existem as ações fixas');
+  assert.equal((await c.gravarRevisao('concluir', 'servico-ficticio', { revisao: 'r1' })).ok, false, 'Passo 8D: a ação concluir não existe mais');
+  assert.equal(s.chamadas.some((x) => x.url.endsWith('/revisao/concluir')), false);
   // 5C: autorizar e publicar são as únicas ações de publicação, cada uma com a revisão atual e rota própria
   for (const [acao, rota] of [['autorizar', 'autorizacao'], ['publicar', 'publicacao']]) {
     assert.equal((await c.gravarRevisao(acao, 'servico-ficticio', { revisao: 'r1' })).ok, true, acao);
@@ -208,10 +216,10 @@ test('RV9. erros 409 de divergência pedem recarregar; falha de rede e 500 viram
   await c.iniciarSessao();
   let r = await c.gravarRevisao('fonte', 'servico-ficticio', { fonteId: 'f-um', revisao: 'velha' });
   assert.deepEqual([r.ok, r.recarregar, r.mensagem], [false, true, MENSAGEM_REVISAO_DIVERGENTE]);
-  s = servidorFalso({ [`POST ${base}/revisao/concluir`]: async () => { throw new Error('rede C:\\segredo'); } });
+  s = servidorFalso({ [`POST ${base}/revisao/validar`]: async () => { throw new Error('rede C:\\segredo'); } });
   c = criarClienteAdmin({ fetchImpl: s.fetchImpl });
   await c.iniciarSessao();
-  r = await c.gravarRevisao('concluir', 'servico-ficticio', { revisao: 'r' });
+  r = await c.gravarRevisao('validar', 'servico-ficticio', { revisao: 'r' });
   assert.equal(r.ok, false);
   assert.doesNotMatch(r.mensagem, /segredo|C:\\/);
 });
@@ -235,14 +243,19 @@ test('RV10. cliente da gestão: carrega a revisão e cria nova versão enviando 
 test('RV11. /admin/conteudo/: seções, diálogos próprios, texto de confirmação e nenhum botão de publicação', () => {
   assert.match(HTML_CONTEUDO, /<h2 id="titulo-fontes-revisao">Documentos e links<\/h2>/);
   assert.match(HTML_CONTEUDO, /<h2 id="titulo-blocos">Informações cadastradas<\/h2>/);
-  assert.match(HTML_CONTEUDO, /<h2 id="titulo-conclusao">Concluir revisão<\/h2>/);
+  assert.match(HTML_CONTEUDO, /<h2 id="titulo-conclusao" tabindex="-1">Revisão e validação<\/h2>/);
   assert.match(HTML_CONTEUDO, /<dialog id="dialogo-descarte" class="dialogo" aria-labelledby="descarte-titulo" aria-describedby="descarte-descricao">/);
   assert.match(HTML_CONTEUDO, /<dialog id="dialogo-conclusao" class="dialogo" aria-labelledby="conclusao-titulo-dialogo" aria-describedby="conclusao-descricao-dialogo">/);
-  assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_CONCLUSAO), 'texto exato da confirmação no diálogo');
-  assert.equal(TEXTO_CONFIRMAR_CONCLUSAO, 'Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.');
+  assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_ENVIO), 'texto exato da confirmação do envio no diálogo');
+  assert.equal(TEXTO_CONFIRMAR_ENVIO, 'Depois de enviar, esta versão não poderá mais ser editada e aguardará a análise do Revisor. Para fazer novas alterações, será necessário criar uma nova versão.');
+  assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_VALIDACAO), 'texto exato da confirmação da validação');
+  assert.ok(HTML_CONTEUDO.includes(TEXTO_CONFIRMAR_AJUSTES), 'texto exato da confirmação dos ajustes');
   assert.doesNotMatch(HTML_CONTEUDO + LOGICA, /revisão para demonstração|AVISO_REVISAO_DEMONSTRACAO/, 'sem o aviso de demonstração');
   assert.match(HTML_CONTEUDO, /id="botao-nova-versao"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Criar nova versão para editar</);
-  assert.match(HTML_CONTEUDO, /id="botao-concluir"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Concluir revisão</);
+  assert.match(HTML_CONTEUDO, /id="botao-enviar"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Enviar para revisão</);
+  assert.match(HTML_CONTEUDO, /id="botao-validar"[^>]*hidden>(?:<svg[^>]*><use[^>]*><\/use><\/svg>)?Validar materialmente</);
+  assert.match(HTML_CONTEUDO, /id="botao-ajustes"[^>]*hidden>Solicitar ajustes</);
+  assert.doesNotMatch(HTML_CONTEUDO, /botao-concluir|Concluir revisão|Confirmar conclusão/, 'Passo 8D: sem o antigo concluir');
   const botoes = [...(HTML_CONTEUDO + HTML_ADMIN).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
   assert.ok(botoes.length > 10);
   // 5C: o único botão com o verbo "Publicar" é o da etapa de publicação (a autorização tem rótulo próprio).
@@ -265,7 +278,8 @@ test('RV12. conteudo.js: revisão enviada em toda ação, divergência recarrega
   assert.match(executar, /mostrarStatus\(r\.mensagem, 'erro', true\)/);
   assert.match(executar, /'info', !focou\)/);
   assert.match(executar, /foco\.bloco !== undefined/);
-  for (const acao of ['fonte', 'bloco-aceitar', 'bloco-rejeitar', 'bloco-reabrir', 'concluir', 'nova-versao']) assert.match(JS_CONTEUDO, new RegExp(`executarRevisao\\('${acao}'`), acao);
+  for (const acao of ['fonte', 'bloco-aceitar', 'bloco-rejeitar', 'bloco-reabrir', 'enviar', 'validar', 'ajustes', 'nova-versao']) assert.match(JS_CONTEUDO, new RegExp(`executarRevisao\\('${acao}'`), acao);
+  assert.doesNotMatch(JS_CONTEUDO, /executarRevisao\('concluir'|botao-concluir|podeConcluir/);
   for (const texto of ['Marcar como revisado', 'Aceitar informação', 'Excluir informação', 'Reabrir para correção', 'Editar']) assert.ok(JS_CONTEUDO.includes(`'${texto}'`), texto);
   assert.match(JS_CONTEUDO, /Para alterar, crie uma nova versão\./);
   assert.match(JS_CONTEUDO, /selo selo--pendente/);
@@ -313,7 +327,7 @@ test('EF1. resumirRevisao: fonte revogada na lista normal (só Excluir), pendên
   }));
   assert.deepEqual(r.fontes.map((f) => [f.situacao, f.podeEditar, f.podeExcluir]), [['Revisado', true, true], ['Revogada', false, true]]);
   assert.deepEqual(r.pendenciasDetalhe.map((p) => [p.codigo, p.id, p.titulo]), [['sem_bloco_aceito', null, ''], ['bloco_pendente', 'bc-aaaaaaaaaaaa', 'Prazos'], ['fonte_pendente', 'f-um', 'Portal Um'], ['fonte_revogada', 'f-y', 'Decreto']]);
-  assert.equal(r.pendencias[0], 'Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  assert.equal(r.pendencias[0], 'Inclua e aceite pelo menos uma informação para enviar para revisão.');
   assert.equal(r.resumo.pendenciasParaConcluir, 4);
   assert.equal(fraseBlocosReabertos(0), '');
   assert.equal(fraseBlocosReabertos(1), '1 informação voltou para Em elaboração.');
@@ -438,4 +452,57 @@ test('EF6. página: Editar e Excluir por fonte, diálogos próprios, impacto ant
   assert.doesNotMatch(JS_CONTEUDO, /innerHTML|localStorage|sessionStorage|document\.cookie|console\./);
   const botoes = [...(HTML_CONTEUDO + HTML_ADMIN).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
   assert.equal(botoes.filter((b) => /^Adicionar/.test(b)).length, 0, 'rótulos padronizados: Incluir, Editar, Excluir, Salvar');
+});
+
+// ---------- Sprint 8, Passo 8D: enviar para revisão, validar e solicitar ajustes ----------
+
+test('RV16. (8D) etapas na tela: em análise oferece validar e ajustes (sem nova versão); ajustes mostram o motivo e a nova versão', () => {
+  const analise = resumirRevisao(REVISAO_API({ estadoVersao: 'em_validacao', rotulo: 'Em análise', editavel: false, pendencias: [], podeEnviar: true, podeValidar: true, podeSolicitarAjustes: true, motivoAjustes: 'Não deve aparecer.' }));
+  assert.deepEqual([analise.etapa, analise.congelada, analise.podeEnviar, analise.podeValidar, analise.podeSolicitarAjustes, analise.podeNovaVersao, analise.motivoAjustes],
+    ['analise', true, false, true, true, false, null]);
+  const ajustes = resumirRevisao(REVISAO_API({ estadoVersao: 'ajustes_solicitados', rotulo: 'Ajustes solicitados', editavel: false, pendencias: [], podeValidar: true, motivoAjustes: 'Corrigir o prazo fictício.' }));
+  assert.deepEqual([ajustes.etapa, ajustes.podeValidar, ajustes.podeSolicitarAjustes, ajustes.podeNovaVersao, ajustes.motivoAjustes],
+    ['ajustes', false, false, true, 'Corrigir o prazo fictício.']);
+  assert.equal(resumirRevisao(REVISAO_API({ estadoVersao: 'ajustes_solicitados', editavel: false, motivoAjustes: 'x'.repeat(900) })).motivoAjustes.length, 500);
+  // Em elaboração, validar e ajustes nunca aparecem, mesmo que o corpo diga o contrário.
+  const elaboracao = resumirRevisao(REVISAO_API({ podeValidar: true, podeSolicitarAjustes: true }));
+  assert.deepEqual([elaboracao.podeValidar, elaboracao.podeSolicitarAjustes, elaboracao.podeNovaVersao], [false, false, false]);
+  assert.equal(fraseDaEtapaDeRevisao(analise), AVISO_EM_ANALISE);
+  assert.equal(fraseDaEtapaDeRevisao(ajustes), AVISO_AJUSTES_SOLICITADOS);
+  assert.equal(fraseDaEtapaDeRevisao(elaboracao), null);
+  assert.doesNotMatch(fraseDaEtapaDeRevisao(ajustes), /Corrigir/, 'o painel não mostra o motivo');
+  for (const t of [AVISO_EM_ANALISE, AVISO_AJUSTES_SOLICITADOS, AVISO_VALIDACAO_LOCAL, AVISO_MOTIVO_AJUSTES, TEXTO_CONFIRMAR_VALIDACAO, TEXTO_CONFIRMAR_AJUSTES, ...Object.values(MENSAGENS_REVISAO)]) {
+    assert.doesNotMatch(t, TECNICO);
+  }
+  assert.match(AVISO_VALIDACAO_LOCAL, /não equivale à validação material da CLABI/);
+  assert.match(TEXTO_CONFIRMAR_VALIDACAO, /Não publica nada/);
+});
+
+test('RV17. (8D) controles e diálogos: Enviar (Cadastrante), Validar e Solicitar ajustes (Revisor), motivo obrigatório com textContent', () => {
+  assert.equal(ACAO_DO_CONTROLE.enviar, 'enviar_para_revisao');
+  assert.equal(ACAO_DO_CONTROLE.validar, 'validar_materialmente');
+  assert.equal(ACAO_DO_CONTROLE.ajustes, 'solicitar_ajustes');
+  assert.equal(Object.hasOwn(ACAO_DO_CONTROLE, 'concluir'), false);
+  assert.match(HTML_CONTEUDO, /<dialog id="dialogo-validacao" class="dialogo" aria-labelledby="validacao-titulo" aria-describedby="validacao-descricao validacao-aviso">/);
+  assert.match(HTML_CONTEUDO, /<dialog id="dialogo-ajustes" class="dialogo" aria-labelledby="ajustes-titulo" aria-describedby="ajustes-descricao">/);
+  assert.match(HTML_CONTEUDO, /<label for="ajustes-motivo-campo">Motivo dos ajustes<\/label>/);
+  assert.match(HTML_CONTEUDO, /<textarea id="ajustes-motivo-campo" rows="3" maxlength="500" required aria-required="true" aria-describedby="ajustes-motivo-ajuda ajustes-motivo-erro"><\/textarea>/);
+  assert.match(HTML_CONTEUDO, /id="conclusao-confirmar">Confirmar envio</);
+  assert.match(HTML_CONTEUDO, /id="validacao-confirmar">Confirmar validação</);
+  assert.match(HTML_CONTEUDO, /id="ajustes-confirmar">Confirmar pedido de ajustes</);
+  assert.match(JS_CONTEUDO, /motivo\.textContent = ajustes && revisao\.motivoAjustes !== null \? `Motivo dos ajustes: \$\{revisao\.motivoAjustes\}` : '';/);
+  assert.match(JS_CONTEUDO, /\$\('validacao-aviso'\)\.textContent = AVISO_VALIDACAO_LOCAL;/);
+  assert.match(JS_CONTEUDO, /mostrarErroDoMotivoAjustes\(MENSAGEM_MOTIVO_AJUSTES_OBRIGATORIO\)/);
+  // Motivo recusado pelo servidor: o diálogo fica aberto, com o erro junto ao campo e o foco nele (o texto digitado não é apagado).
+  assert.equal(mensagemDaRevisao(422, { erro: 'motivo_invalido' }).campo, 'motivo');
+  assert.match(JS_CONTEUDO, /const motivoRecusado = \(r\) => r !== undefined && r !== null && r\.ok === false && r\.campo === 'motivo';/);
+  assert.match(JS_CONTEUDO, /if \(motivoRecusado\(res\)\) return;\s+fechar\(\);\s+campoMotivoAjustes\.value = '';/);
+  assert.match(JS_CONTEUDO, /if \(motivoRecusado\(r\) && \$\('dialogo-ajustes'\)\.open\) \{\s+mostrarErroDoMotivoAjustes\(r\.mensagem\);\s+campoMotivoAjustes\.focus\(\);/);
+  assert.match(JS_CONTEUDO, /aoTerminarEnvio\(r\);/);
+  // Depois da confirmação, o foco que ficou num campo do diálogo não é levado para "Voltar".
+  assert.match(JS_CONTEUDO, /if \(!noCampo\) voltar\.focus\(\);/);
+  assert.match(JS_CONTEUDO, /for \(const id of \['botao-enviar', 'botao-validar', 'botao-ajustes', 'botao-nova-versao'/);
+  // O cartão de publicação só aparece depois da validação (não em análise nem com ajustes).
+  assert.match(JS_CONTEUDO, /cartao\.hidden = contexto === null \|\| revisao === null \|\| revisao\.etapa !== 'concluida';/);
+  assert.doesNotMatch(JS_CONTEUDO + HTML_CONTEUDO, /innerHTML|localStorage|sessionStorage|document\.cookie/);
 });

@@ -17,7 +17,7 @@ import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { lerConteudoPublicado } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
 import { ate, base, congelar } from './admin-auxiliar.js';
-import { CARLOS, MARIA } from './admin-auxiliar.js';
+import { CARLOS, MARIA, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -213,7 +213,7 @@ function comLacPublicada(fn) {
     const sit = () => rev.consultar('lac').situacao;
     for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
     for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
-    const concluida = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
+    const concluida = enviarEValidar(rev, 'lac', sit().revisao);
     assert.equal(concluida.ok, true);
     const pub = criarServicoPublicacao({ raiz, agora: AGORA });
     assert.equal(pub.autorizar('lac', { ator: CARLOS, revisao: concluida.hash }).ok, true);

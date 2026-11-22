@@ -94,8 +94,11 @@ export function resolverAtorDeGravacao(ator, acao) {
 export const responsavelPublico = (ator) => ({ perfil: ator.perfil, setor: ator.setor });
 
 // Etapas do manifesto e quem pode responder por elas (Sprint 8, Passo 8C): validação, autorização, publicação e revogação são do
-// Revisor; o ator de demonstração continua aceito só porque manifestos antigos (gravados antes do 8C) o trazem. Cadastrante, nunca.
+// Revisor; o ator de demonstração continua aceito só porque manifestos antigos (gravados antes do 8C) o trazem.
+// Sprint 8, Passo 8D: o envio para revisão é a ÚNICA etapa do Cadastrante (e só dele); pedir ajustes é do Revisor.
 const PERFIS_POR_ETAPA = Object.freeze({
+  envio: Object.freeze(['cadastrante']),
+  ajustes: Object.freeze(['revisor']),
   validacao: Object.freeze(['revisor', 'demonstracao']),
   autorizacao: Object.freeze(['revisor', 'demonstracao']),
   publicacao: Object.freeze(['revisor', 'demonstracao']),
