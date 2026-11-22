@@ -1,5 +1,6 @@
 // Infraestrutura do teste real: copia services/ para uma pasta temporária, sobe o Vite programático em localhost:5183
-// com os plugins administrativo e do assistente apontando para a cópia, e confere por hash que services/ real não mudou.
+// com os plugins administrativo e do assistente apontando para a cópia, e confere por hash que services/ e data/ reais não mudaram
+// (Sprint 8, Passo 8E: data/ real também é conferida; se não existia, tem de continuar sem existir).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -32,6 +33,11 @@ export function hashDaPasta(pasta) {
   return hash.digest('hex');
 }
 
+/** Estado de uma pasta para a conferência final: o hash (hashDaPasta) ou 'ausente', se ela não existir. */
+export function estadoDaPasta(pasta) {
+  return fs.existsSync(pasta) ? hashDaPasta(pasta) : 'ausente';
+}
+
 const redirecionarAdmin = {
   name: 'teste-real-redirecionamento-admin',
   configureServer(servidor) {
@@ -50,10 +56,13 @@ const redirecionarAdmin = {
 export default async function preparar() {
   const servicosReais = path.join(RAIZ, 'services');
   const antes = hashDaPasta(servicosReais);
+  const dadosReais = path.join(RAIZ, 'data');
+  const dadosAntes = estadoDaPasta(dadosReais);
   const copia = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-real-'));
   fs.cpSync(servicosReais, path.join(copia, 'services'), { recursive: true });
   process.env.SEMA_REAL_COPIA = copia;
   process.env.SEMA_REAL_HASH_ANTES = antes;
+  process.env.SEMA_REAL_DATA_ANTES = dadosAntes;
 
   const servidor = await createServer({
     configFile: false,
@@ -69,5 +78,6 @@ export default async function preparar() {
     fs.rmSync(copia, { recursive: true, force: true });
     const depois = hashDaPasta(servicosReais);
     if (depois !== antes) throw new Error('A pasta services/ real mudou durante o teste real.');
+    if (estadoDaPasta(dadosReais) !== dadosAntes) throw new Error('A pasta data/ real mudou durante o teste real.');
   };
 }
