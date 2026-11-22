@@ -269,7 +269,7 @@ O pre-commit do Git (`.githooks/pre-commit`, que chama `scripts/hooks/pre-commit
 2. Rode `npm run hooks:instalar` (equivale a `git config core.hooksPath .githooks`).
 3. Para conferir, rode `git config core.hooksPath`: a resposta deve ser `.githooks`.
 
-Sem esse passo, o Git não usa o hook nesta cópia. Mesmo assim, a verificação no GitHub (Passo 6D, `.github/workflows/protecao-pr.yml`) repete as regras em toda PR: se alguma for violada, a verificação "Proteção da PR" falha e indica o arquivo, sem mostrar o valor encontrado.
+Sem esse passo, o Git não usa o hook nesta cópia. Mesmo assim, a verificação no GitHub (Passo 6D) repete as regras em toda PR: se alguma for violada, a verificação falha e indica o arquivo, sem mostrar o valor encontrado. Com a correção da Issue #31, item 1 (nesta branch, ainda não integrada), as regras B0 a B4 passam a rodar em `.github/workflows/protecao-base.yml`, a partir do commit base, e o B5 fica no build do `protecao-pr.yml`; ver "Verificação da PR a partir do commit base" abaixo.
 
 ### O que é barrado
 
@@ -295,7 +295,7 @@ Qualquer outro domínio é barrado. Para incluir um domínio, altere a lista e e
 
 ### Como registrar uma publicação autorizada (B1 e B2)
 
-Quando uma publicação for realmente autorizada (por exemplo, na Sprint 11, depois da validação material registrada no sistema pelo Revisor com autoridade da CLABI), acrescente uma entrada em `.githooks/publicacoes-autorizadas.json`, no mesmo commit da publicação. O arquivo é versionado e passa por revisão no PR. Ele começa assim:
+Quando uma publicação for realmente autorizada (por exemplo, na Sprint 11, depois da validação material registrada no sistema pelo Revisor com autoridade da CLABI), acrescente uma entrada em `.githooks/publicacoes-autorizadas.json`. O arquivo é versionado e passa por revisão no PR. **No pre-commit local**, a entrada pode ir no mesmo commit da publicação. **Na verificação da PR** (Issue #31, item 1, nesta branch, ainda não integrada), a autorização é lida do commit base, não da PR: publicar exige **duas PRs**, primeiro a que só traz a entrada de autorização (arquivo de caminho protegido) e, depois que ela for integrada, a que traz `services/<serviço>/publico/...`, o `registry.json` e o `versao.json`. Uma PR que traz a própria entrada junto com a publicação é barrada (B1/B2). Ele começa assim:
 
 ```json
 {
@@ -326,6 +326,43 @@ Modelo de entrada para copiar e preencher:
 - A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que é feita no sistema pelo Revisor com autoridade da CLABI e fica na decisão de validação. O hook confere a presença da entrada e o hash do conteúdo, não a identidade de quem validou, e exige a entrada também para commitar uma versão `validado_materialmente`, não só a publicada.
 
 **Limites:** `git commit --no-verify` pula o hook local (o assistente é impedido pela regra A7, e a verificação no GitHub repete as regras em toda PR). A verificação no GitHub só impede o merge se a regra de proteção do branch `main` exigir que ela passe; isso é uma configuração do repositório no GitHub, feita pela pessoa responsável. O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).
+
+## Verificação da PR a partir do commit base (Issue #31, item 1)
+
+**Situação:** implementada nesta branch (`fix/revisao-31-item-1-verificacao-pr`), **ainda não integrada**. Os arquivos de `scripts/hooks/` mudam só depois que a usuária os copiar (a regra A5 impede o assistente de editá-los). **Nada do que está nesta seção está ativo no GitHub**: o ruleset, o CODEOWNERS ativo e o check novo obrigatório são **a configurar pela usuária no GitHub, fora do Git**.
+
+**Problema.** No evento `pull_request`, o workflow executava `scripts/hooks/verificar-pr.js` e `regras.js` **da própria PR**, e lia `.githooks/publicacoes-autorizadas.json` também da PR: uma PR podia afrouxar as regras, o workflow ou se autorizar e passar.
+
+**Desenho.**
+
+| Workflow | Evento | Roda | Código executado |
+|---|---|---|---|
+| `.github/workflows/protecao-base.yml` (job "Regras de proteção do commit base") | `pull_request_target` | `verificar-pr.js --sem-build`: regras B0 a B4 e aviso B6 | O do **commit base**. O head da PR é buscado só como dado (`git fetch` de `refs/pull/<n>/head`), sem checkout, sem `npm`, sem `setup-node`, sem cache, sem segredos, só `contents: read`; valores do evento entram só por variável de ambiente. |
+| `.github/workflows/protecao-pr.yml` (job "Regras de proteção e verificação completa") | `pull_request` | `npm ci`, build, `npm test`, `validate:services` e `check-dist` (cobre o B5) | O **da PR**, sem segredos e só com leitura. O nome do job foi mantido por ser o check obrigatório do ruleset. |
+
+- **Autorização do base.** `analisarPr` lê `.githooks/publicacoes-autorizadas.json` do commit base (`git show <base>:...`); se o base não tem o arquivo, vale o comportamento de sempre (nenhuma publicação autorizada). O pre-commit local **não muda**: continua lendo a autorização da área de preparação, ou seja, do próprio commit (parâmetro opcional `lerAutorizacoes` de `analisarAlteracoes`, padrão `lerDepois`).
+- **Duas PRs para publicar.** (a) PR só com a entrada de autorização (caminho protegido, revisão da dona); (b) depois de integrada, a PR com `services/<serviço>/publico/...`, `registry.json` e `versao.json`. Diferença do pre-commit local, que autoriza no mesmo commit.
+- **B6 (informativa, só na verificação da PR).** Se a PR altera caminho protegido, emite um `::warning` com o caminho e escreve `protegidos=true` em `$GITHUB_OUTPUT`, sem mudar o código de saída. Mensagem: "Aviso (B6): esta PR altera arquivos de proteção do projeto (hooks, .github, configurações). Exige a revisão explícita da dona do repositório; a obrigatoriedade está no ruleset." As regras B0 a B5 continuam falhando como antes. B6 não existe no pre-commit local.
+- **Caminhos protegidos** (`ehCaminhoProtegido`, em `scripts/hooks/regras.js`, e `.github/CODEOWNERS`): `scripts/hooks/`, `.githooks/`, `.github/`, `package.json`, `.mcp.json`, `.claude/settings.json`, `scripts/check-dist.js` e `scripts/validate-services.js`.
+- **`--sem-build`.** O workflow do base não executa o build (que rodaria código da PR). O B5 passa a ser coberto pelo passo de build e `check-dist` do `protecao-pr.yml`.
+- **A5.** `.github/` entra na regra A5 do hook do Claude Code (o assistente não edita fluxos nem CODEOWNERS); vale quando a usuária copiar `scripts/hooks/protecao-claude.js`.
+
+**A configurar pela usuária no GitHub, fora do Git (proteção esperada do `main`).**
+
+1. Ruleset 27746819 do `main`: manter como check obrigatório "Regras de proteção e verificação completa" e, **depois do merge desta correção** (o check só passa a existir quando o workflow rodar no `main`), acrescentar "Regras de proteção do commit base". Exigir PR e revisão de quem é dona do código (CODEOWNERS).
+2. CODEOWNERS (`.github/CODEOWNERS`, versionado): lista os caminhos protegidos com a dona do repositório. A obrigatoriedade da revisão e o bypass da dona **só para PRs** são configuração do ruleset.
+3. Copiar os quatro arquivos de hook preparados (`regras.js`, `pre-commit.js`, `verificar-pr.js`, `protecao-claude.js`).
+
+Esta seção descreve a proteção esperada; não comprova que ela esteja ativa.
+
+**O que NÃO fica resolvido (limites declarados).**
+
+- `npm ci`, `npm test`, build e `check-dist` ainda **executam código da PR** (sem segredos, só leitura).
+- Mudar o teste e a regra juntos continua passando: a verificação do base confere as regras, não a intenção da mudança.
+- A própria PR desta correção é verificada pelo workflow antigo (ainda no `main`) e não se protege sozinha.
+- A dona é autora e revisora únicas do repositório: a revisão do CODEOWNERS depende do bypass dela para PRs.
+- Ruleset e CODEOWNERS ativo não são versionados: o Git guarda só o arquivo `.github/CODEOWNERS`.
+- Se o head da PR avançar entre o evento e a busca, o SHA do evento pode não existir no clone: a verificação falha (B0), por segurança. Em repositório privado, `persist-credentials: false` pode impedir o `git fetch` do head; conferir no primeiro uso.
 
 ## Login simulado (Sprint 8, Passo 8B)
 

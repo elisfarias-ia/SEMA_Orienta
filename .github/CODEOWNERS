@@ -1,0 +1,13 @@
+# Titularidade dos caminhos de proteção do projeto (Issue #31, item 1).
+# Mesma lista da regra B6 (scripts/hooks/regras.js, ehCaminhoProtegido). Os caminhos abaixo pertencem à dona do repositório.
+# Este arquivo só declara a titularidade: exigir a revisão dela (e permitir que ela mesma faça o bypass, para PRs) é uma
+# configuração do ruleset no GitHub, fora do Git (docs/ADMINISTRACAO.md). Sem essa configuração, o CODEOWNERS não obriga nada.
+
+/scripts/hooks/ @elisfarias-ia
+/.githooks/ @elisfarias-ia
+/.github/ @elisfarias-ia
+/package.json @elisfarias-ia
+/.mcp.json @elisfarias-ia
+/.claude/settings.json @elisfarias-ia
+/scripts/check-dist.js @elisfarias-ia
+/scripts/validate-services.js @elisfarias-ia

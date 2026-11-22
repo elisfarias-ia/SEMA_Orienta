@@ -10,7 +10,9 @@
 //       versão substituída não volta a ser usada e nenhum registro aponta para ela (B2S; substituição na Sprint 7);
 //   B3  arquivo que nunca pode ser versionado (data/, dist/, node_modules/, test-results/, .env, .webm, configurações locais);
 //   B4  possível segredo ou dado pessoal nas linhas adicionadas;
-//   B5  build com conteúdo administrativo ou de teste (a execução do build fica em pre-commit.js).
+//   B5  build com conteúdo administrativo ou de teste (a execução do build fica em pre-commit.js);
+//   B6  INFORMATIVA, só na verificação da PR (verificar-pr.js; nunca no pre-commit local): a PR altera caminho protegido
+//       (hooks, .github, configurações). Não barra: avisa, e a revisão obrigatória da dona está no ruleset e no CODEOWNERS.
 
 export const ARQUIVO_AUTORIZACOES = '.githooks/publicacoes-autorizadas.json';
 
@@ -37,6 +39,8 @@ export const MENSAGENS = Object.freeze({
   B3: 'Commit bloqueado (B3): este arquivo não pode ser versionado.',
   B4: 'Commit bloqueado (B4): possível segredo ou dado pessoal. O valor não é mostrado; revise a linha indicada.',
   B5: 'Commit bloqueado (B5): o build conteria conteúdo administrativo ou de teste, ou não pôde ser gerado. Rode "npm run build" e "node scripts/check-dist.js" para ver o detalhe.',
+  // Informativa: não bloqueia (ver ehCaminhoProtegido e verificar-pr.js).
+  B6: 'Aviso (B6): esta PR altera arquivos de proteção do projeto (hooks, .github, configurações). Exige a revisão explícita da dona do repositório; a obrigatoriedade está no ruleset.',
 });
 
 const normalizar = (caminho) => String(caminho).replace(/\\/g, '/').replace(/^\.\//, '');
@@ -50,6 +54,19 @@ export function ehArquivoProibido(caminho) {
   if (['.claude/settings.local.json', '.claude/launch.json', '.claude/liberacao-protecao.json'].includes(c)) return true;
   const nome = partes[partes.length - 1].toLowerCase();
   return nome === '.env' || nome.startsWith('.env.') || nome.endsWith('.webm');
+}
+
+// ---------- B6 (informativa) ----------
+
+// Caminhos de proteção do projeto: o que muda a forma como as regras são aplicadas. Mesma lista do .github/CODEOWNERS.
+const PASTAS_PROTEGIDAS = ['scripts/hooks/', '.githooks/', '.github/'];
+const ARQUIVOS_PROTEGIDOS = ['package.json', '.mcp.json', '.claude/settings.json', 'scripts/check-dist.js', 'scripts/validate-services.js'];
+
+// Função pura: o caminho (relativo à raiz, com / ou \) está sob uma pasta protegida ou é um arquivo protegido exato?
+export function ehCaminhoProtegido(caminho) {
+  const c = normalizar(caminho);
+  if (ARQUIVOS_PROTEGIDOS.includes(c)) return true;
+  return PASTAS_PROTEGIDAS.some((pasta) => c.startsWith(pasta));
 }
 
 // ---------- B1 e B2 ----------
@@ -330,8 +347,15 @@ export function afetaBuild(caminho) {
 
 // ---------- mensagens ----------
 
+// Texto de um valor externo (nome de arquivo, detalhe) seguro para o log do GitHub Actions: sem quebra de linha nem %, e sem
+// sequência "::" (que iniciaria um comando de workflow, como ::error::, ::add-mask:: ou ::stop-commands::). Função pura.
+export function sanitizarParaLog(texto) {
+  return String(texto).replace(/[\r\n%]/g, ' ').replace(/:{2,}/g, (m) => m.split('').join(' '));
+}
+
 export function formatarAchado(achado) {
-  const onde = achado.linha ? `${achado.arquivo}:${achado.linha}` : achado.arquivo;
-  const extra = achado.detalhe ? ` (${achado.detalhe})` : '';
+  const arquivo = sanitizarParaLog(achado.arquivo);
+  const onde = achado.linha ? `${arquivo}:${achado.linha}` : arquivo;
+  const extra = achado.detalhe ? ` (${sanitizarParaLog(achado.detalhe)})` : '';
   return `${MENSAGENS[achado.regra]}\n  -> ${onde}${extra}`;
 }
