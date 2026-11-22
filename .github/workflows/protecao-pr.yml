@@ -1,7 +1,12 @@
 # Verificação completa do projeto em toda PR (Sprint 6, Passo 6D; Issue #19; Issue #31, item 1).
-# As regras de proteção B0 a B4 (e o aviso B6) deixaram este workflow: agora rodam em protecao-base.yml, a partir do commit base,
-# para que uma PR não consiga afrouxá-las. O B5 (build sem conteúdo administrativo ou de teste) é coberto aqui, pelo passo de build
-# seguido de check-dist.
+# As regras de proteção B0 a B4 (e o aviso B6) voltam a rodar aqui, mas A PARTIR DO COMMIT BASE: um segundo checkout do base.sha, na
+# pasta base-regras, fornece o script e as regras, e a diferença da PR é lida só como dado, sem executar nada do head. Isso vale
+# enquanto o protecao-base.yml (pull_request_target) não é exigido no ruleset do main; quando for, este passo fica redundante.
+# O B5 (build sem conteúdo administrativo ou de teste) é coberto pelo passo de build seguido de check-dist.
+# LIMITE: no evento pull_request, o workflow vem da própria PR, então uma PR pode editar este arquivo e retirar o passo das regras.
+# A proteção que a PR não consegue alterar é o protecao-base.yml, depois de exigido no ruleset.
+# TRANSITÓRIO: se o verificador do commit base ainda não reconhece --sem-build (caso da PR que o introduz), o passo das regras avisa no
+# log e segue sem falhar; depois do merge que traz o verificador novo, ele roda sempre.
 # ATENÇÃO: este workflow AINDA executa código da PR (npm ci, build, npm test, check-dist). Por isso roda sem segredos, só com
 # permissão de leitura, e o evento pull_request não expõe segredos a PRs de forks. O nome do job foi mantido de propósito: é o check
 # obrigatório do ruleset do main.
@@ -31,6 +36,27 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # Regras B0 a B4 e aviso B6 a partir do commit BASE (Issue #31, item 1), num segundo checkout em outra pasta. Só o script e as
+      # regras vêm do base; a diferença da PR é lida pelo git, como dado. Este passo roda ANTES do npm ci e dos testes, então nenhum
+      # código da PR foi executado até aqui.
+      - name: Checkout do commit base, só as regras (pasta base-regras)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base-regras
+          persist-credentials: false
+
+      - name: Regras B0 a B4 e aviso B6, com os scripts e as autorizações do commit base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if grep -qF -- '--sem-build' base-regras/scripts/hooks/verificar-pr.js; then
+            node base-regras/scripts/hooks/verificar-pr.js --sem-build "$BASE_SHA" "$HEAD_SHA"
+          else
+            echo "::warning::O verificador do commit base ainda não reconhece --sem-build: as regras B0 a B4 não rodaram nesta PR. Elas passam a valer depois do merge que traz o verificador novo."
+          fi
 
       - name: Instalar dependências (npm ci)
         run: npm ci

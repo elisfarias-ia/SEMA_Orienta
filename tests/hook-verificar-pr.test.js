@@ -264,22 +264,125 @@ test('V7. protecao-base.yml: pull_request_target, só leitura, sem segredos, sem
   assert.match(yml, /^\s+BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}$/m);
 });
 
-test('V7b. protecao-pr.yml: sem o verificador de regras (agora em protecao-base.yml), sem segredos, mesmo nome de job', () => {
+// Bloco "run" do passo das regras em protecao-pr.yml (sem a indentação): roda o verificador do BASE com --sem-build se o base o
+// reconhece; se não reconhece (a PR que o introduz), emite um aviso fixo e segue sem falhar.
+const BLOCO_DAS_REGRAS = [
+  "if grep -qF -- '--sem-build' base-regras/scripts/hooks/verificar-pr.js; then",
+  'node base-regras/scripts/hooks/verificar-pr.js --sem-build "$BASE_SHA" "$HEAD_SHA"',
+  'else',
+  'echo "::warning::O verificador do commit base ainda não reconhece --sem-build: as regras B0 a B4 não rodaram nesta PR. Elas passam a valer depois do merge que traz o verificador novo."',
+  'fi',
+].join('\n');
+/** Bloco do passo das regras como está no YAML, sem a indentação de cada linha. */
+const blocoDasRegrasNoYaml = (yml) => comandosRun(yml)[0].split('\n').map((l) => l.trim()).join('\n');
+
+test('V7b. protecao-pr.yml: as regras rodam a partir do commit BASE (segundo checkout em base-regras), sem segredos, mesmo nome de job', () => {
   const yml = lerWorkflow('protecao-pr.yml');
   assert.match(yml, /^on:\s*\n\s+pull_request:/m);
   assert.doesNotMatch(yml, /pull_request_target/);
-  assert.doesNotMatch(yml, /verificar-pr\.js|BASE_SHA|HEAD_SHA/);
   assert.doesNotMatch(yml, /secrets\./);
   assert.match(yml, /^permissions:\n  contents: read\n(?! )/m);
   assert.match(yml, /^    name: Regras de proteção e verificação completa$/m);
-  assert.match(yml, /fetch-depth: 0/);
-  assert.match(yml, /persist-credentials: false/);
-  // O build vem antes dos testes, para que os testes que conferem o dist/ também rodem no GitHub.
-  assert.deepEqual(comandosRun(yml), ['npm ci', 'npm run build', 'npm test', 'npm run validate:services', 'node scripts/check-dist.js']);
-  // o comentário explica a mudança e a limitação (o texto original, com comentários)
+  // dois checkouts: o da PR (histórico completo, para o git diff) e o do commit BASE, só com as regras, em outra pasta
+  const checkouts = blocosDosPassos(yml).filter((bloco) => bloco.some((linha) => /uses:\s*actions\/checkout/.test(linha)));
+  assert.equal(checkouts.length, 2);
+  const [daPr, doBase] = checkouts;
+  assert.ok(daPr.some((linha) => /^\s+fetch-depth: 0$/.test(linha)));
+  assert.ok(daPr.some((linha) => /^\s+persist-credentials: false$/.test(linha)));
+  assert.equal(daPr.some((linha) => /^\s*(ref|path|repository|token):/.test(linha)), false);
+  assert.ok(doBase.some((linha) => /^\s+ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}$/.test(linha)));
+  assert.ok(doBase.some((linha) => /^\s+path: base-regras$/.test(linha)));
+  assert.ok(doBase.some((linha) => /^\s+persist-credentials: false$/.test(linha)));
+  assert.equal(doBase.some((linha) => /^\s*(repository|token|submodules):/.test(linha)), false);
+  for (const linha of doBase.filter((l) => /^\s*ref:/.test(l))) assert.doesNotMatch(linha, /head/);
+  // toda expressão ${{ }} é o SHA do base (ref do checkout ou BASE_SHA) ou o SHA do head só em HEAD_SHA (variável de ambiente)
+  for (const linha of yml.split('\n').filter((l) => l.includes('${{'))) {
+    assert.match(linha, /^\s+(ref|BASE_SHA|HEAD_SHA): \$\{\{ github\.event\.pull_request\.(base\.sha|head\.sha) \}\}$/, linha);
+  }
+  assert.doesNotMatch(yml, /head_ref|pull_request\.head\.(ref|repo|label|user)|github\.event\.pull_request\.(title|body)/);
+  // nenhum "run:" recebe valor do evento
+  for (const comando of comandosRun(yml)) {
+    assert.equal(comando.includes('${{'), false, comando);
+    assert.equal(comando.includes('github.event'), false, comando);
+  }
+  // o verificador é o do BASE (base-regras), sem o build, e roda ANTES de qualquer instalação ou teste (o primeiro comando);
+  // nunca o scripts/hooks/verificar-pr.js da PR. Só roda se o verificador do base reconhece --sem-build; senão, avisa e segue.
+  assert.deepEqual([blocoDasRegrasNoYaml(yml), ...comandosRun(yml).slice(1)], [
+    BLOCO_DAS_REGRAS,
+    'npm ci',
+    // O build vem antes dos testes, para que os testes que conferem o dist/ também rodem no GitHub.
+    'npm run build',
+    'npm test',
+    'npm run validate:services',
+    'node scripts/check-dist.js',
+  ]);
+  assert.doesNotMatch(yml, /node scripts\/hooks\/verificar-pr\.js/);
+  // o aviso é um texto FIXO: sem variáveis, sem caminho e sem valores do head
+  const aviso = BLOCO_DAS_REGRAS.split('\n').find((l) => l.includes('::warning::'));
+  assert.equal(/[$`]/.test(aviso), false, aviso);
+  assert.equal(/\/|head|HEAD|arquivo/.test(aviso.replace('::warning::', '')), false, aviso);
+  // o comentário explica a origem das regras e os limites (o texto original, com comentários)
   const bruto = fs.readFileSync(path.join(RAIZ, '.github', 'workflows', 'protecao-pr.yml'), 'utf8');
   assert.match(bruto, /protecao-base\.yml/);
+  assert.match(bruto, /A PARTIR DO COMMIT BASE/);
+  assert.match(bruto, /o workflow vem da própria PR/);
   assert.match(bruto, /AINDA executa código da PR/);
+  assert.match(bruto, /TRANSITÓRIO/);
+});
+
+// Executa de verdade o bloco "run" do passo das regras (o texto lido do YAML) num diretório temporário, com um "node" de mentira
+// que só registra a chamada: prova os DOIS casos (o verificador do base reconhece --sem-build, ou não) sem depender do GitHub.
+// Precisa do bash (Git Bash no Windows, shell do runner no GitHub); sem ele o teste é pulado como NÃO TESTADO.
+function bashUsavel() {
+  const sonda = spawnSync('bash', ['-c', 'echo "$SONDA_V7C"'], { encoding: 'utf8', env: { ...process.env, SONDA_V7C: 'ok' } });
+  return sonda.status === 0 && sonda.stdout.trim() === 'ok';
+}
+function executarPassoDasRegras({ verificadorDoBase, codigoDoNode = 0 }) {
+  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'sema-passo-regras-'));
+  try {
+    fs.mkdirSync(path.join(pasta, 'base-regras', 'scripts', 'hooks'), { recursive: true });
+    if (verificadorDoBase !== null) fs.writeFileSync(path.join(pasta, 'base-regras', 'scripts', 'hooks', 'verificar-pr.js'), verificadorDoBase);
+    const bloco = blocoDasRegrasNoYaml(lerWorkflow('protecao-pr.yml'));
+    // nunca executa outra coisa: só o bloco exatamente igual ao esperado (o que o V7b também confere)
+    assert.equal(bloco, BLOCO_DAS_REGRAS, 'o primeiro passo "run" de protecao-pr.yml não é o das regras; V7b e V7c precisam acompanhar');
+    const script = `node() { echo "$*" >> chamadas.txt; return ${codigoDoNode}; }\n${bloco}\n`;
+    const BASE = 'a'.repeat(40);
+    const HEAD = 'b'.repeat(40);
+    const r = spawnSync('bash', ['-e', '-c', script], { cwd: pasta, encoding: 'utf8', env: { ...process.env, BASE_SHA: BASE, HEAD_SHA: HEAD } });
+    const chamadasArquivo = path.join(pasta, 'chamadas.txt');
+    const chamadas = fs.existsSync(chamadasArquivo) ? fs.readFileSync(chamadasArquivo, 'utf8').trim().split('\n') : [];
+    return { status: r.status, saida: `${r.stdout}${r.stderr}`, chamadas, BASE, HEAD };
+  } finally {
+    fs.rmSync(pasta, { recursive: true, force: true });
+  }
+}
+
+test('V7c. protecao-pr.yml, passo das regras: roda com --sem-build se o verificador do base o reconhece; senão avisa e segue, sem falhar', (t) => {
+  if (!bashUsavel()) { t.skip('NÃO TESTADO: bash indisponível (ou sem repasse de variáveis de ambiente) neste sistema'); return; }
+  // caso 1: o base reconhece --sem-build -> o verificador do BASE roda com a opção e com os SHAs; o código de saída é o dele
+  const reconhece = "const sem = process.argv.includes('--sem-build');\n";
+  const ok = executarPassoDasRegras({ verificadorDoBase: reconhece, codigoDoNode: 0 });
+  assert.equal(ok.status, 0, ok.saida);
+  assert.deepEqual(ok.chamadas, [`base-regras/scripts/hooks/verificar-pr.js --sem-build ${ok.BASE} ${ok.HEAD}`]);
+  assert.equal(ok.saida.includes('::warning::'), false);
+  const falha = executarPassoDasRegras({ verificadorDoBase: reconhece, codigoDoNode: 1 });
+  assert.equal(falha.status, 1, 'regra violada no verificador do base reprova o passo');
+  assert.equal(falha.chamadas.length, 1);
+  // caso 2: o base NÃO reconhece --sem-build (verificador antigo) -> não chama o verificador, avisa (texto fixo) e sai com 0
+  const antigo = executarPassoDasRegras({ verificadorDoBase: "console.log('verificador antigo, sem a opção');\n" });
+  assert.equal(antigo.status, 0, antigo.saida);
+  assert.deepEqual(antigo.chamadas, []);
+  assert.match(antigo.saida, /^::warning::O verificador do commit base ainda não reconhece --sem-build/m);
+  // o aviso não repete valores do head nem caminhos de arquivo
+  assert.equal(antigo.saida.includes(antigo.BASE), false);
+  assert.equal(antigo.saida.includes(antigo.HEAD), false);
+  assert.equal(antigo.saida.includes('base-regras'), false);
+  assert.equal(antigo.saida.includes('verificar-pr.js'), false);
+  // o base sem o arquivo do verificador também avisa e segue (não falha)
+  const ausente = executarPassoDasRegras({ verificadorDoBase: null });
+  assert.equal(ausente.status, 0, ausente.saida);
+  assert.deepEqual(ausente.chamadas, []);
+  assert.match(ausente.saida, /::warning::/);
 });
 
 // ---------- Issue #31, item 1: regras novas (dependem dos hooks atualizados) ----------
