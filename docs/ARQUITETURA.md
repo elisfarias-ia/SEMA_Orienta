@@ -228,7 +228,7 @@ Funções puras, sem rota, transação nem interface (essas são do Passo 7B):
 - **Validador da base** (`scripts/validate-services.js`), três checagens: manifesto revogado tem `revogadoEm`; o registro não aponta para versão revogada (`versaoPublicadaId`); versão revogada não volta a `publicado` (manifesto em outro estado com `revogadoEm`). O arquivo público de uma versão revogada continua em `services/<serviço>/publico/` como histórico imutável, mas não é servido: `lerConteudoPublicado` exige estado `publicado` e o registro não aponta para ela.
 - **Retirada de um bloco:** continua pelo caminho existente de nova versão sem o bloco, com o ciclo completo.
 
-### Substituição de versão publicada (Issue #31, item 2; nesta branch, ainda não integrada)
+### Substituição de versão publicada (Issue #31, item 2; PR #44, integrada em 22/11/2026)
 
 - **Estado** (`services/admin/fluxo.js`): `substituido` é terminal (`substituido` não tem saída) e só se chega a ele a partir de `publicado`. Nenhuma ação do usuário leva a ele: é consequência de publicar outra versão do mesmo serviço. Não aceita `nova_versao`.
 - **Transação** (`criarServicoPublicacao().publicar`, `services/admin/publicacao.js`): se o registro aponta para outra versão publicada, ela é conferida como `publicado` e regravada como `substituido`, com `substituidoEm` (data da nova publicação) e `substituidaPor` (id da nova versão), na mesma transação e antes do registro, que continua sendo a última gravação. Se qualquer etapa falhar, tudo é desfeito: a versão anterior segue `publicado` e o registro segue apontando para ela.
