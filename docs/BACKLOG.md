@@ -190,15 +190,17 @@ Ver `docs/SPRINTS.md` e `docs/EVIDENCIAS_SPRINT_2.md`.
 - [x] Sprint 5: revisão e publicação (PR #12).
 - [ ] Sprints 6 a 12: plano refeito após a avaliação do professor, centrado no ciclo editorial (`docs/SPRINTS.md`).
 
-## Sprint 8 — Login simulado com perfis e auditoria (em andamento, Issue #30)
+## Sprint 8 — Login simulado com perfis e auditoria (8A a 8D concluídos; 8E implementado, aguardando aprovação; Issue #30)
 
 Ver `docs/SPRINTS.md`.
 
-- [ ] 8A: usuários fictícios e matriz de permissões (implementado, aguardando aprovação).
-- [ ] 8B: login simulado com sessão única em memória (implementado, aguardando aprovação).
-- [ ] 8C: permissões aplicadas nas rotas que gravam e nos serviços, ator real no histórico, tentativas negadas e cadastros auditados, controles da tela em `aria-disabled` (implementado, aguardando aprovação; `e2e-real` local de 21/11/2026: 75 de 75; roteiro manual não executado).
+- [x] 8A: usuários fictícios e matriz de permissões (PR #33).
+- [x] 8B: login simulado com sessão única em memória (PR #36).
+- [x] 8C: permissões aplicadas nas rotas que gravam e nos serviços, ator real no histórico, tentativas negadas e cadastros auditados, controles da tela em `aria-disabled` (PR #37; `e2e-real` local de 21/11/2026: 75 de 75; roteiro manual não executado).
 - [ ] Alinhar os registros `acao_revisao` dos cadastros com versão (fonte, link, texto, informação; editar e excluir informação), hoje com `hashConteudo: null`, ao padrão das ações em rascunho feitas por `gravar`, que guardam o hash da versão depois da mudança: calcular o hash da versão em disco dentro da conferência final da transação real. Nada consome esse hash hoje (achado da auditoria do 8C; não bloqueante).
-- [ ] 8D: separar "concluir revisão" em enviar para revisão (Cadastrante) e validar materialmente (Revisor), com `solicitar_ajustes` (implementado, aguardando aprovação; o pseudônimo concluir → validar acabou; roteiro manual não executado).
+- [x] 8D: separar "concluir revisão" em enviar para revisão (Cadastrante) e validar materialmente (Revisor), com `solicitar_ajustes` (PR #38; `e2e-real` local antes do commit: 76 de 76; o pseudônimo concluir → validar acabou; roteiro manual não executado).
+- [ ] 8E: cenário de demonstração ponta a ponta num único teste real (`e2e-real/demonstracao-ponta-a-ponta-real.spec.js`), com recusa de publicação pela tela e por pedido direto, ajustes, validação, publicação e revogação; `zz-base-real` passa a conferir também `data/` real (implementado, aguardando aprovação; a Sprint 8 se encerra com a integração da PR do 8E; roteiro manual não executado).
+- [ ] **Não bloqueante (achado no 8E): ids derivados do título no histórico privado.** O servidor gera o id de fontes, textos e informações a partir do título (por exemplo, `itemId: "texto-quorvalina"` em `data/admin-private/revisao/`), e o mesmo id está na base versionada (`services/`). Assim, o histórico guarda o título de forma indireta. Avaliar ids opacos (sufixo aleatório ou hash) nos cadastros novos ou, ao menos, recusar dado pessoal no título antes de gerar o id, reaproveitando a detecção de dados sensíveis já usada nos motivos.
 - [ ] Atualizar os roteiros de vídeo de `e2e-demo/` (fora do Git), que ainda clicam em "Concluir revisão" e quebram depois do 8D (passo próprio).
 - [ ] **Não bloqueante, anterior ao 8D (achado durante a validação dele): fim de linha do roteiro.** Numa cópia nova do repositório no Windows, `services/lac/versoes/v1/roteiro.md` chega com CRLF, e o leitor do roteiro só entende LF: as etapas zeram e os testes P1-3 e P1-16 (`tests/roteiro-lac.test.js`) falham. Acontece também numa cópia limpa do `main` sem nenhuma mudança; na pasta de trabalho atual (LF) e no GitHub (Linux) não aparece. Correção proposta: regra de fim de linha `eol=lf` no `.gitattributes` para os `roteiro.md` (ou para `services/**/*.md`), com renormalização; ou o leitor do roteiro aceitar CRLF (normalizar `\r\n` para `\n` antes de ler). As duas podem ser combinadas; escolher em passo próprio.
 - [ ] Melhoria futura: aparência própria para controles bloqueados por perfil (`admin/styles.css`).

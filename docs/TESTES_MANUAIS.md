@@ -396,7 +396,7 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | PA-M03 | Com Maria, focar "Concluir revisão" com Tab e apertar Enter; ouvir com leitor de tela | O botão é anunciado como indisponível, com a descrição "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; a mesma frase aparece na área de status | não executado |
 | PA-M04 | "Trocar usuário" para Carlos (Revisor) e voltar ao serviço | "Concluir revisão", autorizar, publicar e revogar funcionam; as ações de cadastro e edição ficam indisponíveis com a descrição "Esta ação é feita pelo perfil Cadastrante. Você entrou como Revisor." | não executado |
 | PA-M05 | Duas abas: na primeira, Maria abre a revisão; na segunda, troca para Carlos; na primeira, tentar gravar | A primeira aba avisa "O usuário da sessão mudou. Atualize a página." e nada é gravado | não executado |
-| PA-M06 | Depois das gravações, olhar `data/admin-private/` (revisao/, decisoes/, cadastros/, temas/, negadas/) | Os registros trazem o ator real (maria-silva ou carlos-silva, com perfil e setor), nunca o nome, título, URL ou texto; o `versao.json` traz só perfil e setor do Revisor em `responsaveis` | não executado |
+| PA-M06 | Depois das gravações, olhar `data/admin-private/` (revisao/, decisoes/, cadastros/, temas/, negadas/) | Os registros trazem o ator real (maria-silva ou carlos-silva, com perfil e setor), nunca o nome, título por extenso, URL ou texto (o `itemId` pode derivar do título, ver a seção do 8E); o `versao.json` traz só perfil e setor do Revisor em `responsaveis` | não executado |
 | PA-M07 | Conferir a aparência dos botões indisponíveis | Hoje eles parecem iguais aos disponíveis (a aparência própria ficou fora do 8C); registrar se isso atrapalha | não executado |
 | PA-M08 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
 
@@ -418,3 +418,71 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | FR-M08 | Criar a nova versão, revisar, aceitar e enviar de novo; trocar para Carlos e validar | A validação mostra o aviso de que não equivale à validação material da CLABI; ao confirmar, "Pronto para publicar" e o cartão de autorização | não executado |
 | FR-M09 | Conferir o manifesto em "Em análise" e em "Ajustes solicitados" só com `git diff` (sem `git add` nem commit) e, em seguida, restaurar pelo Git (`git restore services/ data/`) | O `git diff` mostra só estado, hash, `enviadaEm` e `responsaveis` (perfil e setor), sem motivo; pela regra do hook, esses estados não seriam barrados (coerente: não há validação nem publicação neles) e `validado_materialmente` continua protegido; nenhum commit é feito neste roteiro | não executado |
 | FR-M10 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
+
+### Execução — cenário de demonstração (Sprint 8, Passo 8E; Issue #30)
+
+O cenário completo da demonstração foi encadeado num **único teste automatizado de ponta a ponta executado de verdade**, não simulado: `e2e-real/demonstracao-ponta-a-ponta-real.spec.js`, no Chromium do Playwright, contra o servidor do Vite real (porta 5183, só localhost), sem `page.route` nem respostas simuladas, com uma **cópia temporária** de `services/` (`e2e-real/preparar.js`; o `data/` da cópia não é copiado: é criado durante o uso, porque o servidor grava na raiz da cópia) e dados fictícios sobre a LAC. Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI) são usuários **fictícios** de demonstração; não comprovam identidade. Nenhum dado real foi usado e nada foi publicado de verdade.
+
+**Execução:** local, em 21/11/2026, antes do commit do Passo 8E, pelo agente principal; saída real do Playwright (repórter `list`).
+
+- `npx playwright test -c playwright.real.config.js demonstracao-ponta-a-ponta-real zz-base-real`: **3 aprovados, 0 falhas** (7,7 s no total; o cenário levou 5,4 s). Uma execução anterior falhou na etapa 7 porque o termo fictício aparecia no `itemId` do histórico (ver "Comportamento real observado" abaixo); o teste foi ajustado ao comportamento real e repetido.
+- bateria completa do teste real, `npx playwright test -c playwright.real.config.js --reporter=list,html`: **78 aprovados, 0 falhas** (4,4 min; o cenário levou 5,0 s). Na mesma rodada: `npm test` com 1089 testes (1085 aprovados, 0 falhas, 4 pulados por link simbólico negado pelo Windows), `npm run build` sem erro, `check-dist` limpo (166 termos), `validate:services` sem erros e `e2e` simulado com 40 de 40. As 5 capturas ficaram em `playwright-report/data/` (PNG) e o JSON de evidência como anexo embutido no relatório (`playwright-report/index.html`); as duas pastas estão no `.gitignore` e nada disso vai para o Git.
+
+O `zz-base-real.spec.js` confere por hash que a pasta `services/` real não mudou e, desde o 8E, também a pasta `data/` real (o hash dela ou o fato de não existir); o encerramento do `preparar.js` repete as duas conferências.
+
+**O que o teste conferiu**
+
+| Etapa | Resultado conferido pelo teste |
+|---|---|
+| 0. Preparo | A cópia não tem conteúdo publicado da LAC (nenhum arquivo em `publico/`, registro com `publicado: false`); o chat não indica arquivo público (`meta conteudo-publico` ausente), mostra a faixa "Modo de teste local — conteúdo em validação, não oficial." e a pergunta com o termo fictício não traz o texto. |
+| 1. Maria cadastra e envia | Texto e informação fictícios incluídos, fonte revisada, informação aceita e "Enviar para revisão" confirmado; situação "Em análise". |
+| 2. Maria tenta validar pela tela | "Validar materialmente" visível, focável (sem `disabled`), com `aria-disabled="true"` e `aria-describedby` apontando para a ajuda; o clique só mostra em `#status` "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; nenhum `POST /revisao/validar` enviado; nenhuma linha nova em `negadas/`. |
+| 3. Ajustes, correção e validação | Carlos pede ajustes com motivo; Maria vê "Motivo dos ajustes: …", cria a nova versão, revisa, aceita e reenvia; Carlos valida (o diálogo avisa que não equivale à validação material da CLABI), situação "Pronto para publicar", e autoriza ("Publicação autorizada."). |
+| 4. Maria tenta publicar | Pela tela: "Publicar" visível, com `aria-disabled` e a mesma descrição; o clique só mostra a mensagem; nenhum `POST /publicacao`; nenhuma linha nova em `negadas/`. Por pedido direto (`POST /__admin/servicos/lac/publicacao` com o token de Maria e um corpo com marcador fictício): resposta 403 com o corpo exato `{"erro":"perfil_sem_permissao"}`; hash de `services/` da cópia igual antes e depois; exatamente uma linha nova em `negadas/historico.jsonl`, com as chaves e os valores do extrato abaixo e sem nome, título, termo, URL nem marcador. |
+| 5. Carlos publica | "Versão publicada."; registro com `publicado: true` e `versaoPublicadaId` igual à versão nova; arquivo `services/lac/publico/conteudo-<hash16>.json` criado; o chat traz o texto e indica esse arquivo; a faixa de teste local some. |
+| 6. Carlos revoga | Motivo informado; "Publicação revogada."; registro com `publicado: false` e `versaoPublicadaId: null`; o chat deixa de trazer o texto, o `meta conteudo-publico` some e a faixa de teste local volta; o arquivo de `publico/` continua no disco, mas o servidor responde 404 a ele. |
+| 7. Conferência final da cópia | Manifesto da versão nova (revogada) com `responsaveis` só de perfil e setor: `envio` Cadastrante/CLABI e `validacao`, `autorizacao`, `publicacao` e `revogacao` Revisor/CLABI, cada um com duas chaves, sem `usuarioId` nem nomes; manifesto da versão anterior em "Ajustes solicitados" com `responsaveis.ajustes` e sem o motivo; `registry.json` e arquivo público sem nomes, ids de usuário nem `responsaveis`; histórico privado da cópia com as ações de `maria-silva` (envios, aceites, nova versão) e de `carlos-silva` (ajustes, validação, autorização, publicação, revogação) em `revisao/lac.jsonl`, as decisões de ajustes (com motivo), validação, autorização e revogação (com motivo) em `decisoes/lac.jsonl` e, em `negadas/`, só a recusa do passo 4 entre as linhas novas; nenhum registro com nome, título por extenso, URL ou marcador, e o termo fictício só no campo `itemId` (ver abaixo). |
+
+**Comportamento real observado (histórico privado):** o histórico de ações guarda o id do item gravado no campo `itemId` (por exemplo, `cadastrar_texto` com `itemId: "texto-quorvalina"`). Esse id é gerado pelo servidor a partir do título e também existe na base versionada (`services/`), por isso o termo fictício aparece no histórico só nesse campo. O teste confere que, nos registros novos, o termo aparece **somente** no `itemId`, e só quando ele é exatamente o id de um item gravado em `services/` da cópia; em qualquer outro campo, nunca. Nome, título por extenso, URL e marcador continuam proibidos em todos os campos, e o JSON de evidência não traz o termo em lugar nenhum.
+
+Evidências anexadas ao relatório do Playwright (`testInfo.attach`): cinco capturas (aviso de bloqueio da Cadastrante; "Versão publicada."; chat com o texto; "Publicação revogada."; chat sem o texto) e um JSON com a linha `acao_negada` e os `responsaveis` do manifesto, conferido pelo próprio teste para não conter nome, título, texto do conteúdo nem marcador.
+
+**Extrato da linha `acao_negada` (formato conferido pelo teste)**
+
+```json
+{"id":"<id>","tipo":"acao_negada","acao":"publicar","dataHora":"<horário da execução>","resultado":"negado","motivo":"perfil_sem_permissao","ator":{"usuarioId":"maria-silva","perfil":"cadastrante","setor":"CLABI"},"servicoId":"lac"}
+```
+
+**Divergência com a Issue #30:** a Issue previa que o botão fora do perfil ficasse oculto. O comportamento real, decidido no Passo 8C, é outro: o botão fica **visível, focável e desabilitado** (`aria-disabled="true"`, com a explicação ligada por `aria-describedby`), e o clique só mostra a mensagem. A recusa vale também no servidor (403 e registro em `negadas/`).
+
+**Coberto só pelo automatizado (não conferido por pessoa)**
+
+- Todo o roteiro acima foi conferido pelo teste, não por olhar humano.
+- As regras de permissão, recusa e registro em `negadas/`, de envio, validação e ajustes, de publicação e de revogação também estão cobertas pelos testes unitários (`npm test`).
+
+**Conferido pela usuária**
+
+(nenhum item registrado)
+
+**Exigiria conferência manual**
+
+- Uso só por teclado (Tab, Enter, Esc e foco) nos botões indisponíveis e nos diálogos.
+- Leitura por leitor de tela dos botões indisponíveis (anúncio como indisponível e da descrição) e das mensagens de situação.
+- Aparência em celular (390 px) e em computador.
+
+### Roteiro — cenário de demonstração (Sprint 8, Passo 8E) — **não executado**
+
+Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi executado ou aprovado ainda. **As gravações deste roteiro mudam `services/` e `data/`: fazer numa cópia preparada pela usuária ou, ao final, conferir `git status` e restaurar pelo Git tudo o que mudou (regra 11 do `CLAUDE.md`)**. Usar só textos fictícios.
+
+| Id | Ação | Resultado esperado | Situação |
+|---|---|---|---|
+| DM-M01 | Abrir o chat sem conteúdo publicado e perguntar sobre um termo fictício | Faixa "Modo de teste local — conteúdo em validação, não oficial."; a resposta não traz o texto fictício | não executado |
+| DM-M02 | Como Maria, na LAC, incluir um texto e uma informação fictícios, revisar, aceitar e enviar para revisão | Situação "Em análise" | não executado |
+| DM-M03 | Ainda como Maria, focar "Validar materialmente" com Tab, ouvir com leitor de tela e apertar Enter | Anunciado como indisponível, com "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; a mesma frase aparece na área de status; nada é gravado | não executado |
+| DM-M04 | Trocar para Carlos e pedir ajustes com motivo; trocar para Maria | Maria vê "Motivo dos ajustes: …" e "Criar nova versão para editar" | não executado |
+| DM-M05 | Maria cria a nova versão, revisa, aceita e reenvia; Carlos valida e autoriza | Aviso de que a validação não equivale à validação material da CLABI; "Publicação autorizada." | não executado |
+| DM-M06 | Trocar para Maria e focar "Publicar" | Visível, focável e indisponível, com a mesma descrição; o clique não publica | não executado |
+| DM-M07 | Trocar para Carlos e publicar; perguntar no chat | "Versão publicada."; o chat traz o texto fictício e a faixa de teste some | não executado |
+| DM-M08 | Carlos revoga com motivo; perguntar no chat | "Publicação revogada."; o chat deixa de trazer o texto; o arquivo em `services/lac/publico/` continua no disco | não executado |
+| DM-M09 | Repetir DM-M03 e DM-M06 em 390 px e com texto a 200% | Sem rolagem horizontal; mensagens e descrições legíveis | não executado |
+| DM-M10 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
