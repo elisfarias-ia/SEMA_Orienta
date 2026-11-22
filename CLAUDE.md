@@ -60,7 +60,7 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 ## Limites atuais
 
 - Só a LAC tem conteúdo; ele está **em validação e não publicado**. Nenhuma validação material ou publicação real foi autorizada ou criada.
-- A validação terá duas etapas: (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto). Só o conteúdo confirmado pela CLABI pode ser publicado de verdade; nenhuma publicação real foi autorizada ainda.
+- A conferência técnica da autora contra as fontes oficiais corresponde ao envio para revisão (perfil Cadastrante). A validação material é a ação "validar materialmente" (seguida da autorização e da publicação), feita dentro do sistema por quem estiver logado com o perfil Revisor; esse perfil deve ser ocupado por alguém com autoridade da CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto) quando a validação for real. Hoje só existem os usuários fictícios de demonstração, o login simulado não comprova quem validou e não há confirmação externa separada. Só o conteúdo validado materialmente no sistema por Revisor com autoridade da CLABI pode ser publicado de verdade; nenhuma publicação real foi autorizada ainda.
 - Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI) são usuários **fictícios** do login simulado, implementado na Sprint 8; não são pessoas reais nem comprovam identidade.
 - Não há IA externa, API de produção, autenticação, banco de dados nem persistência de conversas.
 - A administração é local e **sem autenticação**: o token só impede uso por outro site aberto no navegador; não comprova identidade.

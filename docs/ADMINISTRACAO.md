@@ -211,7 +211,7 @@ As três ações são separadas. A publicação grava `services/<serviço>/publi
 
 Nota (Sprint 8, Passo 8E): o teste real do cenário de demonstração (`e2e-real/demonstracao-ponta-a-ponta-real.spec.js`) confere que, depois da revogação, o arquivo de `services/<serviço>/publico/` **continua no disco**, mas não é mais servido (o servidor de desenvolvimento responde 404 a ele) nem indicado pela página do chat.
 
-**Atenção:** desde o Passo 8C, a "autorização" do MVP é feita pelo usuário da sessão com perfil Revisor (Carlos Silva, fictício; antes do 8C, pelo "Servidor de demonstração"), sem identidade real, e **não equivale à validação material pela área competente da SEMA**. Sem autenticação real. A LAC continua em validação e não publicada.
+**Atenção:** desde o Passo 8C, a "autorização" do MVP é feita pelo usuário da sessão com perfil Revisor (Carlos Silva, fictício; antes do 8C, pelo "Servidor de demonstração"), sem identidade real, e **não é validação real: é local, feita por usuário fictício e sem autenticação; a validação material real será feita por Revisor com autoridade da CLABI**. Sem autenticação real. A LAC continua em validação e não publicada.
 
 **Quem fica registrado em cada ação (Sprint 7, Passo 7C).** Cada gravação registra um ator `{ usuarioId, perfil, setor }`, conferido contra uma lista fixa de usuários autorizados (`services/admin/atores.js`). Ainda não há login: todas as ações usam o ator de demonstração (perfil `demonstracao`, setor "Ambiente local de demonstração"), e a tela não permite escolher outro. O registro fica em dois lugares:
 
@@ -241,12 +241,12 @@ O Claude Code consulta o hook `scripts/hooks/protecao-claude.js` (configurado em
 
 ### Como liberar A1 e A2 por prazo curto
 
-Quando uma gravação na base for realmente autorizada (por exemplo, na Sprint 11, com a CLABI), crie **você mesma** o arquivo `.claude/liberacao-protecao.json` na pasta do projeto. O Git ignora esse arquivo, e o assistente não consegue criá-lo nem alterá-lo. Modelo para copiar e preencher:
+Quando uma gravação na base for realmente autorizada (por exemplo, na Sprint 11, depois da validação material feita no sistema pelo Revisor com autoridade da CLABI), crie **você mesma** o arquivo `.claude/liberacao-protecao.json` na pasta do projeto. O Git ignora esse arquivo, e o assistente não consegue criá-lo nem alterá-lo. Modelo para copiar e preencher:
 
 ```json
 {
   "escopo": ["services/lac/", "services/registry.json"],
-  "motivo": "Descreva o que foi autorizado e por quem (por exemplo, a Issue ou o documento da CLABI)",
+  "motivo": "Descreva o que foi autorizado e por quem (por exemplo, a Issue da Sprint e a validação material registrada no sistema)",
   "validoAte": "2026-11-19T18:00:00-04:00"
 }
 ```
@@ -292,7 +292,7 @@ Qualquer outro domínio é barrado. Para incluir um domínio, altere a lista e e
 
 ### Como registrar uma publicação autorizada (B1 e B2)
 
-Quando uma publicação for realmente autorizada (por exemplo, na Sprint 11, com a confirmação da CLABI), acrescente uma entrada em `.githooks/publicacoes-autorizadas.json`, no mesmo commit da publicação. O arquivo é versionado e passa por revisão no PR. Ele começa assim:
+Quando uma publicação for realmente autorizada (por exemplo, na Sprint 11, depois da validação material registrada no sistema pelo Revisor com autoridade da CLABI), acrescente uma entrada em `.githooks/publicacoes-autorizadas.json`, no mesmo commit da publicação. O arquivo é versionado e passa por revisão no PR. Ele começa assim:
 
 ```json
 {
@@ -310,7 +310,7 @@ Modelo de entrada para copiar e preencher:
       "versaoId": "lac-v1",
       "hashConteudo": "<os 64 caracteres do hashConteudo do versao.json>",
       "arquivoPublico": "conteudo-<os 16 primeiros caracteres do hash>.json",
-      "referencia": "Issue #<número> ou documento da CLABI que autorizou",
+      "referencia": "Issue #<número> e identificador da decisão de validação material no sistema",
       "data": "AAAA-MM-DD"
     }
   ]
@@ -320,7 +320,7 @@ Modelo de entrada para copiar e preencher:
 - Todos os campos são obrigatórios, e nenhum outro é aceito. Não registre nome de pessoa.
 - `arquivoPublico` precisa ser exatamente `conteudo-` mais os 16 primeiros caracteres do `hashConteudo`, mais `.json`.
 - A entrada só libera aquele serviço, aquela versão e aquele hash: qualquer outra publicação continua barrada.
-- A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que continua sendo da CLABI.
+- A entrada registra uma decisão revisada no PR; ela **não prova** a validação material, que é feita no sistema pelo Revisor com autoridade da CLABI e fica na decisão de validação. O hook confere a presença da entrada e o hash do conteúdo, não a identidade de quem validou, e exige a entrada também para commitar uma versão `validado_materialmente`, não só a publicada.
 
 **Limites:** `git commit --no-verify` pula o hook local (o assistente é impedido pela regra A7, e a verificação no GitHub repete as regras em toda PR). A verificação no GitHub só impede o merge se a regra de proteção do branch `main` exigir que ela passe; isso é uma configuração do repositório no GitHub, feita pela pessoa responsável. O build da regra B5 usa os arquivos da pasta de trabalho, não só o que está sendo commitado. Linhas de teste com valores parecidos com credenciais precisam ser montadas de outra forma (por exemplo, por concatenação).
 
@@ -370,7 +370,7 @@ O perfil da sessão passa a decidir o que pode ser gravado, pela matriz de `serv
 - **Solicitar ajustes** (`solicitarAjustes`, Revisor): só em `em_validacao`, com `{ revisao, motivo }`; o motivo segue a regra do motivo da revogação (obrigatório, até 500 caracteres, sem e-mail, telefone, CPF nem credencial; senão 422 `motivo_invalido`). Leva a `ajustes_solicitados` (sem saída: a Cadastrante cria nova versão), grava `responsaveis.ajustes` e a ação `solicitar_ajustes`. **O motivo fica só na decisão privada** (`observacao` em `data/admin-private/decisoes/`), nunca no manifesto, no histórico de ações, em resposta de gravação nem em log. A única leitura que o devolve é `GET .../revisao` (local, com token), em `motivoAjustes`, e só quando a versão está em ajustes solicitados; a página "Conteúdo para respostas" o mostra com `textContent`.
 - **Respostas:** 200 `{ revisao, estado }`; 403 `perfil_sem_permissao` antes de ler o corpo; 409 `revisao_divergente`, `versao_congelada`, `estado_invalido` (validar ou ajustes fora de `em_validacao`) e `operacao_em_andamento`; 422 `dados_invalidos`, `revisao_incompleta`, `hash_divergente`, `base_invalida`, `motivo_invalido` e `decisao_recusada`; 500 genérico. Decisão órfã de tentativa desfeita só é reaproveitada se for do mesmo tipo e do mesmo ator; de outro tipo, `historico_invalido` (500 genérico). **Limitação conhecida (pedido de ajustes):** se a primeira tentativa foi desfeita depois de gravar a decisão (falha na ação do histórico), a nova tentativa a reaproveita mesmo com outro motivo; fica o motivo da primeira tentativa, que é o que a consulta e a tela mostram (coberto em `tests/fluxo-revisao.test.js`, FR8).
 - **Manifesto:** `responsaveis.envio` (só Cadastrante, a única etapa desse perfil, a partir de `em_validacao`) e `responsaveis.ajustes` (só Revisor, só em `ajustes_solicitados`).
-- **Tela:** o cartão passa a "Revisão e validação", com "Enviar para revisão" (Cadastrante), "Validar materialmente" e "Solicitar ajustes" (Revisor), no bloqueio `aria-disabled` do 8C. Em análise não há "Criar nova versão"; com ajustes solicitados, aparecem o motivo e "Criar nova versão para editar". A validação pede confirmação com o aviso de que esta validação local não equivale à validação material da CLABI.
+- **Tela:** o cartão passa a "Revisão e validação", com "Enviar para revisão" (Cadastrante), "Validar materialmente" e "Solicitar ajustes" (Revisor), no bloqueio `aria-disabled` do 8C. Em análise não há "Criar nova versão"; com ajustes solicitados, aparecem o motivo e "Criar nova versão para editar". A validação pede confirmação com o aviso, na tela, de que esta validação local "não equivale à validação material da CLABI" (na prática: não é validação real, é local, feita por usuário fictício e sem autenticação).
 - `concluir_revisao` só é aceito na LEITURA de registros antigos do histórico (`ACOES_SO_LEITURA`); nenhuma gravação nova pode usá-lo.
 - Comportamento coerente (não é falha): uma versão "Em análise" (`em_validacao`) ou com ajustes solicitados (`ajustes_solicitados`) pode ir ao Git sem que o hook de commit a barre, porque nesses estados não há validação nem publicação; `validado_materialmente` continua protegido pelo hook (regra B2), que não foi alterado.
 - Os roteiros de vídeo de `e2e-demo/` (fora do Git) ainda clicam em "Concluir revisão" e quebram com esta mudança; a atualização fica para um passo próprio.
