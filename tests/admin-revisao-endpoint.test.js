@@ -11,6 +11,7 @@ import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { criarManipuladorAdmin, CABECALHO_TOKEN, ROTA_SESSAO } from '../services/admin/admin-endpoint.js';
 import { validarServicos } from '../scripts/validate-services.js';
+import { enviarEValidarPelaRota } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -157,7 +158,7 @@ test('E3. nova versão pela rota: cria a v2 em elaboração, preserva a v1; recu
     s = await situacao();
     await post('revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao });
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
     const r = await post('nova-versao', {});
     assert.deepEqual([r.status, r.corpo.numero], [201, 2]);
@@ -252,7 +253,7 @@ test('E9. reabrir bloco pela rota: 200 antes de concluir, 422 se não está acei
     assert.deepEqual([s.blocos[0].aceito, s.resumo.informacoesPendentes, s.rotulo], [false, 1, 'Em elaboração']);
     await post('revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao });
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
     const x = await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao });
     assert.deepEqual([x.status, x.corpo.erro], [409, 'versao_congelada']);
   });

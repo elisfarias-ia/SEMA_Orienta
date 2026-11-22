@@ -23,7 +23,7 @@ import { criarServicoPublicacao } from '../services/admin/publicacao.js';
 import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { validarVersao } from '../services/admin/versao.js';
 import { validarServicos } from '../scripts/validate-services.js';
-import { ate } from './admin-auxiliar.js';
+import { ate, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -290,7 +290,7 @@ test('AT9. ciclo completo (8C, atores reais): manifesto com perfil e setor do Re
     const sit = () => rev.consultar('lac').situacao;
     for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao, ator: MARIA }).ok, true);
     for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao, ator: MARIA }).ok, true);
-    const concluida = rev.concluirRevisao('lac', { revisao: sit().revisao, ator: CARLOS });
+    const concluida = enviarEValidar(rev, 'lac', sit().revisao, { revisor: CARLOS });
     assert.equal(concluida.ok, true);
     const manifesto = () => lerJ(raiz, 'services', 'lac', 'versoes', 'v1', 'versao.json');
     assert.deepEqual(manifesto().responsaveis, { validacao: REVISOR_PUBLICO });

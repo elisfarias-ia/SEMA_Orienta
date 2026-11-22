@@ -56,3 +56,20 @@ export function ate(estado) {
   r = revogarVersao(v, h, base(v, { id: 'revogacao-1', data: '2026-01-15', motivo: 'Motivo fictício de revogação.' }));
   return { v: congelar(r.versao), h: congelar(r.historico) };
 }
+
+// Sprint 8, Passo 8D (fase 1, ajuste mecânico): auxiliares que encapsulam a validação material usada como PREPARAÇÃO
+// (para publicar, autorizar, revogar, nova versão, edição bloqueada etc.). Por enquanto executam o fluxo antigo, num passo
+// só (concluir revisão como o Revisor); na fase 2 passarão a enviar para revisão (Cadastrante) e validar (Revisor).
+
+/** Pelo serviço de revisão: conclui a revisão como o Revisor. Retorna o mesmo resultado de concluirRevisao. */
+export function enviarEValidar(rev, servicoId, revisao, { revisor = CARLOS } = {}) {
+  return rev.concluirRevisao(servicoId, { ator: revisor, revisao });
+}
+
+/**
+ * Pela rota: recebe a função `post(rota, corpo)` do próprio arquivo de teste (que já troca a sessão para Carlos nas rotas
+ * do Revisor) e o prefixo da rota, se ela usar o caminho completo. Retorna a mesma resposta do POST revisao/concluir.
+ */
+export function enviarEValidarPelaRota(post, revisao, { prefixo = '' } = {}) {
+  return post(`${prefixo}revisao/concluir`, { revisao });
+}

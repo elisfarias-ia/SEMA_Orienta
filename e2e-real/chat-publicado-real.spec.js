@@ -36,6 +36,15 @@ const NOME_LAC = 'Licença por Adesão e Compromisso';
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
 
+// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
+// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+async function concluirComoRevisor(page) {
+  await comoCarlos(page);
+  await botao(page, 'Concluir revisão').click();
+  await botao(page, 'Confirmar conclusão').click();
+  await expect(status(page)).toContainText('Revisão concluída.');
+}
+
 test.afterAll(() => {
   const copia = path.join(process.env.SEMA_REAL_COPIA, 'services');
   fs.rmSync(copia, { recursive: true, force: true });
@@ -97,10 +106,7 @@ test('o chat responde só com a informação publicada pertinente; texto sem fon
     await botao(page, `Aceitar informação: ${tema}`).click();
     await expect(status(page)).toContainText('Informação aceita.');
   }
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   await botao(page, 'Autorizar publicação').click();
   await botao(page, 'Confirmar autorização').click();
   await expect(status(page)).toContainText('Publicação autorizada.');

@@ -17,7 +17,7 @@ import { buscarLinksReutilizaveis, fonteReutilizavel } from '../services/admin/r
 import { selecionarBlocosAssistente } from '../services/assistant-content.js';
 import { hashTexto } from '../services/admin/entradas.js';
 import { validarServicos } from '../scripts/validate-services.js';
-import { MARIA } from './admin-auxiliar.js';
+import { MARIA, enviarEValidarPelaRota } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 18, 12, 0, 0);
@@ -222,7 +222,7 @@ test('EF8. vers찾o congelada: editar e excluir recusados; nova vers찾o permite e
     s = await situacao();
     assert.equal((await post('revisao/blocos/aceitar', { blocoId: 'bc-novo', revisao: s.revisao })).status, 200);
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
     s = await situacao();
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
     assert.deepEqual([(await editar(FAQ, { revisao: s.revisao, titulo: 'X' })).corpo.erro, (await excluir(FAQ, s.revisao)).corpo.erro], ['versao_congelada', 'versao_congelada']);
@@ -412,7 +412,7 @@ test('EF11. excluir texto: a entrada original fica s처 como registro da vers찾o;
     s = await situacao();
     assert.equal((await post('revisao/blocos/aceitar', { blocoId: 'bc-novo', revisao: s.revisao })).status, 200);
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
     assert.equal((await post('nova-versao', {})).status, 201);
     assert.deepEqual(retrato(raiz).filter((l) => l.includes(`v1${path.sep}`)), v1, 'vers찾o anterior intacta');
@@ -431,7 +431,7 @@ test('EF12. vers찾o congelada exige nova vers찾o; a exclus찾o na nova vers찾o n�
     s = await situacao();
     assert.equal((await post('revisao/blocos/aceitar', { blocoId: 'bc-novo', revisao: s.revisao })).status, 200);
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
     s = await situacao();
     assert.equal((await excluir(FAQ, s.revisao)).corpo.erro, 'versao_congelada');
     assert.equal((await post('nova-versao', {})).status, 201);

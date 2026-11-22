@@ -14,7 +14,7 @@ import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { criarHistoricoRevisao } from '../services/admin/historico-revisao.js';
 import { criarEdicaoTema, edicaoDoServicoExigeConfirmacao, editarServicoPuro, editarTemaNoCatalogo, validarCorpoEdicaoServico, validarCorpoEdicaoTema } from '../services/admin/edicao-tema-servico.js';
 import { validarServicos } from '../scripts/validate-services.js';
-import { MARIA } from './admin-auxiliar.js';
+import { MARIA, enviarEValidarPelaRota } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 18, 12, 0, 0);
@@ -399,7 +399,7 @@ test('TS11. serviço com versão concluída: GET e PATCH recusados com 409 versa
     // conclui: aceita o bloco em elaboração (a FAQ já está validada) e conclui a revisão
     assert.equal((await post('/__admin/servicos/lac/revisao/blocos/aceitar', { blocoId: 'bc-novo', revisao: s.revisao })).status, 200);
     s = await situacao();
-    assert.equal((await post('/__admin/servicos/lac/revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao, { prefixo: '/__admin/servicos/lac/' })).status, 200);
     s = await situacao();
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
     const regAntes = lerJ(raiz, 'services', 'registry.json');

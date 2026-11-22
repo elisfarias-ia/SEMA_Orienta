@@ -39,6 +39,16 @@ const TEMA = 'Tema Publicação Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado_publicacao|estado_invalido|revisao_divergente|hash_divergente|historico_incompativel|conteudo_excluido_citado|sem_informacao_aceita|versao_congelada|[0-9a-f]{64}|X-Admin-Token|X-Revisao|\bbc-[0-9a-f]{6,}/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
+// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+async function concluirComoRevisor(page) {
+  await comoCarlos(page);
+  await botao(page, 'Concluir revisão').click();
+  await botao(page, 'Confirmar conclusão').click();
+  await expect(status(page)).toContainText('Revisão concluída.');
+}
+
 const dlgAutorizar = (page) => page.locator('#dialogo-autorizacao');
 const dlgPublicar = (page) => page.locator('#dialogo-publicacao');
 
@@ -111,10 +121,7 @@ async function prepararConcluido(page, nome) {
   await page.locator('#aba-informacoes').click();
   await botao(page, 'Aceitar informação: Documentos exigidos').click();
   await expect(status(page)).toContainText('Informação aceita.');
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   await expect(page.locator('#cartao-publicacao')).toBeVisible();
   return d;
 }

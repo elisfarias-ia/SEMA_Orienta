@@ -15,7 +15,7 @@ import { conferirHashDaVersaoEmDisco, lerArquivosDaVersao } from '../services/ad
 import { aceitarBloco, validarCorpoDaAcao } from '../services/admin/revisao.js';
 import { validarHistorico } from '../services/admin/decisoes.js';
 import { validarServicos } from '../scripts/validate-services.js';
-import { CARLOS, MARIA } from './admin-auxiliar.js';
+import { CARLOS, MARIA, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 16, 12, 0, 0);
@@ -359,7 +359,7 @@ test('R10b. decisão órfã só é reaproveitada se for exatamente a esperada; r
 test('R11b. nova versão: se a cópia do roteiro divergir, nada é gravado no histórico', async () => {
   await comCopia(async ({ raiz }) => {
     const rev = prontoParaConcluir(raiz);
-    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(enviarEValidar(rev, 'lac', revisaoAtual(rev)).ok, true);
     const acoesAntes = criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.length;
     const antes = retrato(raiz);
     const sistema = { ...fs, writeSync(fd, texto, ...r) { return fs.writeSync(fd, typeof texto === 'string' && texto.startsWith('# ') ? texto.replace(/\s+$/, '') : texto, ...r); } };
@@ -374,7 +374,7 @@ test('R11. nova versão a partir da concluída: cria a v2 em elaboração, prese
   await comCopia(async ({ raiz }) => {
     const rev = prontoParaConcluir(raiz);
     assert.equal(rev.criarNovaVersao('lac', { ator: MARIA }).erro, 'estado_nao_permite_nova_versao');
-    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(enviarEValidar(rev, 'lac', revisaoAtual(rev)).ok, true);
     const v1 = retrato(raiz).filter((l) => l.includes(`v1${path.sep}`));
     const r = rev.criarNovaVersao('lac', { ator: MARIA });
     assert.deepEqual([r.ok, r.versaoId, r.baseadaEm], [true, 'lac-v2', 'lac-v1']);
@@ -397,7 +397,7 @@ test('R12. histórico: só os campos previstos, sem conteúdo, texto original, t
     const rev = criarServicoRevisao({ raiz, agora: AGORA_2 });
     assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: 'manual-lac-siga-2020', revisao: revisaoAtual(rev) }).ok, true);
     assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
-    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(enviarEValidar(rev, 'lac', revisaoAtual(rev)).ok, true);
     const pasta = path.join(raiz, 'data', 'admin-private');
     const arquivos = [];
     const andar = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? andar(path.join(d, e.name)) : arquivos.push(path.join(d, e.name))));
@@ -475,7 +475,7 @@ test('R16. reabrir bloco aceito: volta a rascunho/pendente/não publicado, regis
     // pode ser aceito de novo e concluído
     assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).ok, true);
     assert.deepEqual(criarHistoricoRevisao({ raiz }).listarAcoes('lac').registros.map((x) => x.acao), ['revisar_fonte', 'aceitar_bloco', 'reabrir_bloco', 'aceitar_bloco']);
-    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: revisaoAtual(rev) }).ok, true);
+    assert.equal(enviarEValidar(rev, 'lac', revisaoAtual(rev)).ok, true);
     // depois de concluir não se reabre
     const antes = retrato(raiz);
     assert.equal(rev.reabrirBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: revisaoAtual(rev) }).erro, 'versao_congelada');
@@ -495,7 +495,7 @@ test('R17. situação em linguagem comum: rótulo, revisão pendente e resumo de
     assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: 'bc-um', revisao: s.revisao }).ok, true);
     s = rev.consultar('lac').situacao;
     assert.deepEqual([s.rotulo, s.revisaoPendente, s.resumo], ['Em elaboração', false, { fontesPendentes: 0, informacoesPendentes: 0, informacoesAceitas: 1, fontesNaoUsadas: 0, pendenciasParaConcluir: 0 }]);
-    assert.equal(rev.concluirRevisao('lac', { ator: CARLOS, revisao: s.revisao }).ok, true);
+    assert.equal(enviarEValidar(rev, 'lac', s.revisao).ok, true);
     s = rev.consultar('lac').situacao;
     assert.deepEqual([s.rotulo, s.revisaoPendente], ['Pronto para publicar', false]);
     assert.ok(!/rascunho|validado|em_validacao|hash/i.test(s.rotulo));

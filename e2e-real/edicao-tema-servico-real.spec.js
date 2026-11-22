@@ -33,6 +33,16 @@ const ACESSAR = 'Acessar administração';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|revisao_divergente|versao_congelada|ja_existe|[0-9a-f]{64}|X-Admin-Token|\bbc-[0-9a-f]{6,}|assuntoId|statusValidacao/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
+// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+async function concluirComoRevisor(page) {
+  await comoCarlos(page);
+  await botao(page, 'Concluir revisão').click();
+  await botao(page, 'Confirmar conclusão').click();
+  await expect(status(page)).toContainText('Revisão concluída.');
+}
+
 const edicao = (page) => page.locator('#dialogo-edicao');
 const impacto = (page) => page.locator('#dialogo-impacto');
 const blocoDa = (page, titulo) => page.locator('#blocos li.bloco').filter({ hasText: titulo });
@@ -216,10 +226,7 @@ test('5. versão concluída: Editar nome e tema fica indisponível com a orienta
   await criarServico(page, 'Serviço Edição Cinco', 'Tema Edição Cinco', { link: 'Link Cinco' });
   await irParaConteudo(page);
   await criarBlocoAceito(page, 'Conteúdo congelado cinco', 'Link Cinco');
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   await comoMaria(page);
   await voltarParaGestao(page);
   await expect(page.getByRole('heading', { level: 2, name: 'Serviço Edição Cinco' })).toBeVisible();

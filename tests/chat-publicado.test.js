@@ -16,7 +16,7 @@ import { gerarConteudoPublico, lerConteudoPublicado } from '../services/publicac
 import { arquivoPublicadoDoServico, criarPluginConteudoPublico, listarArquivosPublicados, PASTA_NO_DIST } from '../services/conteudo-publico-build.js';
 import { RESPOSTA_SEM_INFORMACAO_PUBLICADA, respostaIndisponivel, responderComConteudoPublicado, responderPergunta, validarConteudoPublicado } from '../src/assistant.js';
 import { conferirDist } from '../scripts/check-dist.js';
-import { CARLOS, MARIA } from './admin-auxiliar.js';
+import { CARLOS, MARIA, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -75,7 +75,7 @@ function revisarEConcluir(raiz) {
   const sit = () => rev.consultar('lac').situacao;
   for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { ator: MARIA, fonteId: id, revisao: sit().revisao }).ok, true);
   for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
-  const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
+  const r = enviarEValidar(rev, 'lac', sit().revisao);
   assert.equal(r.ok, true);
   return r.hash;
 }

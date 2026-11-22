@@ -16,7 +16,7 @@ import { alterarBlocoConhecimento } from '../services/admin/conhecimento.js';
 import { listarCandidatos, validarCorpoImportacao } from '../services/admin/importacao-conteudo.js';
 import { selecionarBlocosAssistente } from '../services/assistant-content.js';
 import { validarConteudoAssistente, validarServicos } from '../scripts/validate-services.js';
-import { MARIA } from './admin-auxiliar.js';
+import { MARIA, enviarEValidarPelaRota } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 18, 12, 0, 0);
@@ -248,7 +248,7 @@ test('IM6. fluxo normal até concluir; congelada recusa com 409; a nova versão 
     }
     assert.equal((await post('revisao/blocos/aceitar', { blocoId: id, revisao: s.revisao })).status, 200);
     s = await situacao();
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200, 'conclusão');
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200, 'conclusão');
     const v1 = retrato(raiz).filter((x) => x.includes(`v1${path.sep}`));
     l = await cand();
     assert.deepEqual([l.status, l.corpo.erro], [409, 'versao_congelada']);
@@ -462,7 +462,7 @@ test('IM18. itens não importados não são pendência: a revisão conclui só c
     assert.equal((await post('revisao/blocos/aceitar', { blocoId: s.blocos[0].id, revisao: s.revisao })).status, 200);
     s = await situacao();
     assert.deepEqual(s.pendencias, [], 'os demais candidatos não importados não impedem concluir');
-    assert.equal((await post('revisao/concluir', { revisao: s.revisao })).status, 200);
+    assert.equal((await enviarEValidarPelaRota(post, s.revisao)).status, 200);
   });
 });
 

@@ -34,6 +34,16 @@ const TEMA = 'Tema Fonte Real';
 const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|fonte_em_uso|fonte_pendente|revisao_divergente|versao_congelada|url_duplicada|excluidaEm|[0-9a-f]{64}|X-Admin-Token|X-Revisao|\bbc-[0-9a-f]{6,}/i;
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
+
+// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
+// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+async function concluirComoRevisor(page) {
+  await comoCarlos(page);
+  await botao(page, 'Concluir revisão').click();
+  await botao(page, 'Confirmar conclusão').click();
+  await expect(status(page)).toContainText('Revisão concluída.');
+}
+
 const dlg = (page) => page.locator('#dialogo-editar-fonte');
 const fonteDa = (page, titulo) => page.locator('#fontes-revisao li.bloco').filter({ hasText: titulo });
 const blocoDa = (page, titulo) => page.locator('#blocos li.bloco').filter({ hasText: titulo });
@@ -403,10 +413,7 @@ test('8. versão congelada sem Editar/Excluir; na nova versão a exclusão vale 
   await emInfos(page);
   await botao(page, 'Aceitar informação: Conteúdo congelado').click();
   await expect(blocoDa(page, 'Conteúdo congelado')).toContainText('Situação: Aceita');
-  await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await concluirComoRevisor(page);
   for (const nome of [/^Editar fonte/, /^Excluir fonte/, /^Marcar como revisado/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
   await comoMaria(page);
   await expect(botao(page, 'Criar nova versão para editar')).toBeVisible();

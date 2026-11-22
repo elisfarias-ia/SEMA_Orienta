@@ -16,7 +16,7 @@ import { criarServicoRevisao } from '../services/admin/revisao-servico.js';
 import { lerArquivosDaVersao } from '../services/admin/versao-arquivos.js';
 import { gerarConteudoPublico, integridadeDoCorpo, lerConteudoPublicado, validarConteudoPublico } from '../services/publicacao-publica.js';
 import { validarServicos } from '../scripts/validate-services.js';
-import { CARLOS, MARIA } from './admin-auxiliar.js';
+import { CARLOS, MARIA, enviarEValidar } from './admin-auxiliar.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AGORA = () => new Date(2026, 10, 17, 12, 0, 0);
@@ -124,7 +124,7 @@ function revisarEConcluir(raiz) {
   for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) {
     assert.equal(rev.aceitarBloco('lac', { ator: MARIA, blocoId: id, revisao: sit().revisao }).ok, true);
   }
-  const r = rev.concluirRevisao('lac', { ator: CARLOS, revisao: sit().revisao });
+  const r = enviarEValidar(rev, 'lac', sit().revisao);
   assert.equal(r.ok, true);
   return { rev, revisao: r.hash };
 }
