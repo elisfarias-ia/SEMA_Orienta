@@ -61,11 +61,11 @@ Vite com JavaScript puro, sem framework, sem banco de dados e sem backend de pro
 
 - Só a LAC tem conteúdo; ele está **em validação e não publicado**. Nenhuma validação material ou publicação real foi autorizada ou criada.
 - A validação terá duas etapas: (1) conferência técnica da autora contra as fontes oficiais, registrada como tal; (2) confirmação material pela CLABI (Coordenadoria de Licenciamento Ambiental de Baixo Impacto). Só o conteúdo confirmado pela CLABI pode ser publicado de verdade; nenhuma publicação real foi autorizada ainda.
-- Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI) são usuários **fictícios** de demonstração do login simulado planejado; não são pessoas reais nem comprovam identidade.
+- Maria Silva (Cadastrante, CLABI) e Carlos Silva (Revisor, CLABI) são usuários **fictícios** do login simulado, implementado na Sprint 8; não são pessoas reais nem comprovam identidade.
 - Não há IA externa, API de produção, autenticação, banco de dados nem persistência de conversas.
 - A administração é local e **sem autenticação**: o token só impede uso por outro site aberto no navegador; não comprova identidade.
 - Decisões e histórico ficam fora do Git (`data/admin-private/` está no `.gitignore`); a pasta é criada em uso, com metadados sem título, URL nem texto.
-- A administração local edita, exclui (de forma lógica), valida, decide, autoriza e publica, tudo sem autenticação real; a "autorização" é feita pelo "Servidor de demonstração" e não equivale à validação material da área competente da SEMA.
+- A administração local edita, exclui (de forma lógica), valida, decide, autoriza e publica, tudo sem autenticação real; a "autorização" é feita pelo usuário fictício escolhido na sessão, com perfil Revisor (dentro do fluxo de validação, autorização e publicação), e não equivale à validação material da área competente da SEMA.
 
 ## Segurança (permanente)
 
