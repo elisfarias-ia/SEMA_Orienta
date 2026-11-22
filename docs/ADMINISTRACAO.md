@@ -211,7 +211,7 @@ As três ações são separadas. A publicação grava `services/<serviço>/publi
 
 Nota (Sprint 8, Passo 8E): o teste real do cenário de demonstração (`e2e-real/demonstracao-ponta-a-ponta-real.spec.js`) confere que, depois da revogação, o arquivo de `services/<serviço>/publico/` **continua no disco**, mas não é mais servido (o servidor de desenvolvimento responde 404 a ele) nem indicado pela página do chat.
 
-**Atenção:** desde o Passo 8C, a "autorização" do MVP é feita pelo usuário da sessão com perfil Revisor (Carlos Silva, fictício; antes do 8C, pelo "Servidor de demonstração"), sem identidade real, e **não é validação real: é local, feita por usuário fictício e sem autenticação; a validação material real será feita por Revisor com autoridade da CLABI**. Sem autenticação real. A LAC continua em validação e não publicada.
+**Atenção:** desde o Passo 8C, a "autorização" do MVP é feita por quem estiver logado com o perfil Revisor (hoje, um usuário fictício; antes do 8C, pelo "Servidor de demonstração"), sem identidade real, e **não é validação real: é local, feita por usuário fictício e sem autenticação; a validação material real será feita pelo perfil Revisor, ocupado por alguém com autoridade da CLABI**. Sem autenticação real. A LAC continua em validação e não publicada.
 
 **Quem fica registrado em cada ação (Sprint 7, Passo 7C).** Cada gravação registra um ator `{ usuarioId, perfil, setor }`, conferido contra uma lista fixa de usuários autorizados (`services/admin/atores.js`). Ainda não há login: todas as ações usam o ator de demonstração (perfil `demonstracao`, setor "Ambiente local de demonstração"), e a tela não permite escolher outro. O registro fica em dois lugares:
 
