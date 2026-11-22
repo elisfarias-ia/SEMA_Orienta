@@ -399,3 +399,22 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | PA-M06 | Depois das gravações, olhar `data/admin-private/` (revisao/, decisoes/, cadastros/, temas/, negadas/) | Os registros trazem o ator real (maria-silva ou carlos-silva, com perfil e setor), nunca o nome, título, URL ou texto; o `versao.json` traz só perfil e setor do Revisor em `responsaveis` | não executado |
 | PA-M07 | Conferir a aparência dos botões indisponíveis | Hoje eles parecem iguais aos disponíveis (a aparência própria ficou fora do 8C); registrar se isso atrapalha | não executado |
 | PA-M08 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
+
+Observação (Sprint 8, Passo 8D): neste roteiro, "Concluir revisão" passou a ser "Enviar para revisão" (Maria) seguido de "Validar materialmente" (Carlos); ver o roteiro abaixo.
+
+### Roteiro — envio, validação e ajustes (Sprint 8, Passo 8D) — **não executado**
+
+Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi executado ou aprovado ainda. **As gravações deste roteiro mudam `services/` e `data/`: ao final, conferir `git status` e restaurar pelo Git, salvo autorização para manter.**
+
+| Id | Ação | Resultado esperado | Situação |
+|---|---|---|---|
+| FR-M01 | Como Maria, abrir "Conteúdo para respostas" de um serviço com pendências | O cartão se chama "Revisão e validação"; as pendências dizem "para enviar para revisão"; "Enviar para revisão" só aparece sem pendências | não executado |
+| FR-M02 | Resolver as pendências e clicar "Enviar para revisão"; depois "Voltar"; depois "Confirmar envio" | O diálogo avisa que a versão fica bloqueada e aguarda o Revisor; "Voltar" devolve o foco ao botão; ao confirmar, a situação vira "Em análise" e não aparece "Criar nova versão" | não executado |
+| FR-M03 | Ainda como Maria, focar "Validar materialmente" e "Solicitar ajustes" com Tab | Os botões são anunciados como indisponíveis, com a descrição de que a ação é do perfil Revisor | não executado |
+| FR-M04 | Trocar para Carlos, clicar "Solicitar ajustes" e confirmar sem motivo | Nada é enviado; o erro "Informe o motivo dos ajustes." aparece junto ao campo, que recebe o foco | não executado |
+| FR-M05 | Informar um motivo com e-mail ou telefone fictício e confirmar | Mensagem de motivo inválido; nada muda | não executado |
+| FR-M06 | Informar um motivo válido e confirmar | A situação vira "Ajustes solicitados"; o motivo não aparece em `services/` nem em `data/admin-private/revisao/`, só em `data/admin-private/decisoes/` | não executado |
+| FR-M07 | Trocar para Maria | O motivo aparece como texto ("Motivo dos ajustes: …"), com "Criar nova versão para editar" | não executado |
+| FR-M08 | Criar a nova versão, revisar, aceitar e enviar de novo; trocar para Carlos e validar | A validação mostra o aviso de que não equivale à validação material da CLABI; ao confirmar, "Pronto para publicar" e o cartão de autorização | não executado |
+| FR-M09 | Conferir o manifesto em "Em análise" e em "Ajustes solicitados" só com `git diff` (sem `git add` nem commit) e, em seguida, restaurar pelo Git (`git restore services/ data/`) | O `git diff` mostra só estado, hash, `enviadaEm` e `responsaveis` (perfil e setor), sem motivo; pela regra do hook, esses estados não seriam barrados (coerente: não há validação nem publicação neles) e `validado_materialmente` continua protegido; nenhum commit é feito neste roteiro | não executado |
+| FR-M10 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |

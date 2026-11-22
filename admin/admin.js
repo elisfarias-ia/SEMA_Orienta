@@ -8,7 +8,7 @@
 
 import {
   AVISO_DADOS_PESSOAIS, AVISO_SERVICO_CONCLUIDO_PARA_EDITAR, AVISO_USUARIOS_FICTICIOS, criarClienteGestao, MENSAGEM_ESCOLHA_USUARIO, MENSAGEM_USUARIO_MUDOU,
-  rotuloDaEscolha, rotuloDoUsuario, frasePublicacao, fraseBlocosReabertos, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
+  rotuloDaEscolha, rotuloDoUsuario, frasePublicacao, fraseBlocosReabertos, fraseDaEtapaDeRevisao, frasePendenciasParaConcluir, impactoDaEdicaoDoServico, impactoDaEdicaoDoTema,
   servicoDaUrl, servicosDaLista, temasAtivos, todosOsTemas, validarEdicaoDeServico, validarEdicaoDeTema, validarEntradaTexto, validarLinkNovo, validarNovoServico,
   aplicarPermissoesDoPerfil, instalarBloqueioDePerfil,
 } from './admin-logic.js';
@@ -458,11 +458,15 @@ async function carregarRevisao() {
   $('editar-servico-ajuda').hidden = !r.congelada;
   situacao.append('Situação: ', criar('strong', '', r.rotulo));
   if (r.revisaoPendente) situacao.append(criar('span', 'selo selo--pendente', 'Revisão pendente'));
-  // Versão bloqueada: o painel mostra a etapa de publicação (a ação em si fica na página de revisão).
-  const etapa = r.congelada && pub.ok ? pub : null;
-  $('painel-resumo').textContent = etapa !== null ? frasePublicacao(etapa) : frasePendenciasParaConcluir(r.resumo);
-  $('painel-revisar').textContent = etapa === null ? 'Revisar informações' : { autorizar: 'Autorizar publicação', publicar: 'Publicar', publicado: 'Ver informações' }[etapa.etapa] ?? 'Revisar informações';
-  $('painel-nova-versao').hidden = !r.congelada;
+  // Versão validada ou além: o painel mostra a etapa de publicação (a ação em si fica na página de revisão). Em análise ou com
+  // ajustes solicitados (8D), mostra a frase da etapa (sem o motivo, que só aparece na página de revisão).
+  const etapa = r.etapa === 'concluida' && pub.ok ? pub : null;
+  const fraseDaRevisao = fraseDaEtapaDeRevisao(r);
+  $('painel-resumo').textContent = etapa !== null ? frasePublicacao(etapa) : fraseDaRevisao ?? frasePendenciasParaConcluir(r.resumo);
+  $('painel-revisar').textContent = etapa === null
+    ? 'Revisar informações'
+    : { autorizar: 'Autorizar publicação', publicar: 'Publicar', publicado: 'Ver informações' }[etapa.etapa] ?? 'Revisar informações';
+  $('painel-nova-versao').hidden = !r.podeNovaVersao;
   $('painel-resolver').hidden = r.congelada || r.pendencias.length === 0;
   if (servicoAtual !== null) $('painel-resolver').href = `./conteudo/?servico=${encodeURIComponent(servicoAtual.id)}&pendencias=1`;
 }

@@ -65,7 +65,7 @@
             <li>Escreva o que o chatbot deve informar ao cidadão.</li>
             <li>Indique a fonte que comprova a informação.</li>
             <li>Marque os documentos e links como revisados e aceite as informações.</li>
-            <li>Conclua a revisão quando não houver pendências.</li>
+            <li>Envie para revisão quando não houver pendências.</li>
           </ol>
         </div>
       </section>
@@ -205,18 +205,21 @@
       <section id="cartao-conclusao" class="cartao" aria-labelledby="titulo-conclusao" hidden>
         <div class="cartao__titulo">
           <span class="icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5" /></svg></span>
-          <h2 id="titulo-conclusao">Concluir revisão</h2>
+          <h2 id="titulo-conclusao" tabindex="-1">Revisão e validação</h2>
         </div>
         <div id="conclusao-pendencias-bloco">
           <p id="pendencias-resumo" class="ajuda"></p>
           <ol id="passos-pendencias" class="passos" hidden></ol>
           <ul id="pendencias" class="pendencias"></ul>
         </div>
-        <p id="conclusao-explicacao" class="ajuda">Ao concluir, o conteúdo desta versão fica bloqueado para edição. Concluir a revisão não publica nada: depois dela ainda é preciso autorizar e, em seguida, publicar.</p>
+        <p id="conclusao-explicacao" class="ajuda">Ao enviar para revisão, o conteúdo desta versão fica bloqueado para edição e aguarda a análise do Revisor. Enviar não publica nada: depois ainda é preciso validar, autorizar e, em seguida, publicar.</p>
         <p id="conclusao-pronta" class="situacao__aviso" hidden></p>
+        <p id="ajustes-motivo" class="situacao__aviso" hidden></p>
         <p id="nova-versao-explicacao" class="ajuda" hidden>Para fazer novas alterações, crie uma nova versão. Ela começa em elaboração e nada é publicado.</p>
         <div class="acoes-form">
-          <button type="button" class="botao" id="botao-concluir" data-acao="concluir" data-indisponivel="false" hidden><svg class="icone-botao" aria-hidden="true" focusable="false"><use href="#i-check"></use></svg>Concluir revisão</button>
+          <button type="button" class="botao" id="botao-enviar" data-acao="enviar" data-indisponivel="false" hidden><svg class="icone-botao" aria-hidden="true" focusable="false"><use href="#i-check"></use></svg>Enviar para revisão</button>
+          <button type="button" class="botao" id="botao-validar" data-acao="validar" data-indisponivel="false" hidden><svg class="icone-botao" aria-hidden="true" focusable="false"><use href="#i-check"></use></svg>Validar materialmente</button>
+          <button type="button" class="botao botao--secundario" id="botao-ajustes" data-acao="ajustes" data-indisponivel="false" hidden>Solicitar ajustes</button>
           <button type="button" class="botao" id="botao-nova-versao" data-acao="nova-versao" data-indisponivel="false" hidden><svg class="icone-botao" aria-hidden="true" focusable="false"><use href="#i-mais"></use></svg>Criar nova versão para editar</button>
         </div>
       </section>
@@ -368,11 +371,36 @@
     </dialog>
 
     <dialog id="dialogo-conclusao" class="dialogo" aria-labelledby="conclusao-titulo-dialogo" aria-describedby="conclusao-descricao-dialogo">
-      <h2 id="conclusao-titulo-dialogo">Concluir a revisão?</h2>
-      <p id="conclusao-descricao-dialogo" class="ajuda">Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.</p>
+      <h2 id="conclusao-titulo-dialogo">Enviar para revisão?</h2>
+      <p id="conclusao-descricao-dialogo" class="ajuda">Depois de enviar, esta versão não poderá mais ser editada e aguardará a análise do Revisor. Para fazer novas alterações, será necessário criar uma nova versão.</p>
       <div class="dialogo__acoes">
         <button type="button" class="botao botao--secundario" id="conclusao-voltar">Voltar</button>
-        <button type="button" class="botao" id="conclusao-confirmar">Confirmar conclusão</button>
+        <button type="button" class="botao" id="conclusao-confirmar">Confirmar envio</button>
+      </div>
+    </dialog>
+
+    <dialog id="dialogo-validacao" class="dialogo" aria-labelledby="validacao-titulo" aria-describedby="validacao-descricao validacao-aviso">
+      <h2 id="validacao-titulo">Validar materialmente esta versão?</h2>
+      <p id="validacao-descricao" class="ajuda">Validar materialmente registra que o conteúdo desta versão foi conferido. Não publica nada: depois ainda é preciso autorizar e, em seguida, publicar.</p>
+      <p id="validacao-aviso" class="aviso-dados" role="note"></p>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="validacao-voltar">Voltar</button>
+        <button type="button" class="botao" id="validacao-confirmar">Confirmar validação</button>
+      </div>
+    </dialog>
+
+    <dialog id="dialogo-ajustes" class="dialogo" aria-labelledby="ajustes-titulo" aria-describedby="ajustes-descricao">
+      <h2 id="ajustes-titulo">Solicitar ajustes?</h2>
+      <p id="ajustes-descricao" class="ajuda">Solicitar ajustes devolve esta versão para correção. Ela não volta a ser editada: a correção é feita numa nova versão, criada pelo perfil Cadastrante.</p>
+      <div class="campo">
+        <label for="ajustes-motivo-campo">Motivo dos ajustes</label>
+        <textarea id="ajustes-motivo-campo" rows="3" maxlength="500" required aria-required="true" aria-describedby="ajustes-motivo-ajuda ajustes-motivo-erro"></textarea>
+        <p id="ajustes-motivo-ajuda" class="ajuda"></p>
+        <p id="ajustes-motivo-erro" class="erro" hidden></p>
+      </div>
+      <div class="dialogo__acoes">
+        <button type="button" class="botao botao--secundario" id="ajustes-voltar">Voltar</button>
+        <button type="button" class="botao" id="ajustes-confirmar">Confirmar pedido de ajustes</button>
       </div>
     </dialog>
 

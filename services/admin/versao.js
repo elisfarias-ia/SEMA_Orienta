@@ -54,7 +54,11 @@ const idValidoChave = (c) => /^[a-zA-Z][a-zA-Z0-9]*$/.test(c);
 // Responsáveis públicos da versão (Sprint 7, Passo 7C): cada etapa só existe a partir do estado em que ela acontece, e cada valor
 // é exatamente { perfil, setor } de um usuário autorizado (atores.js). Nunca usuarioId, nome ou e-mail: o manifesto vai para o Git.
 // Sprint 8, Passo 8C: o perfil precisa ser o da etapa (Revisor; o de demonstração só nos manifestos antigos); Cadastrante é recusado.
+// Sprint 8, Passo 8D: `envio` (só Cadastrante, a única etapa desse perfil) existe a partir de em_validacao; `ajustes` (só Revisor),
+// apenas em ajustes_solicitados (estado sem saída: a correção é feita numa nova versão).
 export const ETAPAS_COM_RESPONSAVEL = Object.freeze({
+  envio: Object.freeze(['em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
+  ajustes: Object.freeze(['ajustes_solicitados']),
   validacao: Object.freeze(['validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
   autorizacao: Object.freeze(['autorizado_publicacao', 'publicado', 'revogado']),
   publicacao: Object.freeze(['publicado', 'revogado']),

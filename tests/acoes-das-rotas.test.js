@@ -6,7 +6,7 @@ import { ROTAS_GRAVADORAS, acoesDaRequisicao, acoesSemRota } from '../services/a
 import { ACOES } from '../services/admin/permissoes.js';
 
 test('AR1. toda rota gravadora exige ação conhecida; sessão, busca de links e leituras não exigem nada', () => {
-  assert.equal(ROTAS_GRAVADORAS.length, 25);
+  assert.equal(ROTAS_GRAVADORAS.length, 27);
   const chaves = new Set();
   for (const r of ROTAS_GRAVADORAS) {
     const acoes = acoesDaRequisicao({ caminho: r.exemplo, metodo: r.metodo });
@@ -17,7 +17,7 @@ test('AR1. toda rota gravadora exige ação conhecida; sessão, busca de links e
     acoes.push('publicar');
     assert.notDeepEqual(acoesDaRequisicao({ caminho: r.exemplo, metodo: r.metodo }), acoes);
   }
-  assert.equal(chaves.size, 25, 'cada rota tem exemplo próprio');
+  assert.equal(chaves.size, 27, 'cada rota tem exemplo próprio');
   // Mapa aprovado (amostra completa por grupo).
   const tabela = [
     ['POST', '/__admin/assuntos', ['cadastrar_tema']],
@@ -41,7 +41,9 @@ test('AR1. toda rota gravadora exige ação conhecida; sessão, busca de links e
     ['POST', '/__admin/servicos/lac/revisao/blocos/rejeitar', ['rejeitar_bloco']],
     ['POST', '/__admin/servicos/lac/revisao/blocos/reabrir', ['reabrir_bloco']],
     ['POST', '/__admin/servicos/lac/nova-versao', ['nova_versao']],
-    ['POST', '/__admin/servicos/lac/revisao/concluir', ['validar_materialmente']],
+    ['POST', '/__admin/servicos/lac/revisao/enviar', ['enviar_para_revisao']],
+    ['POST', '/__admin/servicos/lac/revisao/validar', ['validar_materialmente']],
+    ['POST', '/__admin/servicos/lac/revisao/ajustes', ['solicitar_ajustes']],
     ['POST', '/__admin/servicos/lac/autorizacao', ['autorizar_publicacao']],
     ['POST', '/__admin/servicos/lac/publicacao', ['publicar']],
     ['POST', '/__admin/servicos/lac/revogacao', ['revogar']],
@@ -56,7 +58,9 @@ test('AR1. toda rota gravadora exige ação conhecida; sessão, busca de links e
     ['GET', '/__admin/temas/um-tema/edicao'], ['GET', '/__admin/servicos/lac/fontes/f-1'], ['GET', '/__admin/servicos/lac/fontes/f-1/impacto'],
     ['GET', '/__admin/servicos/lac/informacoes'],
     // Método que a rota não aceita (o endpoint responde 405 antes) e caminhos estranhos.
-    ['PUT', '/__admin/assuntos'], ['GET', '/__admin/assuntos'], ['POST', '/__admin/servicos/lac/revisao/concluir/extra'], ['POST', '/__admin/servicos/LAC/fontes'],
+    ['PUT', '/__admin/assuntos'], ['GET', '/__admin/assuntos'], ['POST', '/__admin/servicos/lac/revisao/enviar/extra'], ['POST', '/__admin/servicos/LAC/fontes'],
+    // Passo 8D: a rota antiga de concluir foi removida e não exige nada (o endpoint responde 404).
+    ['POST', '/__admin/servicos/lac/revisao/concluir'], ['GET', '/__admin/servicos/lac/revisao/validar'],
   ]) {
     assert.equal(acoesDaRequisicao({ caminho, metodo }), null, `${metodo} ${caminho}`);
   }
@@ -65,9 +69,11 @@ test('AR1. toda rota gravadora exige ação conhecida; sessão, busca de links e
   }
 });
 
-test('AR2. ações da matriz sem rota: só enviar_para_revisao e solicitar_ajustes (validar_materialmente é o concluir, pseudônimo até o 8D)', () => {
-  assert.deepEqual(acoesSemRota(), ['enviar_para_revisao', 'solicitar_ajustes']);
+test('AR2. (8D) toda ação da matriz tem rota; concluir não tem rota nem está na matriz', () => {
+  assert.deepEqual(acoesSemRota(), []);
   const comRota = new Set(ROTAS_GRAVADORAS.flatMap((r) => r.acoes));
-  assert.ok(comRota.has('validar_materialmente'));
-  assert.equal(comRota.has('concluir_revisao'), false, 'concluir_revisao é nome do histórico, não da matriz');
+  for (const a of ['enviar_para_revisao', 'validar_materialmente', 'solicitar_ajustes']) assert.ok(comRota.has(a), a);
+  assert.equal(comRota.has('concluir_revisao'), false, 'concluir_revisao é nome antigo do histórico, só na leitura');
+  assert.equal(ROTAS_GRAVADORAS.some((r) => r.padrao.test('/__admin/servicos/lac/revisao/concluir')), false, 'a rota antiga foi removida');
+  assert.equal(ACOES.includes('concluir_revisao'), false);
 });

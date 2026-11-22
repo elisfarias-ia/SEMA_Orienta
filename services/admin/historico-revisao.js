@@ -1,8 +1,8 @@
 // Histórico PRIVADO da revisão (Sprint 5, Passo 5B1). Só acréscimo, em arquivos .jsonl dentro de data/admin-private/ (fora do
 // Git, do MCP, do assistente, do build e do dist/). Reaproveita o armazenamento seguro e os registros de decisoes.js.
 //
-//   data/admin-private/revisao/<servicoId>.jsonl    ações da revisão (revisar fonte, aceitar e rejeitar bloco, concluir, nova versão)
-//   data/admin-private/decisoes/<servicoId>.jsonl   decisões materiais (registros de decisoes.js)
+//   data/admin-private/revisao/<servicoId>.jsonl    ações da revisão (revisar fonte, aceitar e rejeitar bloco, enviar, validar, ajustes, nova versão)
+//   data/admin-private/decisoes/<servicoId>.jsonl   decisões materiais (registros de decisoes.js); o motivo dos ajustes só fica aqui
 //   data/admin-private/temas/historico.jsonl        edições de tema (acao_tema)
 //   data/admin-private/cadastros/historico.jsonl    cadastros de tema e serviço bem-sucedidos (acao_cadastro; Sprint 8, Passo 8C)
 //   data/admin-private/negadas/historico.jsonl      gravações recusadas por perfil (acao_negada; Sprint 8, Passo 8C)
@@ -25,9 +25,13 @@ export const RESULTADOS = Object.freeze(['ok', 'negado']);
 export const ACOES_REGISTRADAS = Object.freeze([
   'revisar_fonte', 'aceitar_bloco', 'rejeitar_bloco', 'reabrir_bloco', 'editar_fonte', 'excluir_fonte', 'editar_servico', 'editar_tema', 'importar_conteudo',
   'concluir_revisao', 'autorizar_publicacao', 'publicar', 'revogar', 'nova_versao',
+  // Sprint 8, Passo 8D: envio, validação e pedido de ajustes substituem concluir_revisao (que só continua válido na LEITURA).
+  'enviar_para_revisao', 'validar_materialmente', 'solicitar_ajustes',
   // Sprint 8, Passo 8C: os cadastros com versão também ficam auditados.
   'cadastrar_fonte', 'cadastrar_link', 'cadastrar_texto', 'cadastrar_informacao', 'editar_informacao', 'excluir_informacao',
 ]);
+/** Ações aceitas só na leitura de registros antigos: nenhuma gravação nova pode usá-las (Sprint 8, Passo 8D). */
+export const ACOES_SO_LEITURA = Object.freeze(['concluir_revisao']);
 export const TIPO_ACAO_REVISAO = 'acao_revisao';
 export const PASTA_PRIVADA = 'data/admin-private';
 
@@ -158,6 +162,7 @@ export function criarHistoricoRevisao({ raiz, sistema = fs, agora = () => new Da
     const quem = atorDaGravacao(ator);
     if (!quem.ok) return quem;
     if (!RESULTADOS.includes(resultado)) return falha('resultado_invalido');
+    if (ACOES_SO_LEITURA.includes(acao)) return falha('acao_invalida');
     const existentes = listarAcoes(servicoId);
     if (!existentes.ok) return existentes;
     const registro = {

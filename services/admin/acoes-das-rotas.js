@@ -4,8 +4,8 @@
 // gravação, ou null quando a requisição não grava: GET em geral, a própria sessão (POST e DELETE /__admin/sessao) e a busca de
 // links (POST .../links-existentes/busca, somente leitura). O endpoint confere estas ações ANTES de ler o corpo.
 //
-// Pseudônimo até o Passo 8D: "concluir a revisão" exige validar_materialmente (só o Revisor). O histórico continua registrando
-// a ação como concluir_revisao. Ações da matriz sem rota própria (ainda): enviar_para_revisao e solicitar_ajustes.
+// Sprint 8, Passo 8D: a antiga rota "concluir a revisão" (pseudônimo de validar_materialmente) foi removida; envio para revisão
+// (Cadastrante), validação material e pedido de ajustes (Revisor) têm rotas próprias. Toda ação da matriz tem rota (acoesSemRota vazio).
 
 import { ACOES } from './permissoes.js';
 
@@ -36,8 +36,9 @@ export const ROTAS_GRAVADORAS = Object.freeze([
   rota('POST', `/__admin/servicos/${SERVICO}/revisao/blocos/rejeitar`, ['rejeitar_bloco'], '/__admin/servicos/lac/revisao/blocos/rejeitar'),
   rota('POST', `/__admin/servicos/${SERVICO}/revisao/blocos/reabrir`, ['reabrir_bloco'], '/__admin/servicos/lac/revisao/blocos/reabrir'),
   rota('POST', `/__admin/servicos/${SERVICO}/nova-versao`, ['nova_versao'], '/__admin/servicos/lac/nova-versao'),
-  // Pseudônimo até o 8D: concluir a revisão = validar materialmente (Revisor).
-  rota('POST', `/__admin/servicos/${SERVICO}/revisao/concluir`, ['validar_materialmente'], '/__admin/servicos/lac/revisao/concluir'),
+  rota('POST', `/__admin/servicos/${SERVICO}/revisao/enviar`, ['enviar_para_revisao'], '/__admin/servicos/lac/revisao/enviar'),
+  rota('POST', `/__admin/servicos/${SERVICO}/revisao/validar`, ['validar_materialmente'], '/__admin/servicos/lac/revisao/validar'),
+  rota('POST', `/__admin/servicos/${SERVICO}/revisao/ajustes`, ['solicitar_ajustes'], '/__admin/servicos/lac/revisao/ajustes'),
   rota('POST', `/__admin/servicos/${SERVICO}/autorizacao`, ['autorizar_publicacao'], '/__admin/servicos/lac/autorizacao'),
   rota('POST', `/__admin/servicos/${SERVICO}/publicacao`, ['publicar'], '/__admin/servicos/lac/publicacao'),
   rota('POST', `/__admin/servicos/${SERVICO}/revogacao`, ['revogar'], '/__admin/servicos/lac/revogacao'),

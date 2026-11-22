@@ -102,7 +102,8 @@ const lerJ = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const usuarioErrado = (r) => (PERMISSOES[r.acoes[0]].includes('cadastrante') ? 'carlos-silva' : 'maria-silva');
 const corpoCanario = { titulo: CANARIO, nome: CANARIO, url: URL_CANARIO, texto: CANARIO, revisao: 'a'.repeat(64) };
 
-test('PA1. cada uma das 25 rotas com o perfil errado: 403 exato, sem ler o corpo, services/ intacto e uma recusa com campos fechados', async () => {
+test('PA1. cada uma das 27 rotas com o perfil errado: 403 exato, sem ler o corpo, services/ intacto e uma recusa com campos fechados', async () => {
+  assert.equal(ROTAS_GRAVADORAS.length, 27, 'Passo 8D: 27 rotas que gravam (enviar, validar e ajustes no lugar de concluir)');
   await comCopia(async ({ raiz, pai }) => {
     const m = criarManipuladorAdmin({ raiz, agora: AGORA, diretorioTemporario: pai });
     const antes = retrato(raiz);
@@ -161,17 +162,20 @@ test('PA2. perfil certo: a gravação acontece e o histórico guarda o ator real
     const sit = () => rev.consultar('lac').situacao;
     for (const id of sit().fontes.filter((f) => f.usadaPorBloco && !f.revisada).map((f) => f.id)) assert.equal(rev.revisarFonte('lac', { fonteId: id, revisao: sit().revisao, ator: MARIA }).ok, true);
     for (const id of sit().blocos.filter((b) => !b.aceito).map((b) => b.id)) assert.equal(rev.aceitarBloco('lac', { blocoId: id, revisao: sit().revisao, ator: MARIA }).ok, true);
-    // Concluir (validar materialmente, pseudônimo até o 8D) pela rota, com Carlos (Revisor).
+    // Passo 8D: Maria (Cadastrante) envia para revisão pela rota; Carlos (Revisor) valida materialmente pela rota.
+    token = await entrar(m, 'maria-silva');
+    const enviada = await chamar(m, { url: '/__admin/servicos/lac/revisao/enviar', method: 'POST', token, corpo: { revisao: sit().revisao } });
+    assert.equal(enviada.status, 200, enviada.bruto);
     token = await entrar(m, 'carlos-silva');
-    const concluir = await chamar(m, { url: '/__admin/servicos/lac/revisao/concluir', method: 'POST', token, corpo: { revisao: sit().revisao } });
-    assert.equal(concluir.status, 200, concluir.bruto);
+    const validada = await chamar(m, { url: '/__admin/servicos/lac/revisao/validar', method: 'POST', token, corpo: { revisao: sit().revisao } });
+    assert.equal(validada.status, 200, validada.bruto);
     const acoes = jsonl(raiz, 'revisao', 'lac.jsonl');
-    assert.deepEqual(acoes.at(-1).acao, 'concluir_revisao', 'o histórico continua com o nome concluir_revisao');
-    assert.deepEqual(acoes.at(-1).ator, { ...CARLOS });
+    assert.deepEqual(acoes.slice(-2).map((x) => [x.acao, x.ator]), [['enviar_para_revisao', { ...MARIA }], ['validar_materialmente', { ...CARLOS }]]);
+    assert.equal(acoes.some((x) => x.acao === 'concluir_revisao'), false, 'concluir_revisao não é mais gravado');
     assert.deepEqual(jsonl(raiz, 'decisoes', 'lac.jsonl').map((d) => [d.tipo, d.decisao, d.ator]), [['decisao_material', 'validado_materialmente', { ...CARLOS }]]);
     const manifesto = lerJ(v1(raiz, 'versao.json'));
-    assert.deepEqual(manifesto.responsaveis, { validacao: { perfil: 'revisor', setor: 'CLABI' } });
-    assert.doesNotMatch(fs.readFileSync(v1(raiz, 'versao.json'), 'utf8'), /usuarioId|carlos-silva|Carlos Silva/);
+    assert.deepEqual(manifesto.responsaveis, { envio: { perfil: 'cadastrante', setor: 'CLABI' }, validacao: { perfil: 'revisor', setor: 'CLABI' } });
+    assert.doesNotMatch(fs.readFileSync(v1(raiz, 'versao.json'), 'utf8'), /usuarioId|carlos-silva|Carlos Silva|maria-silva|Maria Silva/);
     assert.equal(fs.existsSync(path.join(raiz, 'data', 'admin-private', 'negadas')), false, 'nenhuma recusa');
   });
 });
@@ -257,7 +261,9 @@ test('PA6. serviços chamados direto (segunda barreira): sem permissão → perf
       rev.editarServico('lac', { revisao, nome: CANARIO, ator: CARLOS }),
       rev.importarConteudo('lac', { revisao, ref: 'x', entrada: {}, ator: CARLOS }),
       rev.criarNovaVersao('lac', { ator: CARLOS }),
-      rev.concluirRevisao('lac', { revisao, ator: MARIA }),
+      rev.enviarParaRevisao('lac', { revisao, ator: CARLOS }),
+      rev.validarMaterialmente('lac', { revisao, ator: MARIA }),
+      rev.solicitarAjustes('lac', { revisao, motivo: 'Motivo fictício.', ator: MARIA }),
       pub.autorizar('lac', { revisao, ator: MARIA }),
       pub.publicar('lac', { revisao, ator: MARIA }),
       pub.revogar('lac', { revisao, motivo: 'Motivo fictício.', ator: MARIA }),
@@ -266,7 +272,9 @@ test('PA6. serviços chamados direto (segunda barreira): sem permissão → perf
     for (const r of semPermissao) assert.deepEqual(r, { ok: false, erro: 'perfil_sem_permissao' });
     const semAtor = [
       rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao }),
-      rev.concluirRevisao('lac', { revisao }),
+      rev.enviarParaRevisao('lac', { revisao }),
+      rev.validarMaterialmente('lac', { revisao }),
+      rev.solicitarAjustes('lac', { revisao, motivo: 'Motivo fictício.' }),
       rev.criarNovaVersao('lac'),
       pub.autorizar('lac', { revisao }),
       pub.publicar('lac', { revisao }),
@@ -446,7 +454,7 @@ test('PA9. tela: 403 por perfil tem mensagem própria (distinta do acesso local)
   const conteudo = ler('admin', 'conteudo', 'conteudo.js');
   const gestao = ler('admin', 'admin.js');
   for (const id of ['botao-nova-orientacao', 'botao-importar', 'bloco-enviar']) assert.match(conteudo, new RegExp(`\\$\\('${id}'\\)\\.dataset\\.permissao`), id);
-  assert.match(conteudo, /'botao-concluir', 'botao-nova-versao', 'botao-autorizar', 'botao-publicar', 'botao-revogar'/);
+  assert.match(conteudo, /'botao-enviar', 'botao-validar', 'botao-ajustes', 'botao-nova-versao', 'botao-autorizar', 'botao-publicar', 'botao-revogar'/);
   for (const acao of ['cadastrar_servico', 'cadastrar_texto', 'cadastrar_link', 'nova_versao', 'editar_servico', 'editar_tema']) assert.match(gestao, new RegExp(`'${acao}'`), acao);
   for (const pagina of [['admin', 'index.html'], ['admin', 'conteudo', 'index.html']]) {
     assert.match(ler(...pagina), /<main id="principal"[\s\S]*<div id="ajudas-perfil" class="ajudas-perfil"><\/div>\s*<\/main>/, pagina.join('/'));

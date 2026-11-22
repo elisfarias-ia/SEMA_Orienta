@@ -79,10 +79,10 @@ test('PU3. diálogo e painel: versão, data, quantidades, avisos e a diferença 
   assert.match(TEXTO_CONFIRMAR_AUTORIZACAO, /Ainda não publica/);
   assert.match(frasePublicacao(r), /a publicação ainda não foi autorizada.*15\/03\/2026.*3 informações aceitas, 2 links e 1 texto\./);
   assert.match(frasePublicacao(resumirPublicacao(RESUMO_API({ podeAutorizar: false, podePublicar: true }))), /Publicação autorizada, mas ainda não publicada/);
-  assert.match(frasePublicacao(resumirPublicacao(RESUMO_API({ podeAutorizar: false, publicado: true, informacoesAceitas: 1, links: 1, textos: 0 }))), /^Publicado\. Esta versão \(2\) já está disponível ao cidadão.*Revisão concluída em 15\/03\/2026.*1 informação aceita, 1 link e 0 textos\./);
+  assert.match(frasePublicacao(resumirPublicacao(RESUMO_API({ podeAutorizar: false, publicado: true, informacoesAceitas: 1, links: 1, textos: 0 }))), /^Publicado\. Esta versão \(2\) já está disponível ao cidadão.*Enviada para revisão em 15\/03\/2026.*1 informação aceita, 1 link e 0 textos\./);
   const comData = frasePublicacao(resumirPublicacao(RESUMO_API({ podeAutorizar: false, publicado: true, dataPublicacao: '2026-04-02' })));
   assert.match(comData, /Publicado em 02\/04\/2026\./);
-  assert.doesNotMatch(comData, /Revisão concluída em/);
+  assert.doesNotMatch(comData, /Enviada para revisão em/);
   assert.equal(resumirPublicacao(RESUMO_API({ dataPublicacao: 'ontem' })).dataPublicacao, null);
   assert.match(frasePublicacao(resumirPublicacao(RESUMO_API({ podeAutorizar: false }))), /não está disponível agora/);
   for (const t of [frasePublicacao(r), TEXTO_DIFERENCA_ETAPAS, TEXTO_CONFIRMAR_AUTORIZACAO, TEXTO_CONFIRMAR_PUBLICACAO, ...Object.values(MENSAGENS_PUBLICACAO)]) assert.doesNotMatch(t, TECNICO);
@@ -168,7 +168,7 @@ test('PU8. páginas: diálogos distintos, rótulos acessíveis, sem armazenament
   assert.match(html, /aria-labelledby="autorizacao-titulo"/);
   assert.match(html, /aria-labelledby="publicacao-titulo-dialogo"/);
   assert.match(html, /Autorizar publicação/);
-  assert.match(html, /Concluir a revisão não publica nada/);
+  assert.match(html, /Enviar não publica nada/);
   for (const trecho of [js, lerTexto('admin', 'admin.js'), lerTexto('admin', 'admin-logic.js')]) assert.doesNotMatch(trecho, /innerHTML|localStorage|sessionStorage|document\.cookie/);
   // nada é enviado ao carregar: as ações só ficam em ouvintes de clique
   assert.doesNotMatch(js, /^(await\s+)?cliente\.gravarRevisao/m);

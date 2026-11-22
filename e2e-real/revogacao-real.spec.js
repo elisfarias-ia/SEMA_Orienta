@@ -15,7 +15,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (troca de usuário e ator real: a decisão de revogação passa a registrar o Revisor, não o ator de demonstração): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C (troca de usuário e ator real: a decisão de revogação passa a registrar o Revisor, não o ator de demonstração): validar (8D), autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -38,13 +38,16 @@ const MOTIVO = 'Conteúdo fictício revogado no teste automatizado.';
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
 
-// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
-// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
 async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
   await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
 }
 
 test.afterAll(() => {

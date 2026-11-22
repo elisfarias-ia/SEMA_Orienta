@@ -52,7 +52,8 @@ async function enviarBruto(m, { url, method = 'POST', corpo, token, host = 'loca
 // Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
 // é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
 const TOKEN_FIXO = 'c'.repeat(64);
-const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+// Passo 8D: validar e pedir ajustes também são do Revisor; o envio para revisão é da Cadastrante (sessão padrão, Maria).
+const ROTA_DO_REVISOR = /\/(revisao\/validar|revisao\/ajustes|autorizacao|publicacao|revogacao)$/;
 const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
 async function enviar(m, opcoes = {}) {
   const { method = 'POST' } = opcoes;
@@ -106,7 +107,8 @@ test('E1. GET revisao: situação e pendências, sem caminhos nem texto original
   await comCopia(async ({ m, token, situacao }) => {
     const r = await enviar(m, { url: '/__admin/servicos/lac/revisao', method: 'GET', token });
     assert.equal(r.status, 200);
-    assert.deepEqual([r.corpo.estadoVersao, r.corpo.rotulo, r.corpo.editavel, r.corpo.podeConcluir], ['rascunho', 'Em elaboração', true, false]);
+    assert.deepEqual([r.corpo.estadoVersao, r.corpo.rotulo, r.corpo.editavel, r.corpo.podeEnviar, r.corpo.podeValidar, r.corpo.motivoAjustes], ['rascunho', 'Em elaboração', true, false, false, null]);
+    assert.equal('podeConcluir' in r.corpo, false);
     assert.match(r.corpo.revisao, /^[0-9a-f]{64}$/);
     assert.ok(r.corpo.pendencias.some((p) => p.codigo === 'fonte_pendente'));
     assert.ok(!/[A-Za-z]:\\|services\/|node_modules/.test(r.bruto));
@@ -117,7 +119,7 @@ test('E1. GET revisao: situação e pendências, sem caminhos nem texto original
   });
 });
 
-test('E2. fluxo completo pelas rotas: revisar fonte, aceitar bloco, concluir; nada é publicado; edição posterior recusada', async () => {
+test('E2. (8D) fluxo completo pelas rotas: revisar fonte, aceitar bloco, enviar (Maria), validar (Carlos); nada é publicado; edição posterior recusada', async () => {
   await comCopia(async ({ post, situacao, raiz }) => {
     let s = await situacao();
     let r = await post('revisao/fontes', { fonteId: MANUAL, revisao: s.revisao });
@@ -128,19 +130,27 @@ test('E2. fluxo completo pelas rotas: revisar fonte, aceitar bloco, concluir; na
     r = await post('revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao });
     assert.equal(r.status, 200);
     s = await situacao();
-    assert.deepEqual([s.podeConcluir, s.pendencias], [true, []]);
-    r = await post('revisao/concluir', { revisao: s.revisao });
-    assert.deepEqual([r.status, r.corpo.estado, r.corpo.revisao], [200, 'validado_materialmente', s.revisao]);
+    assert.deepEqual([s.podeEnviar, s.pendencias], [true, []]);
+    r = await post('revisao/enviar', { revisao: s.revisao });
+    assert.deepEqual([r.status, r.corpo], [200, { revisao: s.revisao, estado: 'em_validacao' }]);
+    assert.deepEqual([(await situacao()).rotulo, (await situacao()).podeValidar], ['Em análise', true]);
+    r = await post('revisao/validar', { revisao: s.revisao });
+    assert.deepEqual([r.status, r.corpo], [200, { revisao: s.revisao, estado: 'validado_materialmente' }]);
     const reg = lerJ(raiz, 'services', 'registry.json').servicos[0];
     assert.deepEqual([reg.versaoPublicadaId, reg.publicado], [null, false]);
     assert.equal(lerJ(raiz, ...arq('versao.json')).hashConteudo, s.revisao);
     assert.deepEqual(validarServicos(raiz).erros, []);
-    // depois de concluída: nenhuma edição, em nenhuma rota
+    // depois de validada: nenhuma edição, em nenhuma rota; nem novo envio, nova validação ou ajustes
     for (const [rota, corpo] of [['revisao/fontes', { fonteId: 'tr-176-lac', revisao: s.revisao }], ['revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao }],
-      ['revisao/blocos/rejeitar', { blocoId: 'bc-um', revisao: s.revisao }], ['revisao/concluir', { revisao: s.revisao }]]) {
+      ['revisao/blocos/rejeitar', { blocoId: 'bc-um', revisao: s.revisao }], ['revisao/enviar', { revisao: s.revisao }]]) {
       const x = await post(rota, corpo);
       assert.deepEqual([x.status, x.corpo.erro], [409, 'versao_congelada'], rota);
     }
+    for (const [rota, corpo] of [['revisao/validar', { revisao: s.revisao }], ['revisao/ajustes', { revisao: s.revisao, motivo: 'Motivo fictício.' }]]) {
+      const x = await post(rota, corpo);
+      assert.deepEqual([x.status, x.corpo.erro], [409, 'estado_invalido'], rota);
+    }
+    assert.deepEqual([(await post('revisao/concluir', { revisao: s.revisao })).status], [404], 'a rota antiga não existe mais');
     const edit = await post('conhecimentos', { titulo: 'Novo', texto: 'Texto', fonteIds: [MANUAL], referencias: [{ fonteId: MANUAL, localizacao: 'p. 1' }] });
     assert.equal(edit.status, 409, 'as rotas existentes de edição também recusam versão congelada');
     const texto = await post('entradas-texto', { titulo: 'Texto', texto: 'Texto fictício.' });
@@ -169,17 +179,18 @@ test('E3. nova versão pela rota: cria a v2 em elaboração, preserva a v1; recu
   });
 });
 
-test('E4. erros: revisão divergente 409, concluir incompleto 422 com pendências, corpo com campos extras 422, ids inválidos', async () => {
+test('E4. erros: revisão divergente 409, envio incompleto 422 com pendências, corpo com campos extras 422, ids inválidos', async () => {
   await comCopia(async ({ post, situacao }) => {
     const s = await situacao();
     assert.deepEqual((await post('revisao/fontes', { fonteId: MANUAL, revisao: 'a'.repeat(64) })).corpo, { erro: 'revisao_divergente' });
-    const inc = await post('revisao/concluir', { revisao: s.revisao });
+    const inc = await post('revisao/enviar', { revisao: s.revisao });
     assert.equal(inc.status, 422);
     assert.equal(inc.corpo.erro, 'revisao_incompleta');
     assert.ok(inc.corpo.pendencias.some((p) => p.codigo === 'sem_bloco_aceito'));
     for (const [rota, corpo] of [
       ['revisao/fontes', { fonteId: MANUAL, revisao: s.revisao, statusValidacao: 'validado' }], ['revisao/fontes', { fonteId: 'X', revisao: s.revisao }],
-      ['revisao/blocos/aceitar', { blocoId: 'bc-um' }], ['revisao/concluir', { revisao: s.revisao, hash: s.revisao }], ['nova-versao', { x: 1 }],
+      ['revisao/blocos/aceitar', { blocoId: 'bc-um' }], ['revisao/enviar', { revisao: s.revisao, hash: s.revisao }], ['nova-versao', { x: 1 }],
+      ['revisao/validar', { revisao: s.revisao, motivo: 'x' }], ['revisao/ajustes', { revisao: s.revisao, motivo: 'x', estado: 'ajustes_solicitados' }], ['revisao/ajustes', { motivo: 'x' }],
     ]) {
       const x = await post(rota, corpo);
       assert.deepEqual([x.status, x.corpo.erro], [422, 'dados_invalidos'], rota);
@@ -195,7 +206,7 @@ test('E5. acesso: sem token 401, host não local 403, rota de outro serviço 404
     const url = '/__admin/servicos/lac/revisao/fontes';
     assert.equal((await enviar(m, { url, corpo: { fonteId: MANUAL, revisao: s.revisao } })).status, 401);
     assert.equal((await enviar(m, { url, corpo: { fonteId: MANUAL, revisao: s.revisao }, token, host: 'exemplo.test' })).status, 403);
-    assert.equal((await enviar(m, { url: '/__admin/servicos/nao-existe/revisao/concluir', corpo: { revisao: s.revisao }, token })).status, 404);
+    assert.equal((await enviar(m, { url: '/__admin/servicos/nao-existe/revisao/enviar', corpo: { revisao: s.revisao }, token })).status, 404);
     const e = await enviar(m, { url, corpo: { fonteId: MANUAL, revisao: 'b'.repeat(64) }, token });
     assert.ok(!/[A-Za-z]:\\|\/Users\/|services\/|stack|ENOENT/.test(e.bruto));
   });
@@ -214,7 +225,7 @@ test('E6. trava comum: uma gravação por vez; a segunda recebe 409 operacao_em_
     await chegou;
     const antes = retrato(raiz);
     for (const [rota, corpo] of [['revisao/fontes', { fonteId: 'tr-176-lac', revisao: s.revisao }], ['revisao/blocos/aceitar', { blocoId: 'bc-um', revisao: s.revisao }],
-      ['revisao/blocos/rejeitar', { blocoId: 'bc-um', revisao: s.revisao }], ['revisao/concluir', { revisao: s.revisao }], ['nova-versao', {}]]) {
+      ['revisao/blocos/rejeitar', { blocoId: 'bc-um', revisao: s.revisao }], ['revisao/enviar', { revisao: s.revisao }], ['nova-versao', {}]]) {
       const r = await enviar(m, { url: `/__admin/servicos/lac/${rota}`, corpo, token });
       assert.deepEqual([r.status, r.corpo.erro], [409, 'operacao_em_andamento'], rota);
     }
@@ -237,7 +248,7 @@ test('E7. rollback pela rota: falha na conferência final deixa a base e o hist�
   }, { verificarFinal: (r) => (recusar ? ['recusado'] : validarServicos(r).erros) });
 });
 
-test('E9. reabrir bloco pela rota: 200 antes de concluir, 422 se não está aceito, 409 depois de concluir; corpo só com blocoId e revisao', async () => {
+test('E9. reabrir bloco pela rota: 200 antes de enviar, 422 se não está aceito, 409 depois de enviar e validar; corpo só com blocoId e revisao', async () => {
   await comCopia(async ({ post, situacao }) => {
     let s = await situacao();
     assert.deepEqual([(await post('revisao/blocos/reabrir', { blocoId: 'bc-um', revisao: s.revisao })).status], [422]);

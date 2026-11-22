@@ -48,12 +48,14 @@
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,
-      "description": "Sprint 7 (Passo 7C), opcional: perfil e setor de quem validou, autorizou, publicou ou revogou, exatamente iguais aos de um usuário autorizado. Nunca usuarioId, nome ou e-mail (o manifesto vai para o Git). Cada etapa só existe a partir do estado em que acontece.",
+      "description": "Sprint 7 (Passo 7C), opcional: perfil e setor de quem validou, autorizou, publicou ou revogou, exatamente iguais aos de um usuário autorizado. Nunca usuarioId, nome ou e-mail (o manifesto vai para o Git). Cada etapa só existe a partir do estado em que acontece. Sprint 8 (Passo 8D): 'envio' (quem enviou para revisão; só o perfil cadastrante, a única etapa desse perfil; a partir de em_validacao) e 'ajustes' (quem pediu ajustes; só o perfil revisor; só em ajustes_solicitados). As demais etapas aceitam só revisor (demonstracao só em manifestos antigos), nunca cadastrante, como em services/admin/atores.js.",
       "properties": {
-        "validacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "cadastrante", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
-        "autorizacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "cadastrante", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
-        "publicacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "cadastrante", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
-        "revogacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "cadastrante", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } }
+        "envio": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["cadastrante"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
+        "ajustes": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
+        "validacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
+        "autorizacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
+        "publicacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
+        "revogacao": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["demonstracao", "revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } }
       }
     }
   }

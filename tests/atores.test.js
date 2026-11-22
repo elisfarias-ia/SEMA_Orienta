@@ -284,7 +284,7 @@ function dadosDaBase(raiz) {
   });
 }
 
-test('AT9. ciclo completo (8C, atores reais): manifesto com perfil e setor do Revisor por etapa; usuarioId só em data/admin-private/, nunca em services/', () => {
+test('AT9. ciclo completo (8C/8D, atores reais): manifesto com perfil e setor por etapa (envio da Cadastrante, demais do Revisor); usuarioId só em data/admin-private/, nunca em services/', () => {
   comCopia((raiz) => {
     const rev = criarServicoRevisao({ raiz, agora: AGORA });
     const sit = () => rev.consultar('lac').situacao;
@@ -293,14 +293,15 @@ test('AT9. ciclo completo (8C, atores reais): manifesto com perfil e setor do Re
     const concluida = enviarEValidar(rev, 'lac', sit().revisao, { revisor: CARLOS });
     assert.equal(concluida.ok, true);
     const manifesto = () => lerJ(raiz, 'services', 'lac', 'versoes', 'v1', 'versao.json');
-    assert.deepEqual(manifesto().responsaveis, { validacao: REVISOR_PUBLICO });
+    const envio = { perfil: 'cadastrante', setor: 'CLABI' };
+    assert.deepEqual(manifesto().responsaveis, { envio, validacao: REVISOR_PUBLICO });
     const pub = criarServicoPublicacao({ raiz, agora: AGORA });
     assert.equal(pub.autorizar('lac', { revisao: concluida.hash, ator: CARLOS }).ok, true);
-    assert.deepEqual(manifesto().responsaveis, { validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO });
+    assert.deepEqual(manifesto().responsaveis, { envio, validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO });
     assert.equal(pub.publicar('lac', { revisao: concluida.hash, ator: CARLOS }).ok, true);
-    assert.deepEqual(manifesto().responsaveis, { validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO, publicacao: REVISOR_PUBLICO });
+    assert.deepEqual(manifesto().responsaveis, { envio, validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO, publicacao: REVISOR_PUBLICO });
     assert.equal(pub.revogar('lac', { revisao: concluida.hash, motivo: 'Motivo fictício de revogação.', ator: CARLOS }).ok, true);
-    assert.deepEqual(manifesto().responsaveis, { validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO, publicacao: REVISOR_PUBLICO, revogacao: REVISOR_PUBLICO });
+    assert.deepEqual(manifesto().responsaveis, { envio, validacao: REVISOR_PUBLICO, autorizacao: REVISOR_PUBLICO, publicacao: REVISOR_PUBLICO, revogacao: REVISOR_PUBLICO });
     assert.deepEqual(validarServicos(raiz).erros, []);
 
     // Auditoria completa só no histórico privado, com o ator real (sem nome).
@@ -325,7 +326,9 @@ test('AT10. ator inválido é recusado (ator_invalido) em todas as gravações, 
     const resultados = [
       rev.revisarFonte('lac', { fonteId: 'manual-lac-siga-2020', revisao: s.revisao, ator: DE_FORA }),
       rev.aceitarBloco('lac', { blocoId: 'bc-atores', revisao: s.revisao, ator: DE_FORA }),
-      rev.concluirRevisao('lac', { revisao: s.revisao, ator: DE_FORA }),
+      rev.enviarParaRevisao('lac', { revisao: s.revisao, ator: DE_FORA }),
+      rev.validarMaterialmente('lac', { revisao: s.revisao, ator: DE_FORA }),
+      rev.solicitarAjustes('lac', { revisao: s.revisao, motivo: 'Motivo fictício.', ator: DE_FORA }),
       rev.criarNovaVersao('lac', { ator: DE_FORA }),
       pub.autorizar('lac', { revisao: s.revisao, ator: DE_FORA }),
       pub.publicar('lac', { revisao: s.revisao, ator: DE_FORA }),

@@ -1,6 +1,6 @@
 // Teste real de editar tema e serviço (Passo 5B3b): sem page.route e sem mocks. O servidor é o Vite de verdade (veja preparar.js),
 // com a base de serviços copiada para uma pasta temporária. Cada teste cria os próprios serviços e temas pela interface (/admin/);
-// a revisão, a aceitação e a conclusão de informações usam /admin/conteudo/. Nada aqui publica nem toca na base real.
+// a revisão, a aceitação e o envio para revisão das informações usam /admin/conteudo/. Nada aqui publica nem toca na base real.
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
@@ -13,7 +13,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D (só troca de usuário): validar, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -34,13 +34,16 @@ const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|revisao
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
 
-// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
-// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
 async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
   await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
 }
 
 const edicao = (page) => page.locator('#dialogo-edicao');
@@ -218,7 +221,7 @@ test('4. informação aceita: o impacto lista o título, a confirmação é exig
   await expect(status(page)).toContainText('1 informação voltou para Em elaboração.');
   await irParaConteudo(page);
   await expect(blocoDa(page, 'Prazos de análise')).toContainText('Situação: Em elaboração');
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
 });
 
 test('5. versão concluída: Editar nome e tema fica indisponível com a orientação; na nova versão a edição vale', async ({ page }) => {

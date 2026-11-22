@@ -13,7 +13,7 @@ async function encerrarSessao(page) {
 }
 const escolherMaria = (page) => page.getByRole('radio', { name: /^Maria Silva — / }).check();
 
-// Passo 8C (só troca de usuário): concluir, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
+// Passo 8C/8D (só troca de usuário): validar, autorizar, publicar e revogar são do perfil Revisor (Carlos Silva, fictício); as demais
 // ações seguem com Maria Silva. A troca usa a rota da sessão (só a memória do servidor; nada é gravado) e recarrega a página de
 // revisão, que relê o usuário e reabre o serviço pela URL.
 async function trocarUsuarioNaRevisao(page, usuarioId, rotulo) {
@@ -35,13 +35,16 @@ const TECNICO = /rascunho|em_validacao|validado_materialmente|autorizado|fonte_e
 const botao = (page, nome) => page.getByRole('button', { name: nome, exact: true });
 const status = (page) => page.locator('#status');
 
-// Sprint 8, Passo 8D (fase 1, ajuste mecânico): validação material usada como preparação. Por enquanto faz o fluxo antigo
-// (troca para Carlos Silva, Revisor, e conclui a revisão); na fase 2 passará a enviar para revisão e validar.
+// Sprint 8, Passo 8D: validação material usada como preparação. Maria Silva (Cadastrante, sessão atual) envia para revisão;
+// depois a sessão passa a Carlos Silva (Revisor), que valida materialmente. Ao final, a sessão fica com Carlos (como antes).
 async function concluirComoRevisor(page) {
+  await botao(page, 'Enviar para revisão').click();
+  await botao(page, 'Confirmar envio').click();
+  await expect(status(page)).toContainText('Versão enviada para revisão.');
   await comoCarlos(page);
-  await botao(page, 'Concluir revisão').click();
-  await botao(page, 'Confirmar conclusão').click();
-  await expect(status(page)).toContainText('Revisão concluída.');
+  await botao(page, 'Validar materialmente').click();
+  await botao(page, 'Confirmar validação').click();
+  await expect(status(page)).toContainText('Validação material registrada');
 }
 
 const dlg = (page) => page.locator('#dialogo-editar-fonte');
@@ -254,7 +257,7 @@ test('4. editar fonte revisada: aviso antes de salvar, volta para revisão, info
   await expect(blocoDa(page, 'Prazos de análise')).toContainText('Situação: Em elaboração');
   expect(await conferirCoerencia(page)).toBeGreaterThan(0);
   await expect(page.locator('#servico-situacao')).toContainText('Revisão pendente');
-  await expect(botao(page, 'Concluir revisão')).toBeHidden();
+  await expect(botao(page, 'Enviar para revisão')).toBeHidden();
   // revisar e aceitar de novo zera as pendências
   await revisarFonte(page, 'Link Usado');
   await emInfos(page);
@@ -452,7 +455,7 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   // foco na primeira pendência, com a frase exata e a ação direta
   const primeira = page.locator('#pendencias li').first();
   await expect(primeira).toBeFocused();
-  await expect(primeira).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
+  await expect(primeira).toContainText('Inclua e aceite pelo menos uma informação para enviar para revisão.');
   await expect(page.locator('#passos-pendencias li')).toHaveCount(5);
   await expect(page.locator('#passos-pendencias')).toContainText('Aceitar a informação.');
   await page.getByRole('button', { name: 'Incluir informação (resolver pendência)' }).click();
@@ -482,10 +485,10 @@ test('8b. Resolver pendências: do painel ao foco na primeira pendência, ação
   await expect(botao(page, 'Resolver pendências')).toBeHidden();
   await expect(page.locator('#passos-pendencias')).toBeHidden();
   await expect(page.locator('#situacao-selo')).toBeHidden();
-  await expect(botao(page, 'Concluir revisão')).toBeVisible();
+  await expect(botao(page, 'Enviar para revisão')).toBeVisible();
   // de volta ao painel: sem pendências, sem "Resolver pendências"
   await irGestao(page).click();
-  await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para concluir.');
+  await expect(page.locator('#painel-resumo')).toContainText('Nenhuma pendência para enviar à revisão.');
   await expect(page.getByRole('link', { name: 'Resolver pendências' })).toBeHidden();
 });
 

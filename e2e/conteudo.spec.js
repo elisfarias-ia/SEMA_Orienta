@@ -23,6 +23,8 @@ const BLOCO = {
 const BLOCO_TESTE = { id: 'x-limites', tipo: 'limitacao', texto: 'Apenas orienta.', origem: 'regra_institucional', fonteIds: [], ambiente: 'teste_local', statusValidacao: 'em_validacao', publicado: false, revisaoAtualidade: 'pendente' };
 
 // Simulador da revisão: estado mínimo (fontes revisadas, informações aceitas, versão congelada) e revisão otimista em "rev-N".
+// Passo 8D: enviar (rascunho -> em_validacao), validar (-> validado_materialmente) e ajustes (-> ajustes_solicitados, com motivo).
+const ROTULO_DO_ESTADO = { rascunho: 'Em elaboração', em_validacao: 'Em análise', ajustes_solicitados: 'Ajustes solicitados' };
 function revisaoSimulada(estado) {
   const editavel = estado.versao === 'rascunho';
   const fontes = FONTES.map((f) => {
@@ -41,16 +43,18 @@ function revisaoSimulada(estado) {
   for (const b of blocos) if (!b.aceito) pendencias.push({ codigo: 'bloco_pendente', id: b.id, titulo: b.titulo });
   for (const f of fontes) if (f.usadaPorBloco && !f.revisada && !f.revogada) pendencias.push({ codigo: 'fonte_pendente', id: f.id, titulo: f.titulo });
   return {
-    servicoId: 'servico-ficticio', versaoId: 'servico-ficticio-v1', estadoVersao: estado.versao, rotulo: editavel ? 'Em elaboração' : 'Pronto para publicar', revisaoPendente: pendencias.length > 0,
+    servicoId: 'servico-ficticio', versaoId: 'servico-ficticio-v1', estadoVersao: estado.versao, rotulo: ROTULO_DO_ESTADO[estado.versao] ?? 'Pronto para publicar', revisaoPendente: pendencias.length > 0,
     editavel, revisao: `rev-${estado.rev}`, resumo: { fontesPendentes: fontes.filter((f) => !f.revisada && !f.revogada).length, informacoesPendentes: blocos.filter((b) => !b.aceito).length, informacoesAceitas: blocos.filter((b) => b.aceito).length },
-    fontes, blocos, pendencias, podeConcluir: editavel && pendencias.length === 0,
+    fontes, blocos, pendencias, podeEnviar: editavel && pendencias.length === 0,
+    podeValidar: estado.versao === 'em_validacao', podeSolicitarAjustes: estado.versao === 'em_validacao',
+    motivoAjustes: estado.versao === 'ajustes_solicitados' ? estado.motivo : null,
   };
 }
 
 const test = base.extend({
   violacoes: async ({}, usar) => { await usar([]); },
   servidor: async ({ page, violacoes }, usar) => {
-    const estado = { versao: 'rascunho', blocos: [], atraso: 0, erro: null, revisadas: [], aceitos: [], rev: 1, numero: 1 };
+    const estado = { versao: 'rascunho', blocos: [], atraso: 0, erro: null, revisadas: [], aceitos: [], rev: 1, numero: 1, motivo: null };
     const gravacoes = [];
     await page.route('**/*', (rota) => {
       const r = rota.request();
@@ -79,20 +83,28 @@ const test = base.extend({
         });
       }
       if (p === `${base}/revisao` && m === 'GET') return json(200, revisaoSimulada(estado));
+      // Passo 8D: a rota antiga de concluir não existe mais (o servidor real responde 404).
+      if (p === `${base}/revisao/concluir`) { gravacoes.push({ metodo: m, caminho: p }); return json(404, { erro: 'nao_encontrado' }); }
       if ((p.startsWith(`${base}/revisao/`) || p === `${base}/nova-versao`) && m === 'POST') {
         const corpo = r.postDataJSON();
         gravacoes.push({ metodo: m, caminho: p, corpo, tipo: r.headers()['content-type'], texto: r.postData() });
         if (estado.atraso) await new Promise((fim) => setTimeout(fim, estado.atraso));
         if (estado.erro) return json(estado.erro.status, estado.erro.corpo);
-        if (p.endsWith('/nova-versao')) { estado.versao = 'rascunho'; estado.numero += 1; estado.revisadas = []; estado.aceitos = []; estado.rev += 1; return json(201, { numero: estado.numero }); }
+        if (p.endsWith('/nova-versao')) { estado.versao = 'rascunho'; estado.numero += 1; estado.revisadas = []; estado.aceitos = []; estado.rev += 1; estado.motivo = null; return json(201, { numero: estado.numero }); }
         if (corpo.revisao !== `rev-${estado.rev}`) return json(409, { erro: 'revisao_divergente' });
-        if (estado.versao !== 'rascunho') return json(409, { erro: 'versao_congelada' });
-        estado.rev += 1;
+        const decisao = p.endsWith('/revisao/validar') || p.endsWith('/revisao/ajustes');
+        if (decisao && estado.versao !== 'em_validacao') return json(409, { erro: 'estado_invalido' });
+        if (!decisao && estado.versao !== 'rascunho') return json(409, { erro: 'versao_congelada' });
+        if (p.endsWith('/revisao/ajustes') && (typeof corpo.motivo !== 'string' || corpo.motivo.trim() === '')) return json(422, { erro: 'motivo_invalido' });
+        // A revisão (hash) não muda ao enviar, validar ou pedir ajustes: o conteúdo fica congelado.
+        if (!decisao && !p.endsWith('/revisao/enviar')) estado.rev += 1;
         if (p.endsWith('/revisao/fontes')) estado.revisadas.push(corpo.fonteId);
         else if (p.endsWith('/blocos/aceitar')) estado.aceitos.push(corpo.blocoId);
         else if (p.endsWith('/blocos/reabrir')) estado.aceitos = estado.aceitos.filter((id) => id !== corpo.blocoId);
         else if (p.endsWith('/blocos/rejeitar')) estado.blocos = estado.blocos.filter((b) => b.id !== corpo.blocoId);
-        else if (p.endsWith('/revisao/concluir')) estado.versao = 'validado_materialmente';
+        else if (p.endsWith('/revisao/enviar')) estado.versao = 'em_validacao';
+        else if (p.endsWith('/revisao/validar')) estado.versao = 'validado_materialmente';
+        else if (p.endsWith('/revisao/ajustes')) { estado.versao = 'ajustes_solicitados'; estado.motivo = corpo.motivo; }
         return json(200, { revisao: `rev-${estado.rev}` });
       }
       if (p.startsWith(`${base}/conhecimentos`)) {
@@ -311,12 +323,12 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
   });
 
   test('versão congelada: situação "Pronto para publicar", nenhuma ação de edição ou revisão e nenhum botão de publicação', async ({ page, servidor }) => {
-    await abrir(page, servidor, { blocos: [BLOCO], versao: 'em_validacao' });
+    await abrir(page, servidor, { blocos: [BLOCO], versao: 'validado_materialmente' });
     await expect(page.locator('#servico-situacao')).toContainText('Pronto para publicar');
     await expect(page.locator('#situacao-edicao')).toContainText('bloqueados');
     await expect(page.locator('#bloco-enviar')).toBeDisabled();
     await expect(page.locator('#cartao-form')).toBeHidden();
-    for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Concluir revisão$/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+    for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Enviar para revisão$/, /^Validar materialmente$/, /^Solicitar ajustes$/]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /publicar/i })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Criar nova versão para editar' })).toBeVisible();
     expect(servidor.gravacoes).toEqual([]);
@@ -368,12 +380,13 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     expect(servidor.gravacoes.every((g) => typeof g.corpo.revisao === 'string' && g.corpo.revisao.startsWith('rev-'))).toBe(true);
   });
 
-  test('concluir: pendências em frases comuns, botão só com tudo pronto, confirmação própria, congelamento e nova versão com {}', async ({ page, servidor }) => {
+  test('enviar e validar (8D): pendências em frases comuns, botão só com tudo pronto, confirmações próprias, em análise, validação e nova versão com {}', async ({ page, servidor }) => {
     await abrir(page, servidor, { blocos: [BLOCO] });
-    await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para concluir a revisão.');
+    await expect(page.locator('#titulo-conclusao')).toHaveText('Revisão e validação');
+    await expect(page.locator('#pendencias')).toContainText('Inclua e aceite pelo menos uma informação para enviar para revisão.');
     await expect(page.locator('#pendencias')).toContainText('A informação "Bloco existente" ainda não foi aceita nem excluída.');
     expect(await page.locator('#cartao-conclusao').innerText()).not.toMatch(/sem_bloco_aceito|bloco_pendente/);
-    await expect(page.getByRole('button', { name: 'Concluir revisão', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Enviar para revisão', exact: true })).toBeHidden();
     await page.locator('#aba-fontes').click();
     await page.getByRole('button', { name: 'Marcar como revisado: Fonte Um' }).click();
     await expect(page.locator('#status')).toContainText('marcado como revisado');
@@ -381,21 +394,35 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     await page.getByRole('button', { name: 'Aceitar informação: Bloco existente' }).click();
     await expect(page.locator('#status')).toContainText('Informação aceita.');
     await expect(page.locator('#pendencias')).toBeEmpty();
-    const concluir = page.getByRole('button', { name: 'Concluir revisão', exact: true });
-    await expect(concluir).toBeVisible();
-    await concluir.click();
+    const enviar = page.getByRole('button', { name: 'Enviar para revisão', exact: true });
+    await expect(enviar).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Validar materialmente', exact: true })).toBeHidden();
+    await enviar.click();
     const dialogo = page.getByRole('dialog');
-    await expect(dialogo).toContainText('Depois de concluir, esta versão não poderá mais ser editada. Para fazer novas alterações, será necessário criar uma nova versão.');
+    await expect(dialogo).toContainText('Depois de enviar, esta versão não poderá mais ser editada e aguardará a análise do Revisor. Para fazer novas alterações, será necessário criar uma nova versão.');
     await page.getByRole('button', { name: 'Voltar', exact: true }).click();
-    await expect(concluir).toBeFocused();
-    expect(servidor.gravacoes.some((g) => g.caminho.endsWith('/concluir'))).toBe(false);
-    await concluir.click();
-    await page.getByRole('button', { name: 'Confirmar conclusão' }).dblclick();
-    await expect(page.locator('#status')).toContainText('Revisão concluída.');
+    await expect(enviar).toBeFocused();
+    expect(servidor.gravacoes.some((g) => g.caminho.endsWith('/enviar'))).toBe(false);
+    await enviar.click();
+    await page.getByRole('button', { name: 'Confirmar envio' }).dblclick();
+    await expect(page.locator('#status')).toContainText('Versão enviada para revisão.');
     await expect(page.locator('#status')).toBeFocused();
-    expect(servidor.gravacoes.filter((g) => g.caminho.endsWith('/concluir'))).toHaveLength(1);
+    expect(servidor.gravacoes.filter((g) => g.caminho.endsWith('/revisao/enviar'))).toHaveLength(1);
+    // Em análise: bloqueada, sem nova versão; Validar e Solicitar ajustes aparecem.
+    await expect(page.locator('#servico-situacao')).toContainText('Em análise');
+    await expect(page.locator('#conclusao-pronta')).toContainText('aguarda a análise do Revisor');
+    await expect(page.getByRole('button', { name: 'Criar nova versão para editar' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Solicitar ajustes', exact: true })).toBeVisible();
+    for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Enviar para revisão$/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+    const validar = page.getByRole('button', { name: 'Validar materialmente', exact: true });
+    await validar.click();
+    await expect(page.getByRole('dialog')).toContainText('não equivale à validação material da CLABI');
+    await page.getByRole('button', { name: 'Confirmar validação' }).click();
+    await expect(page.locator('#status')).toContainText('Validação material registrada');
+    expect(servidor.gravacoes.filter((g) => g.caminho.endsWith('/revisao/validar')).map((g) => Object.keys(g.corpo))).toEqual([['revisao']]);
     await expect(page.locator('#servico-situacao')).toContainText('Pronto para publicar');
-    for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Concluir revisão$/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+    for (const nome of [/^Editar/, /^Aceitar/, /^Excluir/, /^Reabrir/, /^Marcar como revisado/, /^Enviar para revisão$/, /^Validar materialmente$/, /^Solicitar ajustes$/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+    expect(servidor.gravacoes.some((g) => g.caminho.endsWith('/concluir'))).toBe(false);
     await page.getByRole('button', { name: 'Criar nova versão para editar' }).click();
     await expect(page.locator('#status')).toContainText('Nova versão criada.');
     await expect(page.locator('#servico-situacao')).toContainText('Versão 2');
@@ -404,6 +431,64 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     expect(nova.caminho).toMatch(/\/nova-versao$/);
     expect(nova.texto).toBe('{}');
     expect(nova.tipo).toContain('application/json');
+  });
+
+  test('solicitar ajustes (8D): motivo obrigatório no diálogo, motivo exibido como texto, nova versão disponível e sem publicação', async ({ page, servidor }) => {
+    await abrir(page, servidor, { blocos: [BLOCO], versao: 'em_validacao' });
+    await expect(page.locator('#servico-situacao')).toContainText('Em análise');
+    await expect(page.getByRole('button', { name: 'Criar nova versão para editar' })).toBeHidden();
+    const ajustes = page.getByRole('button', { name: 'Solicitar ajustes', exact: true });
+    await ajustes.click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('a correção é feita numa nova versão');
+    const campo = page.getByLabel('Motivo dos ajustes');
+    await expect(campo).toHaveAttribute('maxlength', '500');
+    // Sem motivo: nada é enviado e o diálogo continua aberto, com o erro junto ao campo.
+    await page.getByRole('button', { name: 'Confirmar pedido de ajustes' }).click();
+    await expect(page.locator('#ajustes-motivo-erro')).toHaveText('Informe o motivo dos ajustes.');
+    await expect(campo).toHaveAttribute('aria-invalid', 'true');
+    await expect(campo).toBeFocused();
+    expect(servidor.gravacoes.some((g) => g.caminho.endsWith('/revisao/ajustes'))).toBe(false);
+    const motivo = 'Corrigir o prazo <b>fictício</b> da etapa 2.';
+    await campo.fill(`  ${motivo}  `);
+    await page.getByRole('button', { name: 'Confirmar pedido de ajustes' }).click();
+    await expect(page.locator('#status')).toContainText('Ajustes solicitados.');
+    const enviada = servidor.gravacoes.filter((g) => g.caminho.endsWith('/revisao/ajustes'));
+    expect(enviada.map((g) => g.corpo)).toEqual([{ motivo, revisao: 'rev-1' }]);
+    await expect(page.locator('#servico-situacao')).toContainText('Ajustes solicitados');
+    // O motivo aparece como texto (sem interpretar marcação) e a Cadastrante pode criar a nova versão.
+    await expect(page.locator('#ajustes-motivo')).toHaveText(`Motivo dos ajustes: ${motivo}`);
+    await expect(page.locator('#ajustes-motivo b')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Criar nova versão para editar' })).toBeVisible();
+    for (const nome of [/^Validar materialmente$/, /^Solicitar ajustes$/, /^Enviar para revisão$/, /publicar/i]) await expect(page.getByRole('button', { name: nome })).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toMatch(IDS_TECNICOS);
+    await page.getByRole('button', { name: 'Criar nova versão para editar' }).click();
+    await expect(page.locator('#status')).toContainText('Nova versão criada.');
+    await expect(page.locator('#ajustes-motivo')).toBeHidden();
+    await expect(page.locator('#servico-situacao')).toContainText('Em elaboração');
+  });
+
+  test('solicitar ajustes (8D): motivo recusado pelo servidor mantém o diálogo aberto, com o texto, o erro junto ao campo e o foco nele', async ({ page, servidor }) => {
+    await abrir(page, servidor, { blocos: [BLOCO], versao: 'em_validacao' });
+    servidor.estado.erro = { status: 422, corpo: { erro: 'motivo_invalido' } };
+    await page.getByRole('button', { name: 'Solicitar ajustes', exact: true }).click();
+    const campo = page.getByLabel('Motivo dos ajustes');
+    const digitado = 'Motivo fictício que o servidor recusa.';
+    await campo.fill(digitado);
+    await page.getByRole('button', { name: 'Confirmar pedido de ajustes' }).click();
+    await expect(page.locator('#ajustes-motivo-erro')).toContainText('Informe um motivo de até 500 caracteres');
+    await expect(page.locator('#dialogo-ajustes')).toBeVisible();
+    await expect(campo).toHaveAttribute('aria-invalid', 'true');
+    await expect(campo).toBeFocused();
+    await expect(campo).toHaveValue(digitado);
+    expect(servidor.gravacoes.filter((g) => g.caminho.endsWith('/revisao/ajustes'))).toHaveLength(1);
+    await expect(page.locator('#servico-situacao')).toContainText('Em análise');
+    // Corrigido, a segunda tentativa grava e fecha o diálogo.
+    servidor.estado.erro = null;
+    await page.getByRole('button', { name: 'Confirmar pedido de ajustes' }).click();
+    await expect(page.locator('#status')).toContainText('Ajustes solicitados.');
+    await expect(page.locator('#dialogo-ajustes')).toBeHidden();
+    await expect(page.locator('#servico-situacao')).toContainText('Ajustes solicitados');
   });
 
   test('conflito de revisão: mensagem comum, dados recarregados e nada de hash na tela', async ({ page, servidor }) => {
@@ -446,7 +531,7 @@ test.describe('Blocos de conhecimento (simulado, sem gravação real)', () => {
     servidor.estado.erro = { status: 409, corpo: { erro: 'versao_congelada', detalhe: 'SEGREDO-BRUTO' } };
     await page.getByRole('button', { name: 'Excluir informação: Bloco existente' }).click();
     await page.getByRole('button', { name: 'Confirmar exclusão' }).click();
-    await expect(page.locator('#status')).toContainText('já foi concluída e não pode mais ser editada');
+    await expect(page.locator('#status')).toContainText('já foi enviada para revisão e não pode mais ser editada');
     await expect(page.locator('#status')).toHaveAttribute('data-tipo', 'erro');
     await expect(page.locator('#status')).toBeFocused();
     await expect(page.getByRole('dialog')).toBeHidden();

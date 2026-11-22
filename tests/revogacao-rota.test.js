@@ -69,7 +69,8 @@ async function enviarBruto(m, { url, method = 'POST', corpo, token } = {}) {
 // Passo 8C (ajuste mecânico, só troca de usuário): concluir, autorizar, publicar e revogar são do Revisor. Nestes testes o token
 // é fixo (TOKEN_FIXO) e, antes dessas rotas, a sessão passa a Carlos Silva; depois volta a Maria Silva. As verificações não mudam.
 const TOKEN_FIXO = 'c'.repeat(64);
-const ROTA_DO_REVISOR = /\/(revisao\/concluir|autorizacao|publicacao|revogacao)$/;
+// Passo 8D: validar e pedir ajustes também são do Revisor; o envio para revisão é da Cadastrante (sessão padrão, Maria).
+const ROTA_DO_REVISOR = /\/(revisao\/validar|revisao\/ajustes|autorizacao|publicacao|revogacao)$/;
 const entrarComo = (m, usuarioId) => enviarBruto(m, { url: ROTA_SESSAO, corpo: { usuarioId } });
 async function enviar(m, opcoes = {}) {
   const { method = 'POST' } = opcoes;

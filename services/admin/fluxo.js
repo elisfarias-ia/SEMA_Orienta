@@ -52,10 +52,11 @@ export const conteudoEditavel = (estado) => estado === 'rascunho';
 export const exigeNovaVersaoParaAlterar = (estado) => estadoVersaoValido(estado) && estado !== 'rascunho';
 
 // Tabela PURA das ações humanas da versão e dos estados em que cada uma é permitida (Sprint 5, Passo 5A). Revisão e autorização
-// são ações separadas; publicar é outra. "concluir_revisao" congela a versão e calcula o hash. "nova_versao" não muda a versão
+// são ações separadas; publicar é outra. "enviar_para_revisao" (Cadastrante) congela a versão e calcula o hash; "validar_materialmente"
+// e "solicitar_ajustes" (Revisor) decidem sobre ela (Sprint 8, Passo 8D). "nova_versao" não muda a versão
 // de origem: cria outra, que nasce em rascunho.
 export const ACOES_DA_VERSAO = Object.freeze({
-  concluir_revisao: Object.freeze({ de: Object.freeze(['rascunho']), para: 'em_validacao' }),
+  enviar_para_revisao: Object.freeze({ de: Object.freeze(['rascunho']), para: 'em_validacao' }),
   solicitar_ajustes: Object.freeze({ de: Object.freeze(['em_validacao']), para: 'ajustes_solicitados' }),
   validar_materialmente: Object.freeze({ de: Object.freeze(['em_validacao']), para: 'validado_materialmente' }),
   autorizar_publicacao: Object.freeze({ de: Object.freeze(['validado_materialmente']), para: 'autorizado_publicacao' }),

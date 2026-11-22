@@ -7,7 +7,8 @@
 //   - aceitarBloco: bloco de conhecimento em elaboração, com fontes existentes, revisadas e não revogadas, passa a validado com
 //     revisão concluída, ainda NÃO publicado; o texto original em entradas.json não é tocado;
 //   - rejeitarBloco: remove bloco de conhecimento ainda em rascunho (a fonte e a entrada original ficam);
-//   - avaliarPendencias / situacaoDaRevisao: o que falta para concluir a revisão.
+//   - avaliarPendencias / situacaoDaRevisao: o que falta para enviar a versão para revisão (Sprint 8, Passo 8D: o envio é da
+//     Cadastrante; validar ou pedir ajustes é do Revisor, sobre a versão já enviada e congelada).
 // Blocos `teste_local` e os demais tipos nunca participam. Resultado: { ok: true, ... } ou { ok: false, erro, ... } (códigos,
 // nunca conteúdo).
 
@@ -46,7 +47,11 @@ export const CAMPOS_DA_ACAO = Object.freeze({
   aceitar_bloco: Object.freeze(['blocoId', 'revisao']),
   rejeitar_bloco: Object.freeze(['blocoId', 'revisao']),
   reabrir_bloco: Object.freeze(['blocoId', 'revisao']),
-  concluir_revisao: Object.freeze(['revisao']),
+  // Sprint 8, Passo 8D: concluir_revisao deu lugar a três ações. O motivo dos ajustes é texto livre: aqui só se apara; o conteúdo
+  // (obrigatório, até 500 caracteres, sem e-mail, telefone, CPF ou credencial) é conferido uma única vez, por decisoes.js.
+  enviar_para_revisao: Object.freeze(['revisao']),
+  validar_materialmente: Object.freeze(['revisao']),
+  solicitar_ajustes: Object.freeze(['revisao', 'motivo']),
   nova_versao: Object.freeze([]),
 });
 
@@ -58,9 +63,11 @@ export function validarCorpoDaAcao(acao, corpo) {
   const campos = [];
   if (Object.keys(corpo).some((k) => !permitidos.includes(k))) campos.push('extras');
   for (const campo of permitidos) {
+    if (campo === 'motivo') continue;
     if (campo === 'revisao' ? typeof corpo.revisao !== 'string' || !PADRAO_REVISAO.test(corpo.revisao) : !idValido(corpo[campo])) campos.push(campo);
   }
-  return campos.length ? { ok: false, campos } : { ok: true, dados: Object.fromEntries(permitidos.map((c) => [c, corpo[c]])) };
+  const valor = (c) => (c === 'motivo' && typeof corpo.motivo === 'string' ? corpo.motivo.trim() : corpo[c]);
+  return campos.length ? { ok: false, campos } : { ok: true, dados: Object.fromEntries(permitidos.map((c) => [c, valor(c)])) };
 }
 
 /** Entradas íntegras: hash de cada texto confere e há 1:1 com as fontes textuais. Lista de erros (vazia = íntegras). */
@@ -70,7 +77,7 @@ function errosDeEntradas(arquivos, servicoId) {
 }
 
 /**
- * Pendências para concluir a revisão (somente códigos e títulos de itens da própria administração):
+ * Pendências para enviar a versão para revisão (somente códigos e títulos de itens da própria administração):
  *   sem_bloco_aceito, bloco_pendente, fonte_pendente, fonte_revogada, fonte_inexistente, entrada_invalida.
  * Considera só blocos de conhecimento; teste_local e demais tipos não participam.
  */
@@ -99,8 +106,10 @@ export function avaliarPendencias(arquivos, servicoId) {
 /**
  * Situação da revisão para a consulta: estado da versão, o que pode ser feito e as pendências. Os itens trazem só título,
  * situação e se podem ser revisados ou aceitos; nada do texto original das entradas.
+ * Sprint 8, Passo 8D: `motivoAjustes` (o motivo da decisão de ajustes desta versão, lido do histórico privado) só é devolvido
+ * quando a versão está em ajustes_solicitados. É a ÚNICA resposta que pode conter o motivo (GET local, com token).
  */
-export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao }) {
+export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao, motivoAjustes = null }) {
   const editavel = conteudoEditavel(manifesto.estado);
   const fontes = mapaDeFontes(arquivos);
   const blocos = listaDe(arquivos.conteudoAssistente, 'blocos').filter(ehConhecimento);
@@ -159,7 +168,12 @@ export function situacaoDaRevisao({ servicoId, manifesto, arquivos, revisao }) {
       };
     }),
     pendencias,
-    podeConcluir: editavel && pendencias.length === 0,
+    // Sprint 8, Passo 8D: o envio (Cadastrante) só em elaboração e sem pendências; validar e pedir ajustes (Revisor) só na versão
+    // enviada cujo conteúdo em disco ainda é o que foi enviado (hash do manifesto = revisão atual).
+    podeEnviar: editavel && pendencias.length === 0,
+    podeValidar: manifesto.estado === 'em_validacao' && manifesto.hashConteudo === revisao && pendencias.length === 0,
+    podeSolicitarAjustes: manifesto.estado === 'em_validacao' && manifesto.hashConteudo === revisao,
+    motivoAjustes: manifesto.estado === 'ajustes_solicitados' && typeof motivoAjustes === 'string' && motivoAjustes.trim() !== '' ? motivoAjustes : null,
   };
 }
 
