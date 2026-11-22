@@ -252,6 +252,15 @@ As duas camadas usam a mesma análise (`analisarAlteracoes`, em `scripts/hooks/p
 - **B2R:** a mudança para `revogado` não exige autorização registrada, mas precisa ser coerente (`verificarRevogacaoDoManifesto`): só se revoga versão publicada; `publicadoEm` e `revogadoEm` válidos, com `revogadoEm` não anterior a `publicadoEm`; `revogadoEm` não aparece em outro estado. Uma versão revogada nunca volta a outro estado, nem com autorização. Sempre que o commit (ou a PR) toca o registro ou um manifesto, o registro como fica depois da mudança não pode apontar para versão revogada (`verificarRegistroContraRevogadas`).
 - **B1R:** a remoção de `services/<serviço>/publico/conteudo-<hash16>.json` só é aceita quando alguma versão do serviço, como fica depois da mudança, está revogada e tem esse hash (`verificarRemocaoPublica`). Para isso, a análise recebe `listarDepois`: no pre-commit, `git ls-files` da área de preparação; na PR, `git ls-tree` do último commit. Sem essa função, a remoção é recusada; se a listagem falhar, B0.
 
+### Verificação da PR a partir do commit base (Issue #31, item 1; nesta branch, ainda não integrada)
+
+A verificação da PR deixa de executar o código da própria PR. Dois workflows:
+
+- `.github/workflows/protecao-base.yml` (`pull_request_target`, `contents: read`, sem segredos): faz o checkout do **commit base** (`base.sha`), busca o head da PR só como dado (`refs/pull/<n>/head`, número por variável de ambiente) e roda `node scripts/hooks/verificar-pr.js --sem-build "$BASE_SHA" "$HEAD_SHA"` com o código do base. Não há checkout do head, `npm`, `setup-node` nem cache; `tests/hook-verificar-pr.test.js` (V7) confere isso lendo o texto do arquivo.
+- `.github/workflows/protecao-pr.yml` (`pull_request`): build, `npm test`, `validate:services` e `check-dist` com o código da PR, sem segredos (cobre o B5). Mantém o nome do job usado como check obrigatório.
+
+No código: `analisarAlteracoes` (`scripts/hooks/pre-commit.js`) ganha o parâmetro opcional `lerAutorizacoes` (padrão `lerDepois`, então o pre-commit local não muda); `analisarPr` (`scripts/hooks/verificar-pr.js`) o preenche com `git show <base>:.githooks/publicacoes-autorizadas.json`. `verificar-pr.js` também aceita `--sem-build` e implementa a B6 informativa (`caminhosProtegidosAlterados`, com `ehCaminhoProtegido` de `scripts/hooks/regras.js`): aviso e `protegidos=true` em `$GITHUB_OUTPUT`, sem alterar o código de saída. `.github/CODEOWNERS` lista os mesmos caminhos protegidos. Limites e configuração no GitHub (fora do Git): `docs/ADMINISTRACAO.md`.
+
 ### Ator como parâmetro e responsáveis públicos (Sprint 7, Passo 7C)
 
 - **Ator** (`services/admin/atores.js`): `{ usuarioId, perfil, setor }`, que precisa ser exatamente um dos usuários da lista fixa `USUARIOS_AUTORIZADOS`. Nesta Sprint a lista só tem o ator de demonstração (`servidor-demonstracao`, perfil `demonstracao`, setor "Ambiente local de demonstração"); os perfis previstos são `demonstracao`, `cadastrante` e `revisor`, e a Sprint 8 acrescenta os usuários fictícios do login simulado. Sem ator informado, vale o de demonstração. O ator não comprova identidade.

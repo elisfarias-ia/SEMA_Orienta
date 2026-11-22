@@ -1,0 +1,48 @@
+# Regras de proteção executadas a partir do commit BASE (Issue #31, item 1).
+#
+# Problema que resolve: no workflow protecao-pr.yml (evento pull_request) o código verificado é o da própria PR, então uma PR
+# poderia afrouxar as regras, o workflow ou o arquivo de autorizações e passar. Aqui o evento é pull_request_target: o workflow e os
+# scripts que rodam são os do commit base (o main), nunca os da PR.
+#
+# CONDIÇÃO OBRIGATÓRIA deste arquivo, conferida por tests/hook-verificar-pr.test.js (V7):
+#   - nenhum checkout do head da PR e nenhuma execução de código da PR (o head é buscado só como DADO, para o git diff);
+#   - sem segredos, só permissão de leitura, sem instalar dependências e sem cache;
+#   - valores do evento (github.event.*) entram só por variável de ambiente, nunca dentro de um comando de shell.
+#
+# O B5 (build com conteúdo administrativo ou de teste) não roda aqui, porque executaria código da PR: por isso --sem-build.
+# Ele é coberto pelo passo de build e check-dist do protecao-pr.yml.
+# Para exigir este check, o ruleset do main precisa listar "Regras de proteção do commit base" (configuração da dona no GitHub,
+# fora do Git; ver docs/ADMINISTRACAO.md).
+
+name: Proteção do commit base
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  regras-base:
+    name: Regras de proteção do commit base
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout do commit base (nunca do head da PR)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Buscar o head da PR só como dado (sem checkout e sem executar nada dele)
+        env:
+          NUMERO_DA_PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/${NUMERO_DA_PR}/head:refs/remotes/pr/head"
+
+      - name: Regras B0 a B4 e aviso B6, com os scripts e as autorizações do commit base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/hooks/verificar-pr.js --sem-build "$BASE_SHA" "$HEAD_SHA"

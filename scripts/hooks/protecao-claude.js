@@ -12,7 +12,7 @@
 //   A2  comando que apague, mova, sobrescreva ou crie arquivo nesses mesmos caminhos;
 //   A3  git push forçado;
 //   A4  git add de caminho proibido, git add -f, git add . / -A / --all;
-//   A5  alterar o próprio hook, as configurações do Claude Code ou o arquivo de liberação;
+//   A5  alterar o próprio hook, as configurações do Claude Code, o arquivo de liberação ou os fluxos e a titularidade do GitHub (.github/);
 //   A6  aviso ao fim da resposta (não bloqueia);
 //   A7  git commit --no-verify / -n e desativação de hooks com git -c core.hooksPath.
 //   A0  pedido que não pode ser interpretado (JSON inválido, sem ferramenta, caminho ou comando): bloqueado por padrão.
@@ -31,7 +31,7 @@ export const PRAZO_MAXIMO_MS = 2 * 60 * 60 * 1000;
 const PASTAS_DE_CODIGO_EM_SERVICES = new Set(['admin', 'schemas']);
 const DADOS_NA_RAIZ_DE_SERVICES = new Set(['registry.json', 'assuntos.json']);
 const CAMINHOS_DO_HOOK = ['.claude/settings.json', '.claude/settings.local.json', ARQUIVO_LIBERACAO];
-const PASTAS_DO_HOOK = ['scripts/hooks', '.githooks'];
+const PASTAS_DO_HOOK = ['scripts/hooks', '.githooks', '.github'];
 
 export const MENSAGENS = Object.freeze({
   A0: 'Bloqueado: não foi possível validar esta ação. Tente novamente ou peça liberação.',

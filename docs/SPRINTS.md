@@ -164,6 +164,13 @@ A avaliação do professor motivou este replanejamento. As Sprints 6 a 8 antes p
 - **Hook e pendência:** a regra B2S está implementada no pre-commit e na verificação da PR (`scripts/hooks/regras.js`) e coberta pelos testes RV10 a RV12 (`tests/hook-revogacao.test.js`); o validador da base (`scripts/validate-services.js`) confere a base como ela está gravada. Pendência não bloqueante: nem o validador nem o hook conferem a existência de `substituidaPor` (ver `docs/BACKLOG.md`).
 - **Sem conferência manual:** não há roteiro executado nem registro de teste manual para esta correção (`docs/TESTES_MANUAIS.md` não foi alterado).
 
+## Correção após a Sprint 8 — Issue #31, item 1 (verificação da PR a partir do commit base; em andamento)
+
+- **Escopo implementado nesta branch** (`fix/revisao-31-item-1-verificacao-pr`, ainda não integrada): workflow `.github/workflows/protecao-base.yml` (`pull_request_target`, só leitura, sem segredos, sem checkout do head e sem executar código da PR); autorização de publicação lida do commit base (publicar passa a exigir duas PRs); regra B6 informativa; `.github/CODEOWNERS`; `.github` na regra A5; `protecao-pr.yml` reduzido a build, testes, `validate:services` e `check-dist`. Testes em `tests/hook-verificar-pr.test.js` (V7 a V12) e `tests/hook-claude.test.js` (H9b).
+- **Pendências fora do Git:** a usuária copia os 4 arquivos de `scripts/hooks/` (regra A5), integra a PR, adiciona o check novo ao ruleset e configura CODEOWNERS e bypass da dona no GitHub. Nada disso está ativo.
+- **Limites:** `npm ci`, `npm test`, build e `check-dist` ainda executam código da PR (sem segredos); mudar teste e regra juntos passa; a PR da correção é verificada pelo workflow antigo; a dona é autora e revisora únicas; ruleset e CODEOWNERS ativo não são versionados.
+- **Sem conferência manual:** o roteiro das PRs descartáveis está em `docs/TESTES_MANUAIS.md` e **não foi executado**.
+
 ## Sprint 9 — Prova técnica do ciclo editorial (planejada, não iniciada)
 
 - **Objetivo:** demonstrar publicação → resposta → revogação com dados sintéticos em ambiente isolado, usando os perfis.

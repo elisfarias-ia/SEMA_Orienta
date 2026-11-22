@@ -153,6 +153,16 @@ test('H9. A5: o assistente não altera o hook, as configurações nem a liberaç
   assert.equal(gravar(em('.claude', 'agents', 'novo.md')).bloquear, false);
 });
 
+test('H9b. A5: o assistente também não altera .github/ (fluxos e CODEOWNERS), mas edita arquivos parecidos (Issue #31, item 1)', () => {
+  for (const alvo of [em('.github', 'workflows', 'x.yml'), em('.github', 'workflows', 'protecao-base.yml'), em('.github', 'CODEOWNERS'), em('.github', 'pull_request_template.md')]) {
+    assert.equal(regra(gravar(alvo)), 'A5', alvo);
+    assert.equal(regra(editar(alvo)), 'A5', alvo);
+  }
+  assert.equal(regra(comando('rm .github/CODEOWNERS')), 'A5');
+  assert.equal(regra(comando('echo x > .github/workflows/x.yml')), 'A5');
+  for (const alvo of [em('.githubx', 'x.yml'), em('docs', '.github', 'x.md'), em('.github-copia', 'x.yml')]) assert.equal(gravar(alvo).bloquear, false, alvo);
+});
+
 test('H10. A7: commit sem hooks e desativação de hooks', () => {
   for (const c of ['git commit --no-verify -m "x"', 'git commit -n -m x', 'git commit -nm "x"', 'git commit -anm x',
     'git -c core.hooksPath=/dev/null commit -m x', 'git config core.hooksPath /tmp', 'git -c core.hookspath= commit -m x']) {

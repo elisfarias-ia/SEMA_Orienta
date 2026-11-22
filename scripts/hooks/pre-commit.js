@@ -63,9 +63,11 @@ export function arquivosPreparados(git) {
 // verificação da PR no GitHub (diferença entre o main e a PR), para que as duas sigam exatamente a mesma lógica.
 //   arquivos: [{ status, caminho }]; lerAntes/lerDepois(caminho): texto ou null; diffDoArquivo(caminho): saída do git diff -U0;
 //   listarDepois(prefixo): caminhos que existem depois da mudança sob o prefixo (Sprint 7, Passo 7D; sem ela, remoção de arquivo
-//   público é recusada).
-export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquivo, listarDepois = () => [], executarBuild: build = () => true }) {
-  const autorizacoes = validarAutorizacoes(lerDepois(ARQUIVO_AUTORIZACOES));
+//   público é recusada);
+//   lerAutorizacoes(caminho): texto do arquivo de autorizações (Issue #31, item 1). Por padrão é lerDepois: no pre-commit local a
+//   autorização entra no mesmo commit da publicação. Na PR (verificar-pr.js) é lida do commit BASE, para que a PR não se autorize.
+export function analisarAlteracoes({ arquivos, lerAntes, lerDepois, diffDoArquivo, listarDepois = () => [], lerAutorizacoes = lerDepois, executarBuild: build = () => true }) {
+  const autorizacoes = validarAutorizacoes(lerAutorizacoes(ARQUIVO_AUTORIZACOES));
   if (!autorizacoes.ok) return [{ regra: 'B0', arquivo: ARQUIVO_AUTORIZACOES }];
   const { publicacoes } = autorizacoes;
 

@@ -486,3 +486,17 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | DM-M08 | Carlos revoga com motivo; perguntar no chat | "Publicação revogada."; o chat deixa de trazer o texto; o arquivo em `services/lac/publico/` continua no disco | não executado |
 | DM-M09 | Repetir DM-M03 e DM-M06 em 390 px e com texto a 200% | Sem rolagem horizontal; mensagens e descrições legíveis | não executado |
 | DM-M10 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
+
+### Roteiro — PRs descartáveis para a proteção da PR (Issue #31, item 1) — **não executado**
+
+Roteiro para a usuária, no GitHub, **depois** de: copiar os 4 arquivos de hook, integrar a correção, adicionar o check "Regras de proteção do commit base" ao ruleset e configurar o CODEOWNERS (tudo fora do Git; nada disso foi feito ou conferido). Nada aqui foi executado ou aprovado. Cada PR é **descartável**: abrir a partir do `main`, olhar os checks e **fechar sem integrar**, apagando o branch. Usar só valores fictícios (hash inventado, sem dados reais).
+
+| Id | Ação (PR descartável) | Resultado esperado | Situação |
+|---|---|---|---|
+| PB-M01 | PR comum: mudar só uma linha de um arquivo de `docs/` | Os dois checks passam; nenhum aviso B6 | não executado |
+| PB-M02 | PR que altera o workflow: em `.github/workflows/protecao-base.yml`, trocar a regra por `run: echo ok` (ou remover o passo do verificador) | O check "Regras de proteção do commit base" roda com o workflow do **main**, não com o da PR; aviso B6 (caminho protegido); a PR pede a revisão da dona (CODEOWNERS) e não pode ser integrada sem ela | não executado |
+| PB-M03 | PR que mexe na autorização: acrescentar entrada fictícia em `.githooks/publicacoes-autorizadas.json` **e** um arquivo `services/lac/publico/conteudo-<16 primeiros caracteres do hash fictício>.json` | O check do commit base falha com B1 (a PR não se autoriza, porque a autorização é lida do base); aviso B6 | não executado |
+| PB-M04 | PR só com a entrada fictícia de autorização (sem arquivo público) | O check do commit base passa, com aviso B6 e pedido de revisão da dona (primeira das duas PRs da publicação) | não executado |
+| PB-M05 | PR que afrouxa a regra: em `scripts/hooks/regras.js`, fazer a B1 sempre passar, e incluir um arquivo em `services/lac/publico/` sem autorização | O check do commit base falha com B1 (roda o `regras.js` do main); aviso B6 | não executado |
+| PB-M06 | Conferir nos logs de "Regras de proteção do commit base": o passo de checkout e o `git fetch` | Checkout do commit base (não do head); nenhum `npm`; nenhum segredo disponível | não executado |
+| PB-M07 | Ao final, fechar as PRs sem integrar, apagar os branches e conferir `git status` na cópia local | Nada de `services/` nem `data/` alterado | não executado |

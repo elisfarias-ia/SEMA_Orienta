@@ -1,7 +1,10 @@
-# Verificação de proteção em toda PR (Sprint 6, Passo 6D; Issue #19).
-# Repete as regras B0 a B5 do pre-commit local (scripts/hooks/regras.js) sobre a diferença entre o main e a PR,
-# fechando a brecha de quem pula o hook local ou não o ativou, e roda a verificação completa do projeto.
-# Sem segredos e só com permissão de leitura; o evento pull_request não expõe segredos a PRs de forks.
+# Verificação completa do projeto em toda PR (Sprint 6, Passo 6D; Issue #19; Issue #31, item 1).
+# As regras de proteção B0 a B4 (e o aviso B6) deixaram este workflow: agora rodam em protecao-base.yml, a partir do commit base,
+# para que uma PR não consiga afrouxá-las. O B5 (build sem conteúdo administrativo ou de teste) é coberto aqui, pelo passo de build
+# seguido de check-dist.
+# ATENÇÃO: este workflow AINDA executa código da PR (npm ci, build, npm test, check-dist). Por isso roda sem segredos, só com
+# permissão de leitura, e o evento pull_request não expõe segredos a PRs de forks. O nome do job foi mantido de propósito: é o check
+# obrigatório do ruleset do main.
 
 name: Proteção da PR
 
@@ -31,12 +34,6 @@ jobs:
 
       - name: Instalar dependências (npm ci)
         run: npm ci
-
-      - name: Regras B0 a B5 (as mesmas do pre-commit)
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/hooks/verificar-pr.js "$BASE_SHA" "$HEAD_SHA"
 
       # O build vem antes dos testes para que os testes que conferem o dist/ também rodem aqui.
       - name: Build de produção
