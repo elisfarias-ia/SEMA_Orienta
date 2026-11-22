@@ -52,7 +52,7 @@ Situação em 21/11/2026, conferida nos arquivos do repositório (`main` em `2ea
 | Cenário de demonstração ponta a ponta (cadastro, recusa por perfil pela tela e por pedido direto, ajustes, validação, autorização, publicação e revogação) | Implementado como teste automatizado real (Sprint 8, Passo 8E; Issue #30), com cópia temporária e dados fictícios; conferência manual não executada | `e2e-real/demonstracao-ponta-a-ponta-real.spec.js`, `e2e-real/zz-base-real.spec.js`; `docs/TESTES_MANUAIS.md` |
 | Auditoria com usuário, perfil, setor, ação, resultado, horário e tentativas negadas | Implementado no ambiente local (Sprint 8, Passo 8C), em `data/admin-private/`, fora do Git; auditoria persistente institucional fica para a preparação institucional | `services/admin/historico-revisao.js`, `services/admin/acoes-das-rotas.js`; `tests/permissoes-aplicadas-endpoint.test.js`, `tests/acoes-das-rotas.test.js` |
 | Saúde do sistema | Implementado | `services/admin/saude.js`, `admin/saude/`; `tests/admin-saude*.test.js`, `e2e/saude.spec.js` |
-| Validação material real (autora e CLABI) | Planejado (Sprint 11) | — |
+| Validação material real (Revisor com autoridade da CLABI, dentro do sistema) | Planejado (Sprint 11) | — |
 
 ## Build, testes e engenharia assistida
 

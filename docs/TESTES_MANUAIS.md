@@ -272,7 +272,7 @@ Resultados **automatizados**. A conferência manual dos passos 5B3b, 5B3c e 5C *
 | `node scripts/check-dist.js` | limpo (151 termos) |
 | Auditorias 5B3a, 5B3b, 5B3c, 5C e final | final aprovada, sem bloqueantes nem importantes |
 
-A "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e não equivale à validação material pela área competente da SEMA. Nenhuma publicação real foi criada; a LAC segue não publicada.
+A "autorização" do MVP é feita pelo "Servidor de demonstração", sem identidade real, e não é validação real: é local, feita por usuário fictício e sem autenticação; a validação material real será feita por Revisor com autoridade da CLABI. Nenhuma publicação real foi criada; a LAC segue não publicada.
 
 ### Execução — importação de conteúdo existente (Sprint 5, ajuste do 5B3c)
 
@@ -415,7 +415,7 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | FR-M05 | Informar um motivo com e-mail ou telefone fictício e confirmar | Mensagem de motivo inválido; nada muda | não executado |
 | FR-M06 | Informar um motivo válido e confirmar | A situação vira "Ajustes solicitados"; o motivo não aparece em `services/` nem em `data/admin-private/revisao/`, só em `data/admin-private/decisoes/` | não executado |
 | FR-M07 | Trocar para Maria | O motivo aparece como texto ("Motivo dos ajustes: …"), com "Criar nova versão para editar" | não executado |
-| FR-M08 | Criar a nova versão, revisar, aceitar e enviar de novo; trocar para Carlos e validar | A validação mostra o aviso de que não equivale à validação material da CLABI; ao confirmar, "Pronto para publicar" e o cartão de autorização | não executado |
+| FR-M08 | Criar a nova versão, revisar, aceitar e enviar de novo; trocar para Carlos e validar | A validação mostra o aviso "não equivale à validação material da CLABI" (na prática: não é validação real, é local, feita por usuário fictício e sem autenticação); ao confirmar, "Pronto para publicar" e o cartão de autorização | não executado |
 | FR-M09 | Conferir o manifesto em "Em análise" e em "Ajustes solicitados" só com `git diff` (sem `git add` nem commit) e, em seguida, restaurar pelo Git (`git restore services/ data/`) | O `git diff` mostra só estado, hash, `enviadaEm` e `responsaveis` (perfil e setor), sem motivo; pela regra do hook, esses estados não seriam barrados (coerente: não há validação nem publicação neles) e `validado_materialmente` continua protegido; nenhum commit é feito neste roteiro | não executado |
 | FR-M10 | Ao final, `git status` | Restaurar pelo Git `services/` e `data/`, salvo autorização para manter | não executado |
 
@@ -437,7 +437,7 @@ O `zz-base-real.spec.js` confere por hash que a pasta `services/` real não mudo
 | 0. Preparo | A cópia não tem conteúdo publicado da LAC (nenhum arquivo em `publico/`, registro com `publicado: false`); o chat não indica arquivo público (`meta conteudo-publico` ausente), mostra a faixa "Modo de teste local — conteúdo em validação, não oficial." e a pergunta com o termo fictício não traz o texto. |
 | 1. Maria cadastra e envia | Texto e informação fictícios incluídos, fonte revisada, informação aceita e "Enviar para revisão" confirmado; situação "Em análise". |
 | 2. Maria tenta validar pela tela | "Validar materialmente" visível, focável (sem `disabled`), com `aria-disabled="true"` e `aria-describedby` apontando para a ajuda; o clique só mostra em `#status` "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; nenhum `POST /revisao/validar` enviado; nenhuma linha nova em `negadas/`. |
-| 3. Ajustes, correção e validação | Carlos pede ajustes com motivo; Maria vê "Motivo dos ajustes: …", cria a nova versão, revisa, aceita e reenvia; Carlos valida (o diálogo avisa que não equivale à validação material da CLABI), situação "Pronto para publicar", e autoriza ("Publicação autorizada."). |
+| 3. Ajustes, correção e validação | Carlos pede ajustes com motivo; Maria vê "Motivo dos ajustes: …", cria a nova versão, revisa, aceita e reenvia; Carlos valida (o diálogo avisa que "não equivale à validação material da CLABI"; na prática, não é validação real), situação "Pronto para publicar", e autoriza ("Publicação autorizada."). |
 | 4. Maria tenta publicar | Pela tela: "Publicar" visível, com `aria-disabled` e a mesma descrição; o clique só mostra a mensagem; nenhum `POST /publicacao`; nenhuma linha nova em `negadas/`. Por pedido direto (`POST /__admin/servicos/lac/publicacao` com o token de Maria e um corpo com marcador fictício): resposta 403 com o corpo exato `{"erro":"perfil_sem_permissao"}`; hash de `services/` da cópia igual antes e depois; exatamente uma linha nova em `negadas/historico.jsonl`, com as chaves e os valores do extrato abaixo e sem nome, título, termo, URL nem marcador. |
 | 5. Carlos publica | "Versão publicada."; registro com `publicado: true` e `versaoPublicadaId` igual à versão nova; arquivo `services/lac/publico/conteudo-<hash16>.json` criado; o chat traz o texto e indica esse arquivo; a faixa de teste local some. |
 | 6. Carlos revoga | Motivo informado; "Publicação revogada."; registro com `publicado: false` e `versaoPublicadaId: null`; o chat deixa de trazer o texto, o `meta conteudo-publico` some e a faixa de teste local volta; o arquivo de `publico/` continua no disco, mas o servidor responde 404 a ele. |
@@ -480,7 +480,7 @@ Roteiro para conferência manual com `npm run dev` (sem `--host`). Nada aqui foi
 | DM-M02 | Como Maria, na LAC, incluir um texto e uma informação fictícios, revisar, aceitar e enviar para revisão | Situação "Em análise" | não executado |
 | DM-M03 | Ainda como Maria, focar "Validar materialmente" com Tab, ouvir com leitor de tela e apertar Enter | Anunciado como indisponível, com "Esta ação é feita pelo perfil Revisor. Você entrou como Cadastrante."; a mesma frase aparece na área de status; nada é gravado | não executado |
 | DM-M04 | Trocar para Carlos e pedir ajustes com motivo; trocar para Maria | Maria vê "Motivo dos ajustes: …" e "Criar nova versão para editar" | não executado |
-| DM-M05 | Maria cria a nova versão, revisa, aceita e reenvia; Carlos valida e autoriza | Aviso de que a validação não equivale à validação material da CLABI; "Publicação autorizada." | não executado |
+| DM-M05 | Maria cria a nova versão, revisa, aceita e reenvia; Carlos valida e autoriza | Aviso "não equivale à validação material da CLABI" (na prática, não é validação real: é local, feita por usuário fictício e sem autenticação); "Publicação autorizada." | não executado |
 | DM-M06 | Trocar para Maria e focar "Publicar" | Visível, focável e indisponível, com a mesma descrição; o clique não publica | não executado |
 | DM-M07 | Trocar para Carlos e publicar; perguntar no chat | "Versão publicada."; o chat traz o texto fictício e a faixa de teste some | não executado |
 | DM-M08 | Carlos revoga com motivo; perguntar no chat | "Publicação revogada."; o chat deixa de trazer o texto; o arquivo em `services/lac/publico/` continua no disco | não executado |

@@ -140,7 +140,7 @@ Cancelado por decisão da usuária: o SEMA Check foi retirado do projeto e não 
 
 - [ ] executar testes manuais e corrigir falhas;
 - [ ] verificar acessibilidade e responsividade;
-- [ ] revisar textos com a área competente (conferência técnica da autora e confirmação material pela CLABI, Sprint 11);
+- [ ] revisar textos com a área competente (envio para revisão pela autora, com conferência técnica das fontes; validação material pelo Revisor com autoridade da CLABI, dentro do sistema, Sprint 11);
 - [ ] publicar protótipo na Vercel como build estático, só com conteúdo validado, sem administração e com aviso de protótipo acadêmico (Sprint 12);
 - [ ] organizar README, evidências e apresentação final.
 
