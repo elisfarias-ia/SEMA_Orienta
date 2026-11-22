@@ -7,6 +7,7 @@
 //       só quando a versão correspondente está revogada (B1R; Sprint 7, Passo 7D);
 //   B2  mudança para publicação ou validação no registry.json e nos versao.json sem autorização registrada; a revogação não exige
 //       autorização, mas precisa ser coerente, e uma versão revogada nunca volta a publicado (B2R; Sprint 7, Passo 7D);
+//       versão substituída não volta a ser usada e nenhum registro aponta para ela (B2S; substituição na Sprint 7);
 //   B3  arquivo que nunca pode ser versionado (data/, dist/, node_modules/, test-results/, .env, .webm, configurações locais);
 //   B4  possível segredo ou dado pessoal nas linhas adicionadas;
 //   B5  build com conteúdo administrativo ou de teste (a execução do build fica em pre-commit.js).
@@ -32,6 +33,7 @@ export const MENSAGENS = Object.freeze({
   // Revogação (Sprint 7, Passo 7D): não exige autorização, mas precisa ser coerente e é definitiva.
   B1R: 'Commit bloqueado (B1): conteúdo público só pode ser removido quando a versão correspondente está revogada.',
   B2R: 'Commit bloqueado (B2): revogação incoerente. Uma versão revogada precisa de revogadoEm (não anterior a publicadoEm), o registro não pode apontar para ela e ela não volta a ser publicada (crie uma nova versão).',
+  B2S: 'Commit bloqueado (B2): substituição incoerente. Uma versão substituída não volta a ser usada, só se substitui versão publicada (com substituidoEm válido) e o registro não pode apontar para ela.',
   B3: 'Commit bloqueado (B3): este arquivo não pode ser versionado.',
   B4: 'Commit bloqueado (B4): possível segredo ou dado pessoal. O valor não é mostrado; revise a linha indicada.',
   B5: 'Commit bloqueado (B5): o build conteria conteúdo administrativo ou de teste, ou não pôde ser gerado. Rode "npm run build" e "node scripts/check-dist.js" para ver o detalhe.',
@@ -140,6 +142,8 @@ export function verificarManifesto(caminho, textoAntes, textoDepois, publicacoes
   // Revogação (Sprint 7, Passo 7D): definitiva e coerente; não exige autorização, porque reduz a exposição.
   const revogacao = verificarRevogacaoDoManifesto(a, d);
   if (revogacao) return { regra: 'B2R', arquivo: normalizar(caminho), detalhe: revogacao };
+  const substituicao = verificarSubstituicaoDoManifesto(a, d);
+  if (substituicao) return { regra: 'B2S', arquivo: normalizar(caminho), detalhe: substituicao };
   const mudou = (ESTADOS_PROTEGIDOS.has(d.estado) && d.estado !== a.estado)
     || (d.publicadoEm !== null && d.publicadoEm !== undefined && d.publicadoEm !== a.publicadoEm);
   if (!mudou) return null;
@@ -148,6 +152,7 @@ export function verificarManifesto(caminho, textoAntes, textoDepois, publicacoes
 }
 
 const dataValida = (v) => typeof v === 'string' && DATA.test(v);
+const PADRAO_ID_VERSAO = /^[a-z][a-z0-9-]*$/;
 
 /**
  * Coerência da revogação num manifesto (antes -> depois). Devolve o motivo (texto curto, sem valores) ou null.
@@ -168,6 +173,35 @@ export function verificarRevogacaoDoManifesto(antes, depois) {
   return null;
 }
 
+/**
+ * Coerência da substituição num manifesto (antes -> depois), Sprint 7. Devolve o motivo (texto curto, sem valores) ou null.
+ * - versão substituída não volta a ser usada, nem com autorização;
+ * - só se substitui versão publicada (publicado -> substituido passa SEM autorização: é consequência de publicar outra versão,
+ *   que é o que se autoriza e se confere em B2);
+ * - a substituída tem substituidoEm e publicadoEm válidos, com substituidoEm não anterior a publicadoEm;
+ * - substituidaPor, quando existe, tem formato de id e não é o próprio id. A EXISTÊNCIA da outra versão NÃO é conferida
+ *   nem aqui nem pelo validador (pendente no BACKLOG, Issue #31, item 2);
+ * - substituidoEm e substituidaPor não aparecem em outro estado.
+ */
+export function verificarSubstituicaoDoManifesto(antes, depois) {
+  const a = antes || {};
+  const d = depois || {};
+  if (a.estado === 'substituido' && d.estado !== 'substituido') return 'versão substituída não volta a ser usada';
+  if (d.estado !== 'substituido') {
+    if ('substituidoEm' in d) return 'substituidoEm fora de versão substituída';
+    if ('substituidaPor' in d) return 'substituidaPor fora de versão substituída';
+    return null;
+  }
+  if (a.estado !== 'publicado' && a.estado !== 'substituido') return 'só se substitui versão publicada';
+  if (!dataValida(d.substituidoEm)) return 'versão substituída sem substituidoEm válido';
+  if (!dataValida(d.publicadoEm)) return 'versão substituída sem publicadoEm válido';
+  if (d.substituidoEm < d.publicadoEm) return 'substituidoEm anterior a publicadoEm';
+  if ('substituidaPor' in d && (typeof d.substituidaPor !== 'string' || !PADRAO_ID_VERSAO.test(d.substituidaPor) || d.substituidaPor === d.id)) {
+    return 'substituidaPor deve ser o id de outra versão';
+  }
+  return null;
+}
+
 /** Id da versão (`<serviço>-v<n>`) -> caminho do manifesto, ou null. */
 export function caminhoDoManifesto(servicoId, versaoId) {
   const m = typeof versaoId === 'string' ? /-v([1-9][0-9]*)$/.exec(versaoId) : null;
@@ -175,7 +209,9 @@ export function caminhoDoManifesto(servicoId, versaoId) {
 }
 
 /**
- * B2R no registro: nenhum serviço pode apontar (versaoPublicadaId ou publicado: true) para uma versão em estado revogado.
+ * B2R e B2S no registro. B2R: nenhum serviço pode apontar (versaoPublicadaId ou publicado: true) para uma versão em estado revogado.
+ * B2S: nenhum serviço pode apontar para uma versão em estado substituido, nem como publicada nem como versão atual (versaoAtualId),
+ * com versaoPublicadaId nulo ou outro id: a substituída não volta a ser usada.
  * `lerManifesto(caminho)` devolve o texto do manifesto (como fica depois da mudança) ou null.
  */
 export function verificarRegistroContraRevogadas(textoRegistro, lerManifesto) {
@@ -184,13 +220,20 @@ export function verificarRegistroContraRevogadas(textoRegistro, lerManifesto) {
   if (registro.dados === null || !Array.isArray(registro.dados.servicos)) return [];
   const achados = [];
   for (const s of registro.dados.servicos) {
-    if (!s || typeof s !== 'object' || typeof s.versaoPublicadaId !== 'string') continue;
-    const caminho = caminhoDoManifesto(s.id, s.versaoPublicadaId);
-    if (caminho === null) continue;
-    const manifesto = lerJson(lerManifesto(caminho));
-    if (!manifesto.ok) return [{ regra: 'B0', arquivo: caminho }];
-    if (manifesto.dados && manifesto.dados.estado === 'revogado') {
-      achados.push({ regra: 'B2R', arquivo: 'services/registry.json', detalhe: `serviço ${s.id} aponta para versão revogada` });
+    if (!s || typeof s !== 'object') continue;
+    const ids = [s.versaoPublicadaId, s.versaoAtualId].filter((v, i, todos) => typeof v === 'string' && todos.indexOf(v) === i);
+    for (const versaoId of ids) {
+      const caminho = caminhoDoManifesto(s.id, versaoId);
+      if (caminho === null) continue;
+      const manifesto = lerJson(lerManifesto(caminho));
+      if (!manifesto.ok) return [{ regra: 'B0', arquivo: caminho }];
+      if (!manifesto.dados) continue;
+      if (versaoId === s.versaoPublicadaId && manifesto.dados.estado === 'revogado') {
+        achados.push({ regra: 'B2R', arquivo: 'services/registry.json', detalhe: `serviço ${s.id} aponta para versão revogada` });
+      }
+      if (manifesto.dados.estado === 'substituido') {
+        achados.push({ regra: 'B2S', arquivo: 'services/registry.json', detalhe: `serviço ${s.id} aponta para versão substituída` });
+      }
     }
   }
   return achados;

@@ -15,7 +15,7 @@
       "description": "null na primeira versão; nas demais, o id da versão anterior, que é preservada."
     },
     "estado": {
-      "enum": ["rascunho", "em_validacao", "ajustes_solicitados", "validado_materialmente", "autorizado_publicacao", "publicado", "revogado"]
+      "enum": ["rascunho", "em_validacao", "ajustes_solicitados", "validado_materialmente", "autorizado_publicacao", "publicado", "revogado", "substituido"]
     },
     "arquivos": {
       "type": "object",
@@ -37,18 +37,28 @@
     "publicadoEm": {
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-      "description": "Opcional: só existe quando o estado é publicado ou revogado (data da publicação); obrigatório nesses casos."
+      "description": "Opcional: só existe quando o estado é publicado, revogado ou substituido (data da publicação); obrigatório nesses casos."
     },
     "revogadoEm": {
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "Sprint 7: só existe quando o estado é revogado (data da revogação), e é obrigatório nesse caso; não pode ser anterior a publicadoEm. Em qualquer outro estado é erro: uma versão revogada nunca volta a ser usada."
     },
+    "substituidoEm": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Sprint 7 (substituição): só existe quando o estado é substituido (data em que outra versão foi publicada no lugar desta), e é obrigatório nesse caso; não pode ser anterior a publicadoEm. Em qualquer outro estado é erro."
+    },
+    "substituidaPor": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Opcional, só em versão substituída: id da outra versão que a substituiu (nunca o próprio id)."
+    },
     "responsaveis": {
       "type": "object",
       "minProperties": 1,
       "additionalProperties": false,
-      "description": "Sprint 7 (Passo 7C), opcional: perfil e setor de quem validou, autorizou, publicou ou revogou, exatamente iguais aos de um usuário autorizado. Nunca usuarioId, nome ou e-mail (o manifesto vai para o Git). Cada etapa só existe a partir do estado em que acontece. Sprint 8 (Passo 8D): 'envio' (quem enviou para revisão; só o perfil cadastrante, a única etapa desse perfil; a partir de em_validacao) e 'ajustes' (quem pediu ajustes; só o perfil revisor; só em ajustes_solicitados). As demais etapas aceitam só revisor (demonstracao só em manifestos antigos), nunca cadastrante, como em services/admin/atores.js.",
+      "description": "Sprint 7 (Passo 7C), opcional: perfil e setor de quem validou, autorizou, publicou ou revogou, exatamente iguais aos de um usuário autorizado. Nunca usuarioId, nome ou e-mail (o manifesto vai para o Git). Cada etapa só existe a partir do estado em que acontece. Sprint 8 (Passo 8D): 'envio' (quem enviou para revisão; só o perfil cadastrante, a única etapa desse perfil; a partir de em_validacao) e 'ajustes' (quem pediu ajustes; só o perfil revisor; só em ajustes_solicitados). As demais etapas aceitam só revisor (demonstracao só em manifestos antigos), nunca cadastrante, como em services/admin/atores.js. Em estado substituido, mantém os responsáveis da própria versão (não há etapa nova).",
       "properties": {
         "envio": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["cadastrante"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
         "ajustes": { "type": "object", "required": ["perfil", "setor"], "additionalProperties": false, "properties": { "perfil": { "enum": ["revisor"] }, "setor": { "type": "string", "minLength": 1, "maxLength": 80 } } },
