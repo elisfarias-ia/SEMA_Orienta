@@ -77,6 +77,36 @@ test('RV4. remoção de arquivo público: só com a versão correspondente revog
   assert.equal(verificarRemocaoPublica('docs/a.md', []), null);
 });
 
+// Substituição (Sprint 7): a versão publicada anterior vira "substituido" quando outra é publicada (regra B2S, junto da B2R).
+test('RV10. B2S no registro: nenhum serviço pode apontar para versão substituída, como acontece com a revogada (B2R)', () => {
+  const substituido = { ...publicado, estado: 'substituido', substituidoEm: '2026-11-21' };
+  const ler = (c) => (c === MANIFESTO ? J(substituido) : null);
+  assert.deepEqual(verificarRegistroContraRevogadas(registro({}), ler), [{ regra: 'B2S', arquivo: 'services/registry.json', detalhe: 'serviço lac aponta para versão substituída' }]);
+  // a versão atual substituída também é recusada, mesmo sem versaoPublicadaId
+  assert.deepEqual(verificarRegistroContraRevogadas(registroSemPublicacao, ler), [{ regra: 'B2S', arquivo: 'services/registry.json', detalhe: 'serviço lac aponta para versão substituída' }]);
+  assert.match(MENSAGENS.B2S, /^Commit bloqueado \(B2\): substituição incoerente/);
+});
+
+test('RV11. B2S no manifesto: publicado -> substituido passa SEM autorização, com substituidoEm válido; substituido -> publicado é barrado mesmo COM autorização', () => {
+  const substituido = { ...publicado, estado: 'substituido', substituidoEm: '2026-11-21' };
+  assert.equal(verificarManifesto(MANIFESTO, J(publicado), J(substituido), []), null);
+  assert.deepEqual(verificarManifesto(MANIFESTO, J(substituido), J(publicado), [AUTORIZACAO]), { regra: 'B2S', arquivo: MANIFESTO, detalhe: 'versão substituída não volta a ser usada' });
+  assert.deepEqual(verificarManifesto(MANIFESTO, J(publicado), J({ ...substituido, substituidoEm: '2026-11-19' }), []), { regra: 'B2S', arquivo: MANIFESTO, detalhe: 'substituidoEm anterior a publicadoEm' });
+  assert.deepEqual(verificarManifesto(MANIFESTO, J(publicado), J({ ...substituido, substituidoEm: undefined }), []), { regra: 'B2S', arquivo: MANIFESTO, detalhe: 'versão substituída sem substituidoEm válido' });
+  assert.deepEqual(verificarManifesto(MANIFESTO, J({ ...publicado, estado: 'validado_materialmente' }), J(substituido), []), { regra: 'B2S', arquivo: MANIFESTO, detalhe: 'só se substitui versão publicada' });
+  assert.deepEqual(verificarManifesto(MANIFESTO, J(publicado), J({ ...substituido, substituidaPor: 'lac-v1' }), []), { regra: 'B2S', arquivo: MANIFESTO, detalhe: 'substituidaPor deve ser o id de outra versão' });
+  assert.equal(verificarManifesto(MANIFESTO, J(publicado), J({ ...substituido, substituidaPor: 'lac-v2' }), []), null);
+});
+
+test('RV12. B2S: a publicação nova passa, a substituída não volta e a remoção do público da substituída segue barrada (B1R)', () => {
+  assert.match(MENSAGENS.B2S, /^Commit bloqueado \(B2\): substituição incoerente/);
+  const substituido = { ...publicado, estado: 'substituido', substituidoEm: '2026-11-21' };
+  assert.deepEqual(verificarRemocaoPublica(PUBLICO, [J(substituido)]), { regra: 'B1R', arquivo: PUBLICO });
+  const novaPublicada = { ...publicado, id: 'lac-v2', hashConteudo: 'e'.repeat(64), publicadoEm: '2026-11-21' };
+  const ler = (c) => (c === 'services/lac/versoes/v2/versao.json' ? J(novaPublicada) : c === MANIFESTO ? J(substituido) : null);
+  assert.deepEqual(verificarRegistroContraRevogadas(registro({ versaoAtualId: 'lac-v2', versaoPublicadaId: 'lac-v2' }), ler), []);
+});
+
 /** Conjunto de alterações falso, para analisarAlteracoes. */
 function alteracoes({ arquivos, depois = {}, antes = {}, listar }) {
   return {

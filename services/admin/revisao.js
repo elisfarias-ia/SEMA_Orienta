@@ -31,6 +31,7 @@ export function rotuloDaSituacao(estado) {
   if (estado === 'validado_materialmente' || estado === 'autorizado_publicacao') return 'Pronto para publicar';
   if (estado === 'publicado') return 'Publicado';
   if (estado === 'revogado') return 'Publicação revogada';
+  if (estado === 'substituido') return 'Substituída por versão posterior';
   if (estado === 'ajustes_solicitados') return 'Ajustes solicitados';
   return 'Em análise';
 }

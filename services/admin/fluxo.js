@@ -1,6 +1,6 @@
 // Fluxo de estados da VERSÃO de um serviço (modelo do Marco 7). Funções puras: não leem arquivos nem variáveis de ambiente.
 //
-// Estes seis estados pertencem à versão do serviço. Não substituem os status atuais de serviço, fontes,
+// Estes oito estados pertencem à versão do serviço. Não substituem os status atuais de serviço, fontes,
 // documentos e perguntas (rascunho / em_validacao / validado), que continuam como estão.
 // Neste passo o fluxo ainda não é aplicado a nenhum conteúdo: não há validação material nem publicação autorizada.
 
@@ -12,19 +12,22 @@ export const ESTADOS_VERSAO = Object.freeze([
   'autorizado_publicacao',
   'publicado',
   'revogado',
+  'substituido',
 ]);
 
 // Transições permitidas. `ajustes_solicitados` e `revogado` não têm saída: depois de ajustes pede-se uma NOVA versão
 // (que nasce em rascunho). Uma versão publicada só sai de uso substituída por outra versão ou revogada (Sprint 7, Passo 7A);
 // uma versão revogada NUNCA volta a publicado: só uma nova versão, com nova autorização, pode ser publicada.
+// `substituido` é terminal: a versão publicada vira substituída quando outra versão é publicada (nenhuma ação do usuário leva a ele).
 export const TRANSICOES = Object.freeze({
   rascunho: Object.freeze(['em_validacao']),
   em_validacao: Object.freeze(['ajustes_solicitados', 'validado_materialmente']),
   ajustes_solicitados: Object.freeze([]),
   validado_materialmente: Object.freeze(['autorizado_publicacao']),
   autorizado_publicacao: Object.freeze(['publicado']),
-  publicado: Object.freeze(['revogado']),
+  publicado: Object.freeze(['revogado', 'substituido']),
   revogado: Object.freeze([]),
+  substituido: Object.freeze([]),
 });
 
 export const estadoVersaoValido = (estado) => ESTADOS_VERSAO.includes(estado);

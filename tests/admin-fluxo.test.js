@@ -17,8 +17,8 @@ const lerTexto = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
 
 // ---------- Fluxo ----------
 
-test('F1. há exatamente os sete estados, na ordem do fluxo (revogado entrou na Sprint 7)', () => {
-  assert.deepEqual([...ESTADOS_VERSAO], ['rascunho', 'em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']);
+test('F1. há exatamente os oito estados, na ordem do fluxo (revogado entrou na Sprint 7; substituido por último)', () => {
+  assert.deepEqual([...ESTADOS_VERSAO], ['rascunho', 'em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado', 'substituido']);
   assert.ok(Object.isFrozen(ESTADOS_VERSAO));
   assert.ok(Object.isFrozen(TRANSICOES));
   assert.deepEqual(Object.keys(TRANSICOES), [...ESTADOS_VERSAO]);
@@ -32,6 +32,7 @@ test('F2. transições permitidas são somente as do fluxo', () => {
     ['validado_materialmente', 'autorizado_publicacao'],
     ['autorizado_publicacao', 'publicado'],
     ['publicado', 'revogado'],
+    ['publicado', 'substituido'],
   ];
   for (const [de, para] of permitidas) {
     assert.deepEqual(verificarTransicao(de, para), { permitida: true, motivo: null }, `${de} -> ${para}`);
@@ -55,14 +56,17 @@ test('F3. não se pula etapa: sem validação material não há autorização, e
   assert.equal(transicaoPermitida('ajustes_solicitados', 'validado_materialmente'), false);
 });
 
-test('F4. não se volta atrás nem se repete o estado; ajustes e revogado não têm saída; publicado só sai para revogado', () => {
+test('F4. não se volta atrás nem se repete o estado; ajustes, revogado e substituido não têm saída; publicado só sai para revogado ou substituido', () => {
   assert.equal(transicaoPermitida('em_validacao', 'rascunho'), false);
   assert.equal(transicaoPermitida('publicado', 'autorizado_publicacao'), false);
   assert.equal(transicaoPermitida('autorizado_publicacao', 'validado_materialmente'), false);
   assert.equal(verificarTransicao('rascunho', 'rascunho').motivo, 'mesmo_estado');
   assert.deepEqual(proximosEstados('ajustes_solicitados'), []);
-  assert.deepEqual(proximosEstados('publicado'), ['revogado']);
+  assert.deepEqual(proximosEstados('publicado'), ['revogado', 'substituido']);
   assert.deepEqual(proximosEstados('revogado'), []);
+  assert.deepEqual(proximosEstados('substituido'), []);
+  assert.equal(transicaoPermitida('substituido', 'publicado'), false);
+  assert.equal(transicaoPermitida('substituido', 'revogado'), false);
   assert.equal(transicaoPermitida('revogado', 'publicado'), false);
   assert.equal(transicaoPermitida('revogado', 'autorizado_publicacao'), false);
   assert.equal(verificarTransicao('ajustes_solicitados', 'rascunho').motivo, 'transicao_nao_permitida');

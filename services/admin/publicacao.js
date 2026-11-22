@@ -136,7 +136,7 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
           podeAutorizar: manifesto.estado === 'validado_materialmente' && integro,
           podePublicar: manifesto.estado === 'autorizado_publicacao' && integro,
           publicado: manifesto.estado === 'publicado',
-          dataPublicacao: (manifesto.estado === 'publicado' || manifesto.estado === 'revogado') && typeof manifesto.publicadoEm === 'string' ? manifesto.publicadoEm : null,
+          dataPublicacao: (manifesto.estado === 'publicado' || manifesto.estado === 'revogado' || manifesto.estado === 'substituido') && typeof manifesto.publicadoEm === 'string' ? manifesto.publicadoEm : null,
           // Revogação (Sprint 7): só a versão atual que é a publicada pode ser revogada pela tela.
           podeRevogar: manifesto.estado === 'publicado' && c.entrada.versaoPublicadaId === manifesto.id && manifesto.hashConteudo === c.hash,
           revogado: manifesto.estado === 'revogado',
@@ -210,7 +210,8 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
 
   /**
    * autorizado_publicacao -> publicado, numa única transação: arquivo público (novo), manifesto e registro. Se qualquer etapa falhar
-   * (inclusive a conferência final da base e o histórico), tudo é desfeito.
+   * (inclusive a conferência final da base e o histórico), tudo é desfeito. A versão publicada anterior, se houver, passa a `substituido`
+   * (com substituidoEm e substituidaPor) na mesma transação, antes do registro, que continua sendo a última gravação.
    */
   function publicar(servicoId, { revisao, ator } = {}) {
     try {
@@ -243,9 +244,20 @@ export function criarServicoPublicacao({ raiz, sistema = fs, agora = () => new D
         responsaveis: { ...(publicada.versao.responsaveis ?? {}), publicacao: responsavelPublico(quem.ator) },
       };
       const entradaNova = { ...c.entrada, statusValidacao: 'validado', publicado: true, versaoPublicadaId: manifesto.id };
+      // Substituição: a publicada anterior (se diferente da nova) é conferida e marcada como substituída, dentro desta transação.
+      const anteriorId = c.entrada.versaoPublicadaId;
+      let substituida = null;
+      if (typeof anteriorId === 'string' && anteriorId !== '' && anteriorId !== manifesto.id) {
+        const anterior = lerArquivosDaVersao({ raiz, servicoId, versaoId: anteriorId, sistema });
+        if (!anterior.ok) return anterior;
+        if (anterior.manifesto.estado !== 'publicado') return falha('estado_invalido');
+        const marcada = { ...anterior.manifesto, estado: 'substituido', substituidoEm: dataLocal(agora()), substituidaPor: manifesto.id };
+        substituida = { caminho: `${anterior.pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: marcada, novo: false, validar: (d) => validarVersao(d) };
+      }
       const passos = [
         { caminho: caminhoPublico, tipo: 'json', conteudo: gerado.conteudo, novo: true, validar: (d) => validarConteudoPublico(d) },
         { caminho: `${pasta}/${NOME_DO_MANIFESTO}`, tipo: 'json', conteudo: manifestoPublicado, novo: false, validar: (d) => validarVersao(d) },
+        ...(substituida ? [substituida] : []),
         // O registro vai por último: é ele que passa a apontar para a versão publicada.
         { caminho: 'services/registry.json', tipo: 'json', conteudo: { ...c.registro, servicos: c.registro.servicos.map((s) => (s === c.entrada ? entradaNova : s)) }, novo: false, validar: () => [] },
       ];

@@ -57,11 +57,11 @@ const idValidoChave = (c) => /^[a-zA-Z][a-zA-Z0-9]*$/.test(c);
 // Sprint 8, Passo 8D: `envio` (só Cadastrante, a única etapa desse perfil) existe a partir de em_validacao; `ajustes` (só Revisor),
 // apenas em ajustes_solicitados (estado sem saída: a correção é feita numa nova versão).
 export const ETAPAS_COM_RESPONSAVEL = Object.freeze({
-  envio: Object.freeze(['em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
+  envio: Object.freeze(['em_validacao', 'ajustes_solicitados', 'validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado', 'substituido']),
   ajustes: Object.freeze(['ajustes_solicitados']),
-  validacao: Object.freeze(['validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado']),
-  autorizacao: Object.freeze(['autorizado_publicacao', 'publicado', 'revogado']),
-  publicacao: Object.freeze(['publicado', 'revogado']),
+  validacao: Object.freeze(['validado_materialmente', 'autorizado_publicacao', 'publicado', 'revogado', 'substituido']),
+  autorizacao: Object.freeze(['autorizado_publicacao', 'publicado', 'revogado', 'substituido']),
+  publicacao: Object.freeze(['publicado', 'revogado', 'substituido']),
   revogacao: Object.freeze(['revogado']),
 });
 
@@ -87,9 +87,9 @@ export function validarVersao(v) {
   if (!ehObjeto(v)) return ['versão deve ser um objeto'];
   const erros = [];
   const esperados = ['arquivos', 'baseadaEm', 'criadoEm', 'enviadaEm', 'estado', 'hashConteudo', 'id', 'numero', 'servicoId'];
-  // `publicadoEm` e `revogadoEm` são opcionais: só existem na versão publicada ou revogada (datas fora do hash, que não cobre o manifesto).
+  // `publicadoEm`, `revogadoEm`, `substituidoEm` e `substituidaPor` só existem nos estados em que se aplicam (datas fora do hash, que não cobre o manifesto).
   // `responsaveis` (Sprint 7, Passo 7C) é opcional: perfil e setor de quem validou, autorizou, publicou ou revogou.
-  const opcionais = ['publicadoEm', 'revogadoEm', 'responsaveis'];
+  const opcionais = ['publicadoEm', 'revogadoEm', 'substituidoEm', 'substituidaPor', 'responsaveis'];
   for (const k of Object.keys(v)) if (!esperados.includes(k) && !opcionais.includes(k)) erros.push(`campo não previsto: ${k}`);
   for (const k of esperados) if (!(k in v)) erros.push(`campo obrigatório ausente: ${k}`);
   if (erros.length) return erros;
@@ -113,7 +113,7 @@ export function validarVersao(v) {
     else if (dataIsoValida(v.criadoEm) && v.enviadaEm < v.criadoEm) erros.push('enviadaEm não pode ser anterior a criadoEm');
   }
   if ('publicadoEm' in v) {
-    if (v.estado !== 'publicado' && v.estado !== 'revogado') erros.push('publicadoEm só é permitido em versão publicada ou revogada');
+    if (v.estado !== 'publicado' && v.estado !== 'revogado' && v.estado !== 'substituido') erros.push('publicadoEm só é permitido em versão publicada, revogada ou substituída');
     else if (!dataIsoValida(v.publicadoEm)) erros.push('publicadoEm deve ser uma data válida AAAA-MM-DD');
     else if (dataIsoValida(v.enviadaEm) && v.publicadoEm < v.enviadaEm) erros.push('publicadoEm não pode ser anterior a enviadaEm');
   }
@@ -126,6 +126,18 @@ export function validarVersao(v) {
     else if (dataIsoValida(v.publicadoEm) && v.revogadoEm < v.publicadoEm) erros.push('revogadoEm não pode ser anterior a publicadoEm');
   } else if ('revogadoEm' in v) {
     erros.push('revogadoEm só é permitido em versão revogada: uma versão revogada não volta a ser usada');
+  }
+  // Substituição: a versão publicada que deixou de ser a publicada porque outra foi publicada depois. É terminal e guarda a data da
+  // substituição (não anterior a publicadoEm) e, se houver, o id da versão que a substituiu (outra versão, do mesmo formato de id).
+  if (v.estado === 'substituido') {
+    if (!('publicadoEm' in v)) erros.push('versão substituída exige publicadoEm (só se substitui o que foi publicado)');
+    if (!('substituidoEm' in v)) erros.push('versão substituída exige substituidoEm');
+    else if (!dataIsoValida(v.substituidoEm)) erros.push('substituidoEm deve ser uma data válida AAAA-MM-DD');
+    else if (dataIsoValida(v.publicadoEm) && v.substituidoEm < v.publicadoEm) erros.push('substituidoEm não pode ser anterior a publicadoEm');
+    if ('substituidaPor' in v && (!idValido(v.substituidaPor) || v.substituidaPor === v.id)) erros.push('substituidaPor deve ser o id de outra versão');
+  } else {
+    if ('substituidoEm' in v) erros.push('substituidoEm só é permitido em versão substituída');
+    if ('substituidaPor' in v) erros.push('substituidaPor só é permitido em versão substituída');
   }
   if ('responsaveis' in v) erros.push(...validarResponsaveis(v.responsaveis, v.estado));
   return erros;

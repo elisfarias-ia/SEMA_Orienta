@@ -1045,6 +1045,7 @@ function validarVersaoPublicadaAnterior(raiz, id, publicada, manifestoAtual, rot
   erros.push(...validarVersao(m).map((e) => `${rotulo} versão publicada: ${e}`), ...errosDePublicadoEm(m, `${rotulo} versão publicada`));
   if (m.id !== publicada || m.servicoId !== id) erros.push(`${rotulo}: manifesto da versão publicada é incoerente`);
   if (m.estado === 'revogado') erros.push(`${rotulo}: versaoPublicadaId não pode apontar para uma versão revogada`);
+  else if (m.estado === 'substituido') erros.push(`${rotulo}: versaoPublicadaId não pode apontar para uma versão substituída`);
   else if (m.estado !== 'publicado') erros.push(naoPublicada);
   if (Number.isInteger(m.numero) && Number.isInteger(manifestoAtual.numero) && m.numero >= manifestoAtual.numero) {
     erros.push(`${rotulo}: a versão publicada deve ser anterior à versão atual`);
@@ -1094,10 +1095,14 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
     // Hash: versão congelada precisa ter o hash coerente com o conteúdo canônico (incluindo entradas.json).
     if (typeof manifesto.hashConteudo === 'string') conferirHash(raiz, id, manifesto.id, rotulo, erros);
 
+    // Versão atual substituída: o registro nunca pode apontar para ela, com versaoPublicadaId nulo ou outro id (sem exceção).
+    if (manifesto.estado === 'substituido') erros.push(`${rotulo}: versaoAtualId não pode apontar para uma versão substituída`);
     // Publicação: somente versão em estado publicado pode ser a publicada. A publicada pode ser uma versão ANTERIOR enquanto
     // a atual (mais nova) está em elaboração; uma versão em estado publicado, porém, só pode ser a atual se for a publicada.
     if (publicada !== null && publicada === entrada.versaoAtualId && manifesto.estado === 'revogado') {
       erros.push(`${rotulo}: versaoPublicadaId não pode apontar para uma versão revogada`);
+    } else if (publicada !== null && publicada === entrada.versaoAtualId && manifesto.estado === 'substituido') {
+      erros.push(`${rotulo}: versaoPublicadaId não pode apontar para uma versão substituída`);
     } else if (publicada !== null && publicada === entrada.versaoAtualId && manifesto.estado !== 'publicado') {
       erros.push(`${rotulo}: versaoPublicadaId só pode apontar para uma versão em estado publicado`);
     }
@@ -1143,6 +1148,10 @@ function validarVersaoDoRegistro(raiz, entrada, id, rotulo, pasta, erros) {
         erros.push(`${rotulo}: manifesto da versão anterior ${nome} é incoerente`);
       }
       if (typeof anterior.hashConteudo === 'string') conferirHash(raiz, id, anterior.id, rotulo, erros);
+      // Só pode haver uma versão publicada por serviço, e ela é a que o registro aponta.
+      if (anterior.estado === 'publicado' && anterior.id !== publicada) {
+        erros.push(`${rotulo}: versão anterior ${nome} está publicada, mas não é a publicada do registro (só uma versão publicada por serviço)`);
+      }
     }
   }
 }
@@ -1161,7 +1170,7 @@ function validarPastaPublica(raiz, id, rotulo, erros) {
   for (const nome of pastaVersoes && fs.existsSync(pastaVersoes) ? fs.readdirSync(pastaVersoes) : []) {
     try {
       const m = JSON.parse(fs.readFileSync(path.join(pastaVersoes, nome, NOME_DO_MANIFESTO), 'utf8'));
-      if (m && (m.estado === 'publicado' || m.estado === 'revogado') && typeof m.hashConteudo === 'string') hashesPublicados.add(m.hashConteudo.slice(0, 16));
+      if (m && (m.estado === 'publicado' || m.estado === 'revogado' || m.estado === 'substituido') && typeof m.hashConteudo === 'string') hashesPublicados.add(m.hashConteudo.slice(0, 16));
     } catch { /* manifesto ilegível já é erro em outra regra */ }
   }
   for (const nome of fs.readdirSync(pasta)) {
